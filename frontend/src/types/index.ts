@@ -17,6 +17,43 @@ export interface Post {
   updated_at: string;
 }
 
+// 权限枚举
+export enum Permission {
+  Dashboard = "dashboard",
+  PostsRead = "posts:read",
+  PostsWrite = "posts:write",
+  PostsDelete = "posts:delete",
+  UsersRead = "users:read",
+  UsersWrite = "users:write",
+  UsersDelete = "users:delete",
+  Settings = "settings",
+  SystemAdmin = "system:admin",
+}
+
+// 用户角色枚举
+export enum UserRole {
+  Admin = "admin",
+  Moderator = "moderator",
+  User = "user",
+}
+
+// 菜单项接口
+export interface MenuItem {
+  id: string;
+  title: string;
+  path: string;
+  icon: string;
+  permissions: Permission[];
+  children?: MenuItem[];
+}
+
+// 用户权限接口
+export interface UserPermissions {
+  user_id: string;
+  role: UserRole;
+  permissions: Permission[];
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

@@ -1,7 +1,10 @@
 <template>
   <div class="posts-container">
-    <!-- 头部 -->
-    <header class="posts-header" :style="{ height: layoutConfig.header.height }">
+    <!-- 导航栏 -->
+    <AppNavbar />
+    
+    <!-- 页面头部 -->
+    <header class="page-header">
       <div class="header-content">
         <div class="header-left">
           <h1 class="header-title">文章管理</h1>
@@ -216,20 +219,25 @@ import {
   Plus, Search, Grid, List, View, Edit, Delete, Calendar
 } from '@element-plus/icons-vue'
 import { useLayoutConfig } from '@/utils/responsive'
+import { usePostsStore } from '@/stores/posts'
 import type { Post } from '@/types'
+import AppNavbar from '@/components/AppNavbar.vue'
 
 const router = useRouter()
 const { layoutConfig } = useLayoutConfig()
+const postsStore = usePostsStore()
 
 // 响应式数据
-const loading = ref(false)
-const posts = ref<Post[]>([])
 const searchQuery = ref('')
 const statusFilter = ref('')
 const sortBy = ref('created_desc')
 const viewMode = ref('table')
 const currentPage = ref(1)
 const pageSize = ref(20)
+
+// 从 store 获取数据
+const loading = computed(() => postsStore.loading)
+const posts = computed(() => postsStore.posts)
 
 // 获取状态类型
 const getStatusType = (status: string) => {
@@ -352,43 +360,27 @@ const deletePost = async (id: string) => {
       type: 'warning'
     })
     
-    // TODO: 调用删除API
-    ElMessage.success('删除成功')
-    loadPosts()
-  } catch {
-    // 用户取消删除
+    const result = await postsStore.deletePost(id)
+    if (result.success) {
+      ElMessage.success('删除成功')
+    } else {
+      ElMessage.error(result.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除文章失败:', error)
+      ElMessage.error('删除失败')
+    }
   }
 }
 
 // 加载文章列表
 const loadPosts = async () => {
-  loading.value = true
   try {
-    // TODO: 调用API获取文章列表
-    posts.value = [
-      {
-        id: '1',
-        title: '示例文章1',
-        content: '这是示例文章的内容，包含了很多有用的信息...',
-        author_id: '1',
-        status: 'published',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      },
-      {
-        id: '2',
-        title: '示例文章2',
-        content: '这是另一篇示例文章的内容，同样包含了很多有用的信息...',
-        author_id: '1',
-        status: 'draft',
-        created_at: '2024-01-02T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z'
-      }
-    ]
+    await postsStore.fetchPosts()
   } catch (error) {
+    console.error('加载文章列表失败:', error)
     ElMessage.error('加载文章列表失败')
-  } finally {
-    loading.value = false
   }
 }
 
@@ -403,14 +395,14 @@ onMounted(() => {
   background-color: #f5f5f5;
 }
 
-/* 头部样式 */
-.posts-header {
+/* 页面头部样式 */
+.page-header {
   background: white;
   border-bottom: 1px solid #e4e7ed;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   position: sticky;
-  top: 0;
-  z-index: 100;
+  top: 64px;
+  z-index: 99;
 }
 
 .header-content {

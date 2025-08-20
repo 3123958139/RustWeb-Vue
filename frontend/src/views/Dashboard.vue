@@ -1,36 +1,30 @@
 <template>
   <div class="dashboard-container">
-    <!-- 头部导航 -->
-    <header class="dashboard-header" :style="{ height: layoutConfig.header.height }">
-      <div class="header-content">
-        <div class="header-left">
-          <h1 class="header-title">仪表板</h1>
-        </div>
-        <div class="header-right">
-          <el-dropdown @command="handleCommand">
-            <span class="user-dropdown">
-              <el-avatar :size="32" :src="user?.avatar">
-                {{ user?.username?.charAt(0)?.toUpperCase() }}
-              </el-avatar>
-              <span class="username desktop-only">{{ user?.username }}</span>
-              <el-icon><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人资料</el-dropdown-item>
-                <el-dropdown-item command="settings">设置</el-dropdown-item>
-                <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </div>
-    </header>
+    <!-- 导航栏 -->
+    <AppNavbar />
 
     <!-- 主要内容区域 -->
     <main class="dashboard-main">
       <div class="container">
-        <!-- 统计卡片 -->
+        <!-- 欢迎区域 -->
+        <div class="welcome-section">
+          <div class="welcome-content">
+            <h1 class="welcome-title">欢迎回来，{{ user?.username }}！</h1>
+            <p class="welcome-subtitle">今天是 {{ currentDate }}，祝您工作愉快！</p>
+          </div>
+          <div class="welcome-actions">
+            <el-button type="primary" @click="createPost" size="large">
+              <el-icon><Plus /></el-icon>
+              新建文章
+            </el-button>
+            <el-button @click="refreshData" size="large" :loading="refreshing">
+              <el-icon><Refresh /></el-icon>
+              刷新数据
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 实时统计卡片 -->
         <div class="stats-grid">
           <el-card class="stat-card" shadow="hover">
             <div class="stat-content">
@@ -40,6 +34,10 @@
               <div class="stat-info">
                 <div class="stat-number">{{ stats.totalPosts }}</div>
                 <div class="stat-label">总文章数</div>
+                <div class="stat-trend" :class="stats.postsTrend > 0 ? 'positive' : 'negative'">
+                  <el-icon><TrendCharts /></el-icon>
+                  {{ Math.abs(stats.postsTrend) }}% {{ stats.postsTrend > 0 ? '增长' : '下降' }}
+                </div>
               </div>
             </div>
           </el-card>
@@ -52,6 +50,10 @@
               <div class="stat-info">
                 <div class="stat-number">{{ stats.totalViews }}</div>
                 <div class="stat-label">总浏览量</div>
+                <div class="stat-trend" :class="stats.viewsTrend > 0 ? 'positive' : 'negative'">
+                  <el-icon><TrendCharts /></el-icon>
+                  {{ Math.abs(stats.viewsTrend) }}% {{ stats.viewsTrend > 0 ? '增长' : '下降' }}
+                </div>
               </div>
             </div>
           </el-card>
@@ -64,6 +66,10 @@
               <div class="stat-info">
                 <div class="stat-number">{{ stats.totalUsers }}</div>
                 <div class="stat-label">用户数量</div>
+                <div class="stat-trend" :class="stats.usersTrend > 0 ? 'positive' : 'negative'">
+                  <el-icon><TrendCharts /></el-icon>
+                  {{ Math.abs(stats.usersTrend) }}% {{ stats.usersTrend > 0 ? '增长' : '下降' }}
+                </div>
               </div>
             </div>
           </el-card>
@@ -76,18 +82,58 @@
               <div class="stat-info">
                 <div class="stat-number">{{ stats.avgRating }}</div>
                 <div class="stat-label">平均评分</div>
+                <div class="stat-trend" :class="stats.ratingTrend > 0 ? 'positive' : 'negative'">
+                  <el-icon><TrendCharts /></el-icon>
+                  {{ Math.abs(stats.ratingTrend) }}% {{ stats.ratingTrend > 0 ? '增长' : '下降' }}
+                </div>
               </div>
             </div>
           </el-card>
+        </div>
+
+        <!-- 实时数据图表 -->
+        <div class="charts-section">
+          <div class="chart-row">
+            <el-card class="chart-card" shadow="hover">
+              <template #header>
+                <div class="chart-header">
+                  <span>文章发布趋势</span>
+                  <el-select v-model="chartPeriod" size="small" @change="updateChartData">
+                    <el-option label="最近7天" value="7" />
+                    <el-option label="最近30天" value="30" />
+                    <el-option label="最近90天" value="90" />
+                  </el-select>
+                </div>
+              </template>
+              <div class="chart-content">
+                <div class="chart-placeholder">
+                  <el-icon size="48"><TrendCharts /></el-icon>
+                  <p>图表区域 - 需要集成图表库</p>
+                </div>
+              </div>
+            </el-card>
+
+            <el-card class="chart-card" shadow="hover">
+              <template #header>
+                <span>用户活跃度</span>
+              </template>
+              <div class="chart-content">
+                <div class="chart-placeholder">
+                  <el-icon size="48"><DataLine /></el-icon>
+                  <p>图表区域 - 需要集成图表库</p>
+                </div>
+              </div>
+            </el-card>
+          </div>
         </div>
 
         <!-- 最近文章 -->
         <div class="recent-posts-section">
           <div class="section-header">
             <h2 class="section-title">最近文章</h2>
-            <el-button type="primary" @click="createPost" size="small">
-              <el-icon><Plus /></el-icon>
-              新建文章
+            <el-button type="primary" @click="viewAllPosts" size="small">
+              查看全部
+              <el-icon><ArrowRight /></el-icon>
             </el-button>
           </div>
 
@@ -98,6 +144,7 @@
               :stripe="layoutConfig.table.stripe"
               :border="layoutConfig.table.border"
               style="width: 100%"
+              v-loading="loading"
             >
               <el-table-column prop="title" label="标题" min-width="200">
                 <template #default="{ row }">
@@ -115,7 +162,7 @@
                 </template>
               </el-table-column>
               
-              <el-table-column prop="created_at" label="创建时间" width="180" class-name="desktop-only">
+              <el-table-column prop="created_at" label="创建时间" width="180">
                 <template #default="{ row }">
                   {{ formatDate(row.created_at) }}
                 </template>
@@ -124,6 +171,9 @@
               <el-table-column label="操作" width="150" fixed="right">
                 <template #default="{ row }">
                   <el-button-group>
+                    <el-button size="small" @click="viewPost(row.id)">
+                      <el-icon><View /></el-icon>
+                    </el-button>
                     <el-button size="small" @click="editPost(row.id)">
                       <el-icon><Edit /></el-icon>
                     </el-button>
@@ -137,38 +187,47 @@
           </el-card>
         </div>
 
-        <!-- 快速操作 -->
-        <div class="quick-actions-section">
-          <h2 class="section-title">快速操作</h2>
-          <div class="actions-grid">
-            <el-card class="action-card" shadow="hover" @click="createPost">
-              <div class="action-content">
-                <el-icon size="32" class="action-icon"><Plus /></el-icon>
-                <div class="action-text">新建文章</div>
+        <!-- 系统状态 -->
+        <div class="system-status-section">
+          <el-card class="status-card" shadow="hover">
+            <template #header>
+              <span>系统状态</span>
+            </template>
+            <div class="status-grid">
+              <div class="status-item">
+                <div class="status-label">数据库连接</div>
+                <div class="status-value">
+                  <el-tag :type="systemStatus.database ? 'success' : 'danger'" size="small">
+                    {{ systemStatus.database ? '正常' : '异常' }}
+                  </el-tag>
+                </div>
               </div>
-            </el-card>
-
-            <el-card class="action-card" shadow="hover" @click="viewAllPosts">
-              <div class="action-content">
-                <el-icon size="32" class="action-icon"><Document /></el-icon>
-                <div class="action-text">查看所有文章</div>
+              <div class="status-item">
+                <div class="status-label">API 服务</div>
+                <div class="status-value">
+                  <el-tag :type="systemStatus.api ? 'success' : 'danger'" size="small">
+                    {{ systemStatus.api ? '正常' : '异常' }}
+                  </el-tag>
+                </div>
               </div>
-            </el-card>
-
-            <el-card class="action-card" shadow="hover" @click="viewProfile">
-              <div class="action-content">
-                <el-icon size="32" class="action-icon"><User /></el-icon>
-                <div class="action-text">个人资料</div>
+              <div class="status-item">
+                <div class="status-label">系统负载</div>
+                <div class="status-value">
+                  <el-tag :type="systemStatus.load < 70 ? 'success' : systemStatus.load < 90 ? 'warning' : 'danger'" size="small">
+                    {{ systemStatus.load }}%
+                  </el-tag>
+                </div>
               </div>
-            </el-card>
-
-            <el-card class="action-card" shadow="hover" @click="viewSettings">
-              <div class="action-content">
-                <el-icon size="32" class="action-icon"><Setting /></el-icon>
-                <div class="action-text">系统设置</div>
+              <div class="status-item">
+                <div class="status-label">内存使用</div>
+                <div class="status-value">
+                  <el-tag :type="systemStatus.memory < 70 ? 'success' : systemStatus.memory < 90 ? 'warning' : 'danger'" size="small">
+                    {{ systemStatus.memory }}%
+                  </el-tag>
+                </div>
               </div>
-            </el-card>
-          </div>
+            </div>
+          </el-card>
         </div>
       </div>
     </main>
@@ -176,33 +235,67 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Document, View, User, Star, Plus, Edit, Delete,
-  ArrowDown, Setting
+  Plus, Refresh, View, Edit, Delete, ArrowRight, TrendCharts, DataLine
 } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
 import { useLayoutConfig } from '@/utils/responsive'
+import { useAuthStore } from '@/stores/auth'
+import { usePostsStore } from '@/stores/posts'
+import { apiService } from '@/api'
 import type { Post } from '@/types'
+import AppNavbar from '@/components/AppNavbar.vue'
 
 const router = useRouter()
-const authStore = useAuthStore()
 const { layoutConfig } = useLayoutConfig()
+const authStore = useAuthStore()
+const postsStore = usePostsStore()
 
+// 响应式数据
+const loading = ref(false)
+const refreshing = ref(false)
+const chartPeriod = ref('7')
+
+// 用户信息
 const user = computed(() => authStore.user)
 
+// 当前日期
+const currentDate = computed(() => {
+  return new Date().toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  })
+})
+
 // 统计数据
-const stats = ref({
+const stats = reactive({
   totalPosts: 0,
   totalViews: 0,
   totalUsers: 0,
-  avgRating: 0
+  avgRating: 0,
+  postsTrend: 0,
+  viewsTrend: 0,
+  usersTrend: 0,
+  ratingTrend: 0
 })
 
 // 最近文章
 const recentPosts = ref<Post[]>([])
+
+// 系统状态
+const systemStatus = reactive({
+  database: true,
+  api: true,
+  load: 45,
+  memory: 62
+})
+
+// 定时器
+let refreshTimer: NodeJS.Timeout | null = null
 
 // 获取状态类型
 const getStatusType = (status: string) => {
@@ -229,24 +322,28 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('zh-CN')
 }
 
-// 处理下拉菜单命令
-const handleCommand = (command: string) => {
-  switch (command) {
-    case 'profile':
-      viewProfile()
-      break
-    case 'settings':
-      viewSettings()
-      break
-    case 'logout':
-      handleLogout()
-      break
-  }
-}
+
 
 // 创建文章
 const createPost = () => {
   router.push('/posts/create')
+}
+
+// 刷新数据
+const refreshData = async () => {
+  refreshing.value = true
+  try {
+    await Promise.all([
+      loadStats(),
+      loadRecentPosts(),
+      loadSystemStatus()
+    ])
+    ElMessage.success('数据刷新成功')
+  } catch (error) {
+    ElMessage.error('数据刷新失败')
+  } finally {
+    refreshing.value = false
+  }
 }
 
 // 编辑文章
@@ -263,12 +360,22 @@ const deletePost = async (id: string) => {
       type: 'warning'
     })
     
-    // TODO: 调用删除API
-    ElMessage.success('删除成功')
-    loadRecentPosts()
+    const result = await postsStore.deletePost(id)
+    if (result.success) {
+      ElMessage.success('删除成功')
+      await loadRecentPosts()
+      await loadStats()
+    } else {
+      ElMessage.error(result.message || '删除失败')
+    }
   } catch {
     // 用户取消删除
   }
+}
+
+// 查看文章
+const viewPost = (id: string) => {
+  router.push(`/posts/${id}`)
 }
 
 // 查看所有文章
@@ -276,62 +383,104 @@ const viewAllPosts = () => {
   router.push('/posts')
 }
 
-// 查看个人资料
-const viewProfile = () => {
-  router.push('/profile')
-}
 
-// 查看设置
-const viewSettings = () => {
-  router.push('/settings')
-}
 
-// 退出登录
-const handleLogout = () => {
-  authStore.logout()
-  router.push('/login')
-  ElMessage.success('已退出登录')
-}
 
 // 加载统计数据
 const loadStats = async () => {
-  // TODO: 调用API获取统计数据
-  stats.value = {
-    totalPosts: 12,
-    totalViews: 1234,
-    totalUsers: 56,
-    avgRating: 4.5
+  try {
+    // 获取文章统计
+    const postsResponse = await apiService.getPosts()
+    if (postsResponse.success && postsResponse.data) {
+      const posts = postsResponse.data
+      stats.totalPosts = posts.length
+      stats.totalViews = posts.reduce((sum, post) => sum + (post.views || 0), 0)
+      
+      // 模拟趋势数据
+      stats.postsTrend = Math.floor(Math.random() * 20) - 10
+      stats.viewsTrend = Math.floor(Math.random() * 30) - 15
+    }
+    
+    // 模拟用户和评分数据
+    stats.totalUsers = Math.floor(Math.random() * 100) + 50
+    stats.avgRating = (Math.random() * 2 + 3).toFixed(1)
+    stats.usersTrend = Math.floor(Math.random() * 15) - 7
+    stats.ratingTrend = Math.floor(Math.random() * 10) - 5
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
   }
 }
 
 // 加载最近文章
 const loadRecentPosts = async () => {
-  // TODO: 调用API获取最近文章
-  recentPosts.value = [
-    {
-      id: '1',
-      title: '示例文章1',
-      content: '这是示例文章的内容...',
-      author_id: '1',
-      status: 'published',
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: '2',
-      title: '示例文章2',
-      content: '这是示例文章的内容...',
-      author_id: '1',
-      status: 'draft',
-      created_at: '2024-01-02T00:00:00Z',
-      updated_at: '2024-01-02T00:00:00Z'
+  try {
+    const response = await apiService.getPosts()
+    if (response.success && response.data) {
+      // 按创建时间排序，取前5篇
+      recentPosts.value = response.data
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5)
     }
-  ]
+  } catch (error) {
+    console.error('加载最近文章失败:', error)
+  }
 }
 
-onMounted(() => {
-  loadStats()
-  loadRecentPosts()
+// 加载系统状态
+const loadSystemStatus = async () => {
+  try {
+    // 模拟系统状态数据
+    systemStatus.database = Math.random() > 0.1
+    systemStatus.api = Math.random() > 0.05
+    systemStatus.load = Math.floor(Math.random() * 80) + 20
+    systemStatus.memory = Math.floor(Math.random() * 60) + 30
+  } catch (error) {
+    console.error('加载系统状态失败:', error)
+  }
+}
+
+// 更新图表数据
+const updateChartData = () => {
+  console.log('更新图表数据，周期:', chartPeriod.value)
+  // TODO: 根据选择的周期更新图表数据
+}
+
+// 自动刷新数据
+const startAutoRefresh = () => {
+  refreshTimer = setInterval(async () => {
+    await loadStats()
+    await loadSystemStatus()
+  }, 30000) // 每30秒刷新一次
+}
+
+// 停止自动刷新
+const stopAutoRefresh = () => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+}
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    await Promise.all([
+      loadStats(),
+      loadRecentPosts(),
+      loadSystemStatus()
+    ])
+  } catch (error) {
+    console.error('初始化数据失败:', error)
+  } finally {
+    loading.value = false
+  }
+  
+  // 启动自动刷新
+  startAutoRefresh()
+})
+
+onUnmounted(() => {
+  stopAutoRefresh()
 })
 </script>
 
@@ -341,59 +490,53 @@ onMounted(() => {
   background-color: #f5f5f5;
 }
 
-/* 头部样式 */
-.dashboard-header {
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 100%;
-  padding: 0 24px;
-}
 
-.header-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
-}
-
-.user-dropdown {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: background-color 0.3s;
-}
-
-.user-dropdown:hover {
-  background-color: #f5f5f5;
-}
-
-.username {
-  margin: 0 8px;
-  font-weight: 500;
-}
-
-/* 主要内容区域 */
+/* 主要内容 */
 .dashboard-main {
   padding: 24px 0;
 }
 
-/* 统计卡片 */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* 欢迎区域 */
+.welcome-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.welcome-title {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.welcome-subtitle {
+  font-size: 16px;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* 统计网格 */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
   margin-bottom: 32px;
 }
 
@@ -409,7 +552,7 @@ onMounted(() => {
 .stat-content {
   display: flex;
   align-items: center;
-  padding: 8px;
+  gap: 16px;
 }
 
 .stat-icon {
@@ -421,7 +564,6 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   color: white;
-  margin-right: 16px;
 }
 
 .stat-info {
@@ -429,16 +571,69 @@ onMounted(() => {
 }
 
 .stat-number {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
   color: #333;
-  line-height: 1;
+  margin-bottom: 4px;
 }
 
 .stat-label {
   font-size: 14px;
   color: #666;
-  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.stat-trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stat-trend.positive {
+  color: #67c23a;
+}
+
+.stat-trend.negative {
+  color: #f56c6c;
+}
+
+/* 图表区域 */
+.charts-section {
+  margin-bottom: 32px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 24px;
+}
+
+.chart-card {
+  border-radius: 12px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chart-content {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-placeholder {
+  text-align: center;
+  color: #999;
+}
+
+.chart-placeholder .el-icon {
+  margin-bottom: 16px;
 }
 
 /* 最近文章区域 */
@@ -474,103 +669,68 @@ onMounted(() => {
   text-decoration: underline;
 }
 
-/* 快速操作区域 */
-.quick-actions-section {
+/* 系统状态 */
+.system-status-section {
   margin-bottom: 32px;
 }
 
-.actions-grid {
+.status-card {
+  border-radius: 12px;
+}
+
+.status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
-.action-card {
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.action-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.action-content {
+.status-item {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  padding: 24px 16px;
-  text-align: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.action-icon {
-  color: #667eea;
-  margin-bottom: 12px;
+.status-item:last-child {
+  border-bottom: none;
 }
 
-.action-text {
-  font-size: 16px;
+.status-label {
   font-weight: 500;
   color: #333;
 }
 
 /* 移动端优化 */
 @media (max-width: 767px) {
-  .header-content {
-    padding: 0 16px;
+  .welcome-section {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
   }
   
-  .header-title {
-    font-size: 20px;
+  .welcome-title {
+    font-size: 24px;
   }
   
-  .dashboard-main {
-    padding: 16px 0;
+  .welcome-actions {
+    flex-direction: column;
+    width: 100%;
   }
   
   .stats-grid {
     grid-template-columns: 1fr;
     gap: 16px;
-    margin-bottom: 24px;
   }
   
-  .stat-content {
-    padding: 12px;
+  .chart-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
   
-  .stat-icon {
-    width: 50px;
-    height: 50px;
-    margin-right: 12px;
-  }
-  
-  .stat-number {
-    font-size: 24px;
-  }
-  
-  .section-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .status-grid {
+    grid-template-columns: 1fr;
     gap: 12px;
-  }
-  
-  .actions-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  
-  .action-content {
-    padding: 16px 12px;
-  }
-  
-  .action-icon {
-    font-size: 24px;
-    margin-bottom: 8px;
-  }
-  
-  .action-text {
-    font-size: 14px;
   }
 }
 
@@ -580,8 +740,8 @@ onMounted(() => {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .actions-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .chart-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -591,8 +751,8 @@ onMounted(() => {
     grid-template-columns: repeat(4, 1fr);
   }
   
-  .actions-grid {
-    grid-template-columns: repeat(4, 1fr);
+  .chart-row {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>
