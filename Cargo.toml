@@ -1,37 +1,40 @@
-[package]
+﻿[package]
 name = "rust-web-backend"
 version = "0.1.0"
 edition = "2021"
 
+# 打包单 exe 时启用（deploy.bat 使用）：将 7 个前端 dist 编译期内嵌进二进制
+[features]
+embedded = ["dep:rust-embed", "dep:mime_guess"]
+
 [dependencies]
 # Web框架
-axum = "0.7"
-tokio = { version = "1.0", features = ["full"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "fs"] }
-hyper = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["ws"] }
+# 仅启用实际使用的 tokio 特性（宏/网络/同步原语/信号/多线程运行时）
+tokio = { version = "1.0", features = ["macros", "net", "sync", "signal", "rt-multi-thread"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "trace"] }
+futures-util = "0.3"
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # 数据库
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
 
 # 认证
-jsonwebtoken = "9.2"
+# jsonwebtoken >= 10.3.0：CVE-2026-25537（畸形 nbf/exp 类型绕过时间校验）修复版本
+# 注意：10.x 起默认 features 不再包含 crypto 后端（default = ["use_pem"]），
+# 必须显式启用 rust_crypto（纯 Rust，HS256 足够）或 aws_lc_rs，否则运行时 panic
+jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
 bcrypt = "0.15"
 
-# 环境变量
-dotenv = "0.15"
+# 环境变量（dotenvy 为 dotenv 的维护分支）
+dotenvy = "0.15"
 
 # 日志
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# 错误处理
-anyhow = "1.0"
-thiserror = "1.0"
 
 # UUID
 uuid = { version = "1.0", features = ["v4", "serde"] }
@@ -42,8 +45,19 @@ chrono = { version = "0.4", features = ["serde"] }
 # 验证
 validator = { version = "0.16", features = ["derive"] }
 
-# 配置
-config = "0.14"
+# 发动机监控模块（从 fj200c.informatization 迁移）
+serialport = "4"
+csv = "1"
+configparser = "3"
+arc-swap = "1"
+rand = "0.8"
 
-[dev-dependencies]
-tokio-test = "0.4"
+# ftj1c 通信监控模块（从 demo-test3-ftj 迁移）：UDP 组播（SO_REUSEADDR / 1MB 接收缓冲）
+socket2 = "0.5"
+
+# OpenAPI 规范生成（方案一：utoipa + openapi.json + orval）
+utoipa = { version = "5", features = ["chrono", "uuid"] }
+
+# 单 exe 打包：编译期嵌入前端静态资源 + MIME 推断（仅 embedded feature 启用）
+rust-embed = { version = "8", optional = true }
+mime_guess = { version = "2", optional = true }

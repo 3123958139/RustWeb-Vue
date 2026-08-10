@@ -5,7 +5,7 @@ Cargo.lock
 
 # IDE
 .vscode/
-.idea/
+#.idea/
 *.swp
 *.swo
 *~
@@ -107,6 +107,8 @@ temp/
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 
@@ -173,3 +175,14 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# PDF generation intermediates
+/combined.md
+/combined.typ
+/mermaid/
+
+/deploy/csv/*
+/help/mermaid/*
+/csv
+/deploy
+**/csv

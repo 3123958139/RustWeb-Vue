@@ -1,0 +1,205 @@
+/*
+# theme.css — 全局主题样式（fj200c_main 仪表盘）
+#
+# 定义深浅双主题的 CSS 变量和 Element Plus 组件样式覆盖。
+# 通过 `<html>` 标签的 `theme-dark` / `theme-light` 类切换主题
+# （同时切换 `dark` 类以联动 Element Plus 暗色主题）。
+#
+# 变量分类：--bg-* 背景 / --border-* 边框 / --text-* 文字 / --btn-* 按钮 / --gauge-color-* 仪表盘
+*/
+
+:root,
+.theme-dark {
+  --bg-page: #070d1a;
+  --bg-card: #0c1628;
+  --bg-card-header: #0f1d33;
+  --bg-cell: #0a1428;
+  --bg-hover: #1a3055;
+  --bg-active: #132545;
+  --bg-input: #0f1d33;
+  --bg-tooltip: #0f1d33;
+  --bg-alarm: #3a0f15;
+  --bg-success: #0a3320;
+  --bg-scrollbar-track: #0a1428;
+
+  --border-color: #1e3a5f;
+  --border-hover: #2a5a8a;
+  --border-focus: #00b4d8;
+
+  --text-primary: #d6e6f5;
+  --text-secondary: #d6e6f5;
+  --text-muted: #d6e6f5;
+  --text-accent: #00b4d8;
+  --text-accent-green: #00d4aa;
+  --text-hex: #f0c040;
+  --text-danger: #ff3355;
+  --text-success: #00e676;
+  --text-detail: #e8f4ff;
+  --text-white: #ffffff;
+
+  --btn-bg: #0f1d33;
+  --btn-border: #d6e6f5;
+  --btn-text: #d6e6f5;
+  --btn-hover-bg: #1a3055;
+  --btn-hover-border: #ffffff;
+  --btn-hover-text: #ffffff;
+  --btn-active-bg: #132545;
+  --btn-active-border: #00b4d8;
+
+  --gauge-color-1: #00b4d8;
+  --gauge-color-2: #0077b6;
+  --gauge-color-3: #023e8a;
+  --gauge-color-4: #03045e;
+}
+
+.theme-light {
+  --bg-page: #f0f2f5;
+  --bg-card: #ffffff;
+  --bg-card-header: #f5f7fa;
+  --bg-cell: #fafafa;
+  --bg-hover: #ecf5ff;
+  --bg-active: #d9ecff;
+  --bg-input: #ffffff;
+  --bg-tooltip: #ffffff;
+  --bg-alarm: #fef0f0;
+  --bg-success: #f0f9eb;
+  --bg-scrollbar-track: #f0f2f5;
+
+  --border-color: #dcdfe6;
+  --border-hover: #409eff;
+  --border-focus: #409eff;
+
+  --text-primary: #303133;
+  --text-secondary: #000000;
+  --text-muted: #000000;
+  --text-accent: #409eff;
+  --text-accent-green: #67c23a;
+  --text-hex: #e6a23c;
+  --text-danger: #f56c6c;
+  --text-success: #67c23a;
+  --text-detail: #303133;
+  --text-white: #ffffff;
+
+  --btn-bg: #ffffff;
+  --btn-border: #dcdfe6;
+  --btn-text: #000000;
+  --btn-hover-bg: #ecf5ff;
+  --btn-hover-border: #409eff;
+  --btn-hover-text: #409eff;
+  --btn-active-bg: #d9ecff;
+  --btn-active-border: #409eff;
+
+  --gauge-color-1: #409eff;
+  --gauge-color-2: #79bbff;
+  --gauge-color-3: #a0cfff;
+  --gauge-color-4: #c6e2ff;
+}
+
+body {
+  font-family: 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-page);
+  transition: background 0.3s, color 0.3s;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+.el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: var(--bg-card-header);
+  --el-table-border-color: var(--border-color);
+  --el-table-text-color: var(--text-primary);
+  --el-table-header-text-color: var(--text-primary);
+  --el-table-row-hover-bg-color: var(--bg-hover);
+}
+.el-table th.el-table__cell {
+  background: var(--bg-card-header);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+.el-table td.el-table__cell {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+.el-table--border .el-table__cell {
+  border-right: 1px solid var(--border-color);
+}
+.el-table--border {
+  border: 1px solid var(--border-color);
+}
+.el-table__body tr:hover > td {
+  background: var(--bg-hover);
+}
+
+.el-input__wrapper {
+  background: var(--bg-input) !important;
+  box-shadow: 0 0 0 1px var(--border-color) inset !important;
+  transition: box-shadow 0.2s;
+}
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--border-hover) inset !important;
+}
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--border-focus) inset !important;
+}
+.el-input__inner {
+  color: var(--text-primary) !important;
+}
+
+.el-button--small {
+  --el-button-bg-color: var(--btn-bg);
+  --el-button-border-color: var(--btn-border);
+  --el-button-text-color: var(--btn-text);
+  --el-button-hover-bg-color: var(--btn-hover-bg);
+  --el-button-hover-border-color: var(--btn-hover-border);
+  --el-button-hover-text-color: var(--btn-hover-text);
+  --el-button-active-bg-color: var(--btn-active-bg);
+  --el-button-active-border-color: var(--btn-active-border);
+}
+
+.el-select .el-input__wrapper {
+  background: var(--bg-input) !important;
+}
+.el-select-dropdown {
+  background: var(--bg-card-header);
+  border: 1px solid var(--border-color);
+}
+.el-select-dropdown__item {
+  color: var(--text-primary);
+}
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+  background: var(--bg-hover);
+}
+.el-select-dropdown__item.selected {
+  color: var(--text-accent);
+  font-weight: 600;
+}
+
+.el-card {
+  --el-card-bg-color: transparent;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  transition: border-color 0.3s;
+}
+.el-card__header {
+  font-size: 12px;
+}

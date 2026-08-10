@@ -1,0 +1,243 @@
+/* 发动机监控模块主题样式
+ * 从 fj200c_information.informatization 的 theme.css 移植，作用域限定在 .fj200c_information-root 内，
+ * 默认亮色，`.dark` 全局主题下切换为暗色（与原桌面应用一致的深蓝风格）。
+ */
+.fj200c_information-root {
+  --fj200c_information-bg: #f5f7fa;
+  --fj200c_information-panel: #ffffff;
+  --fj200c_information-panel-alt: #f0f2f5;
+  --fj200c_information-border: #dcdfe6;
+  --fj200c_information-text: #303133;
+  --fj200c_information-text-secondary: #909399;
+  --fj200c_information-accent: #409eff;
+  --fj200c_information-accent-soft: rgba(64, 158, 255, 0.12);
+  --fj200c_information-success: #67c23a;
+  --fj200c_information-warning: #e6a23c;
+  --fj200c_information-danger: #f56c6c;
+  --fj200c_information-code-bg: #f5f7fa;
+  --fj200c_information-gauge-ring: #409eff;
+  --fj200c_information-chart-grid: rgba(48, 65, 86, 0.15);
+}
+
+html.dark .fj200c_information-root {
+  --fj200c_information-bg: #070d1a;
+  --fj200c_information-panel: #0d1b2e;
+  --fj200c_information-panel-alt: #12233c;
+  --fj200c_information-border: #1e3a5f;
+  --fj200c_information-text: #c8d6e5;
+  --fj200c_information-text-secondary: #5f7d9c;
+  --fj200c_information-accent: #409eff;
+  --fj200c_information-accent-soft: rgba(64, 158, 255, 0.15);
+  --fj200c_information-success: #67c23a;
+  --fj200c_information-warning: #e6a23c;
+  --fj200c_information-danger: #f56c6c;
+  --fj200c_information-code-bg: #0a1526;
+  --fj200c_information-gauge-ring: #409eff;
+  --fj200c_information-chart-grid: rgba(200, 214, 229, 0.12);
+}
+
+.fj200c_information-root {
+  min-height: 100vh;
+  background: var(--fj200c_information-bg);
+  color: var(--fj200c_information-text);
+  font-size: 14px;
+}
+
+.fj200c_information-root .fj200c_information-page {
+  padding: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 顶部工具栏 */
+.fj200c_information-root .fj200c_information-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--fj200c_information-panel);
+  border: 1px solid var(--fj200c_information-border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.fj200c_information-root .fj200c_information-toolbar .toolbar-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fj200c_information-root .fj200c_information-toolbar .spacer {
+  flex: 1;
+}
+
+.fj200c_information-root .fj200c_information-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.fj200c_information-root .fj200c_information-status-dot.running {
+  background: var(--fj200c_information-success);
+  box-shadow: 0 0 6px var(--fj200c_information-success);
+}
+
+.fj200c_information-root .fj200c_information-status-dot.stopped {
+  background: var(--fj200c_information-text-secondary);
+}
+
+.fj200c_information-root .fj200c_information-status-dot.connecting {
+  background: var(--fj200c_information-warning);
+  animation: fj200c_information-blink 1s infinite;
+}
+
+@keyframes fj200c_information-blink {
+  50% { opacity: 0.3; }
+}
+
+/* 面板卡片 */
+.fj200c_information-root .fj200c_information-panel {
+  background: var(--fj200c_information-panel);
+  border: 1px solid var(--fj200c_information-border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.fj200c_information-root .fj200c_information-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--fj200c_information-border);
+  font-weight: 600;
+}
+
+.fj200c_information-root .fj200c_information-panel-body {
+  padding: 12px 16px;
+}
+
+/* 命令通道 */
+.fj200c_information-root .fj200c_information-command-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.fj200c_information-root .fj200c_information-command-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fj200c_information-root .fj200c_information-command-row .cmd-name {
+  min-width: 110px;
+  color: var(--fj200c_information-text-secondary);
+}
+
+/* 数据表格 */
+.fj200c_information-root .fj200c_information-data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fj200c_information-root .fj200c_information-data-table th,
+.fj200c_information-root .fj200c_information-data-table td {
+  padding: 6px 10px;
+  border: 1px solid var(--fj200c_information-border);
+  text-align: left;
+}
+
+.fj200c_information-root .fj200c_information-data-table th {
+  background: var(--fj200c_information-panel-alt);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fj200c_information-root .fj200c_information-data-table td:last-child {
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+/* 原始数据日志 */
+.fj200c_information-root .fj200c_information-payload-log {
+  height: 260px;
+  overflow-y: auto;
+  background: var(--fj200c_information-code-bg);
+  border: 1px solid var(--fj200c_information-border);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.fj200c_information-root .fj200c_information-payload-log .log-time {
+  color: var(--fj200c_information-text-secondary);
+  margin-right: 8px;
+}
+
+/* 可视化网格 */
+.fj200c_information-root .fj200c_information-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 1000px) {
+  .fj200c_information-root .fj200c_information-gauge-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .fj200c_information-root .fj200c_information-gauge-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fj200c_information-root .fj200c_information-chart-panel {
+  background: var(--fj200c_information-panel);
+  border: 1px solid var(--fj200c_information-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.fj200c_information-root .fj200c_information-chart-panel .chart-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--fj200c_information-text);
+}
+
+.fj200c_information-root .fj200c_information-gauge-item {
+  width: 100%;
+  height: 240px;
+}
+
+.fj200c_information-root .fj200c_information-vis-line {
+  width: 100%;
+  height: 320px;
+}
+
+/* 状态条 */
+.fj200c_information-root .fj200c_information-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--fj200c_information-panel);
+  border: 1px solid var(--fj200c_information-border);
+  border-radius: 8px;
+  color: var(--fj200c_information-text-secondary);
+  font-size: 13px;
+}
+
+/* 配置编辑 */
+.fj200c_information-root .fj200c_information-config-editor textarea {
+  font-family: "Consolas", "Courier New", monospace;
+  background: var(--fj200c_information-code-bg);
+  color: var(--fj200c_information-text);
+  border: 1px solid var(--fj200c_information-border);
+}

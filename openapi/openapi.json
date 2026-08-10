@@ -1,0 +1,4627 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RustWeb-Vue API",
+    "description": "RustWeb-Vue 全栈管理系统 API 文档",
+    "license": {
+      "name": ""
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/admin/pwd": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "查询种子账号初始密码",
+        "description": "# 端点\n`GET /admin/pwd`\n\n# 权限\n无（种子账号首次登录需要此密码，无法要求先登录）\n\n# 说明\n\n种子账号的随机初始密码不打印到启动日志，明文只存于 `seed_passwords`\n表，通过本端点查询。登录后应立即修改密码。\n\n管理员在管理后台勾选\"停用初始密码查询\"后，本端点返回 403，\n不再处理查询请求（相当于路由失效）。",
+        "operationId": "adminListSeedPasswords",
+        "responses": {
+          "200": {
+            "description": "种子账号初始密码列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_SeedPasswordInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "用户登录处理器",
+        "description": "# 端点\n`POST /api/auth/login`\n\n# 请求体\n```json\n{\n    \"email\": \"user@example.com\",\n    \"password\": \"123456\"\n}\n```\n\n# 成功响应\n```json\n{\n    \"success\": true,\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIs...\",\n        \"user\": {\n            \"id\": \"...\",\n            \"username\": \"admin\",\n            \"email\": \"admin@example.com\",\n            \"role\": \"admin\"\n        }\n    }\n}\n```\n\n# 错误响应\n- 400: 邮箱或密码错误\n- 400: 请求参数验证失败\n\n# 参数说明\n\n- `State(db)`: 数据库连接池（从路由状态提取）\n- `Json(login_data)`: JSON 请求体（自动反序列化为 `LoginRequest`）\n\n# 语法说明\n\nAxum 的处理器（handler）使用**提取器**（extractor）获取参数：\n- `State<T>`: 从路由状态提取\n- `Json<T>`: 从请求体提取 JSON\n- `Extension<T>`: 从请求扩展提取（中间件注入的数据）\n\n返回值 `Result<Json<ApiResponse<LoginResponse>>, AppError>`：\n- 成功：`Ok(Json(...))` - 自动序列化为 JSON 响应\n- 失败：`Err(AppError)` - 自动转换为错误响应",
+        "operationId": "authLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "获取当前用户信息",
+        "description": "# 端点\n`GET /api/auth/profile`\n\n# 权限\n需要登录（`auth_middleware` 保护）\n\n# 成功响应\n```json\n{\n    \"success\": true,\n    \"data\": {\n        \"id\": \"...\",\n        \"username\": \"admin\",\n        \"email\": \"admin@example.com\",\n        \"role\": \"admin\"\n    }\n}\n```\n\n# 参数说明\n\n`Extension(user)`: 从请求扩展提取用户信息\n用户由 `auth_middleware` 中间件注入到请求扩展\n\n# 语法说明\n\n`Extension<T>` 是 Axum 的扩展提取器：\n- 中间件通过 `request.extensions_mut().insert(user)` 注入数据\n- 处理器通过 `Extension(user): Extension<User>` 提取数据\n- 类似于\"请求上下文\"，用于在中间件和处理器之间传递数据",
+        "operationId": "authGetProfile",
+        "responses": {
+          "200": {
+            "description": "当前用户信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/buildings": {
+      "get": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "建筑列表",
+        "operationId": "city3dListBuildings",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码（默认 1）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量（默认 50，最大 200）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "建筑列表（分页）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_BuildingPage"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "创建建筑",
+        "operationId": "city3dCreateBuilding",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBuildingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，返回新建筑 id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CreateResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/buildings/{id}": {
+      "put": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "更新建筑",
+        "operationId": "city3dUpdateBuilding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "建筑 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBuildingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CreateResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "删除建筑",
+        "operationId": "city3dDeleteBuilding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "建筑 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Value"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/districts": {
+      "get": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "区域列表",
+        "operationId": "city3dListDistricts",
+        "responses": {
+          "200": {
+            "description": "区域列表（含建筑数量）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_District"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "创建区域",
+        "operationId": "city3dCreateDistrict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDistrictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，返回新区域 id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CreateResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/districts/{id}": {
+      "put": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "更新区域",
+        "operationId": "city3dUpdateDistrict",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "区域 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDistrictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CreateResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "删除区域（级联删除所属建筑）",
+        "operationId": "city3dDeleteDistrict",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "区域 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Value"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/events": {
+      "get": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "事件列表",
+        "operationId": "city3dListEvents",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码（默认 1）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量（默认 20，最大 100）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "事件列表（分页）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_EventPage"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "创建事件",
+        "operationId": "city3dCreateEvent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，返回新事件 id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CreateResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/events/{id}": {
+      "delete": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "删除事件",
+        "operationId": "city3dDeleteEvent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "事件 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Value"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/city3d/overview": {
+      "get": {
+        "tags": [
+          "city3d"
+        ],
+        "summary": "城市概览聚合统计",
+        "operationId": "city3dGetOverview",
+        "responses": {
+          "200": {
+            "description": "城市概览统计",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Overview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/config": {
+      "get": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "读取 config-fj200c_information.ini 配置文件的原始内容",
+        "description": "返回 INI 格式的纯文本，前端可直接展示和编辑。",
+        "operationId": "fj200c_informationGetConfig",
+        "responses": {
+          "200": {
+            "description": "配置文件内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "保存配置文件内容到 config-fj200c_information.ini",
+        "description": "覆盖写入整个文件内容，前端提交前应提示用户确认。",
+        "operationId": "fj200c_informationSaveConfig",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/csv/files": {
+      "get": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "列出 CSV 目录下所有 CSV 文件（按文件名倒序，新文件在前）",
+        "operationId": "fj200c_informationListCsvFiles",
+        "responses": {
+          "200": {
+            "description": "CSV 文件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CsvFileList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/csv/{name}": {
+      "get": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "读取指定 CSV 文件的内容",
+        "description": "仅允许文件名（禁止目录穿越），防止路径遍历攻击。",
+        "operationId": "fj200c_informationGetCsvFile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "CSV 文件名",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "文件内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CsvFileContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/service/command": {
+      "post": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "向所有会话线程发送十六进制命令",
+        "description": "命令通过 `mpsc` 通道广播到所有会话线程，由各线程写入对应的 IO 设备。",
+        "operationId": "fj200c_informationSendCommand",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SentResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/service/start": {
+      "post": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "启动发动机监控服务",
+        "description": "读取配置文件，为每个启用的连接启动会话线程。\n已运行时返回错误提示，防止重复启动。",
+        "operationId": "fj200c_informationStartService",
+        "responses": {
+          "200": {
+            "description": "启动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/service/status": {
+      "get": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "查询发动机监控服务运行状态",
+        "operationId": "fj200c_informationGetServiceStatus",
+        "responses": {
+          "200": {
+            "description": "运行状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_information/service/stop": {
+      "post": {
+        "tags": [
+          "fj200c_information"
+        ],
+        "summary": "停止发动机监控服务",
+        "description": "设置停止信号后在独立线程中等待所有会话线程退出，避免阻塞 HTTP 请求。",
+        "operationId": "fj200c_informationStopService",
+        "responses": {
+          "200": {
+            "description": "停止成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/config": {
+      "get": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "读取 config-fj200c_main.ini 配置文件内容",
+        "operationId": "fj200cMainGetConfig",
+        "responses": {
+          "200": {
+            "description": "配置文件内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "保存配置文件内容",
+        "description": "覆盖写入 config-fj200c_main.ini，修改在服务重启后生效。",
+        "operationId": "fj200cMainSaveConfig",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/csv/files": {
+      "get": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "列出 CSV 目录下所有 CSV 文件（按文件名倒序，新文件在前）",
+        "operationId": "fj200cMainListCsvFiles",
+        "responses": {
+          "200": {
+            "description": "CSV 文件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CsvFileList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/csv/{name}": {
+      "get": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "读取指定 CSV 文件的内容",
+        "description": "仅允许文件名（禁止目录穿越），防止路径遍历攻击。",
+        "operationId": "fj200cMainGetCsvFile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "CSV 文件名",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "文件内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CsvFileContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/experiment": {
+      "get": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "获取试验信息（从 GlobalVar 读取）",
+        "operationId": "fj200cMainGetExperiment",
+        "responses": {
+          "200": {
+            "description": "试验信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ExperimentInfo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "保存试验信息（写入 GlobalVar）",
+        "operationId": "fj200cMainSaveExperiment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperimentInfo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/help": {
+      "get": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "获取用户操作说明（help_doc.md，编译期内嵌）",
+        "operationId": "fj200cMainGetHelp",
+        "responses": {
+          "200": {
+            "description": "帮助文档内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/recording/toggle": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "切换 CSV 数据录制状态（开始/停止）",
+        "description": "状态机 0→1→2→0：\n- 0→1：创建试验信息文件 + 录制文件，写表头\n- 1→2：进入持续写入\n- 2→0：停止录制，刷新文件",
+        "operationId": "fj200cMainToggleRecording",
+        "responses": {
+          "200": {
+            "description": "录制状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_RecordingState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/report": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "生成试验报表",
+        "description": "解析 CSV → 状态点滤波 → 均值 → 标况换算 → 填充 → 最小二乘插值，\n返回 4 张表格数据（基本信息/性能/标准/设计点）。\n\n无需服务启动，选中 CSV 即可生成；试验信息缺省时使用空值/默认值。",
+        "operationId": "fj200cMainGenerateReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "报表数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ReportOutput"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/service/command": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "发送 ECU 指令（十六进制帧）",
+        "description": "帧字节存入全局 `ecu_send_data`，由 100ms 周期发送线程写入串口。",
+        "operationId": "fj200cMainSendCommand",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SentResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/service/start": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "启动 fj200c_main 测控服务",
+        "description": "加载配置 → 初始化串口 → 启动解码/发送/CSV 线程。\n已运行时返回错误。",
+        "operationId": "fj200cMainStartService",
+        "responses": {
+          "200": {
+            "description": "启动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/service/status": {
+      "get": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "查询服务运行状态",
+        "operationId": "fj200cMainGetServiceStatus",
+        "responses": {
+          "200": {
+            "description": "运行状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/service/stop": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "停止 fj200c_main 测控服务",
+        "description": "设置停止信号后清理串口与线程，立即返回。",
+        "operationId": "fj200cMainStopService",
+        "responses": {
+          "200": {
+            "description": "停止成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/simulation/toggle": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "切换模拟运行状态（启动/停止）",
+        "description": "启动时通过进程内直通驱动三路解码与推送（无需虚拟串口）；\n停止时设置停止标志，模拟线程退出。",
+        "operationId": "fj200cMainToggleSimulation",
+        "responses": {
+          "200": {
+            "description": "模拟状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SimulationState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fj200c_main/theme/set": {
+      "post": {
+        "tags": [
+          "fj200c_main"
+        ],
+        "summary": "设置主题（深色/浅色）",
+        "description": "服务端存储主题状态并广播给所有 WS 客户端，前端按钮文案本地响应。",
+        "operationId": "fj200cMainSetTheme",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThemeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "主题状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ThemeState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ftj1c/config": {
+      "get": {
+        "tags": [
+          "ftj1c"
+        ],
+        "summary": "读取配置文件内容",
+        "description": "# HTTP 端点\n`GET /api/ftj1c/config`\n\n# 响应\n`{ \"code\": 200, \"data\": { \"content\": \"[Udp]\\nMock = true\\n...\" } }`\n\n# 说明\n返回 `config-ftj1c.ini` 文件的原始内容，供前端配置编辑器使用。",
+        "operationId": "ftj1cGetConfig",
+        "responses": {
+          "200": {
+            "description": "配置文件内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ftj1c"
+        ],
+        "summary": "保存配置文件内容",
+        "description": "# HTTP 端点\n`PUT /api/ftj1c/config`\n\n# 请求体\n`{ \"content\": \"新的 INI 配置内容\" }`\n\n# 说明\n将新配置写入 `config-ftj1c.ini` 文件，并重新加载到全局配置实例。\n修改的配置在服务重启后才会生效。",
+        "operationId": "ftj1cSaveConfig",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ftj1cSaveConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ftj1c/ip-config": {
+      "get": {
+        "tags": [
+          "ftj1c"
+        ],
+        "summary": "获取 IP 配置",
+        "description": "# HTTP 端点\n`GET /api/ftj1c/ip-config`\n\n# 响应\n返回 16 组 IP 和端口配置（ip1, port1, ..., ip16, port16）。",
+        "operationId": "ftj1cGetIpConfig",
+        "responses": {
+          "200": {
+            "description": "IP 配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_IpConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ftj1c/service/start": {
+      "post": {
+        "tags": [
+          "ftj1c"
+        ],
+        "summary": "启动通信监控服务",
+        "description": "# HTTP 端点\n`POST /api/ftj1c/service/start`\n\n# 响应\n- 成功: `{ \"code\": 200, \"data\": { \"running\": true } }`\n- 失败: `{ \"code\": 500, \"message\": \"错误原因\" }`",
+        "operationId": "ftj1cStartService",
+        "responses": {
+          "200": {
+            "description": "启动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ftj1c/service/status": {
+      "get": {
+        "tags": [
+          "ftj1c"
+        ],
+        "summary": "查询服务运行状态",
+        "description": "# HTTP 端点\n`GET /api/ftj1c/service/status`\n\n# 响应\n`{ \"code\": 200, \"data\": { \"running\": true/false } }`",
+        "operationId": "ftj1cGetServiceStatus",
+        "responses": {
+          "200": {
+            "description": "运行状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ftj1c/service/stop": {
+      "post": {
+        "tags": [
+          "ftj1c"
+        ],
+        "summary": "停止通信监控服务",
+        "description": "# HTTP 端点\n`POST /api/ftj1c/service/stop`\n\n# 说明\n停止操作是异步的，HTTP 请求会立即返回，实际停止在后台线程中完成。",
+        "operationId": "ftj1cStopService",
+        "responses": {
+          "200": {
+            "description": "停止成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fw100/items": {
+      "get": {
+        "tags": [
+          "fw100"
+        ],
+        "summary": "设备台账列表（登录 + fw100:read 权限中间件保护）",
+        "operationId": "fw100ListItems",
+        "responses": {
+          "200": {
+            "description": "设备台账列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_LedgerItem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fw150/items": {
+      "get": {
+        "tags": [
+          "fw150"
+        ],
+        "summary": "设备台账列表（登录 + fw150:read 权限中间件保护）",
+        "operationId": "fw150ListItems",
+        "responses": {
+          "200": {
+            "description": "设备台账列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_Fw150LedgerItem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meta/roles": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "角色注册表查询（公开端点，前端启动时拉取 key/name/permissions）",
+        "description": "前端 `packages/shared/src/roles.ts` 不再手写注册表数据，\nkey/name/permissions 全部以本接口返回值为唯一来源。",
+        "operationId": "metaListRoles",
+        "responses": {
+          "200": {
+            "description": "角色注册表列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_RoleInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "获取用户列表",
+        "description": "# 端点\n`GET /api/users`\n\n# 权限\n- `role_middleware`: 需要 SystemAdmin 权限\n- `users_read_middleware`: 需要 UsersRead 权限\n\n# 成功响应\n```json\n{\n    \"success\": true,\n    \"data\": [\n        { \"id\": \"...\", \"username\": \"admin\", \"role\": \"admin\", ... },\n        { \"id\": \"...\", \"username\": \"fj200c_information\", \"role\": \"fj200c_information\", ... }\n    ]\n}\n```",
+        "operationId": "adminListUsers",
+        "responses": {
+          "200": {
+            "description": "用户列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_User"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "创建用户",
+        "description": "# 端点\n`POST /api/users`\n\n# 权限\n- `role_middleware`: 需要 SystemAdmin 权限\n- `users_write_middleware`: 需要 UsersWrite 权限\n\n# 请求体\n```json\n{\n    \"username\": \"newuser\",\n    \"email\": \"user@example.com\",\n    \"password\": \"123456\",\n    \"role\": \"fj200c_information\"   // 可选，默认 \"fj200c_information\"\n}\n```\n\n# 安全约束\n\n- `role` 必须在角色注册表中（白名单校验）\n- 默认角色为 `fj200c_information`（普通用户端角色）",
+        "operationId": "adminCreateUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/settings/pwd-route": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "查询初始密码查询路由停用状态",
+        "description": "# 端点\n`GET /api/users/settings/pwd-route`\n\n# 权限\nSystemAdmin（role_middleware）",
+        "operationId": "adminGetPwdRouteStatus",
+        "responses": {
+          "200": {
+            "description": "初始密码查询路由停用状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_PwdRouteStatus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "设置初始密码查询路由停用状态",
+        "description": "# 端点\n`PUT /api/users/settings/pwd-route`\n\n# 权限\nSystemAdmin（role_middleware）",
+        "operationId": "adminSetPwdRouteStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PwdRouteStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_PwdRouteStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "删除用户",
+        "description": "# 端点\n`DELETE /api/users/:id`\n\n# 权限\n- `role_middleware`: 需要 SystemAdmin 权限\n- `users_delete_middleware`: 需要 UsersDelete 权限\n\n# 安全约束\n\n- 不能删除自己（防止误操作导致管理域无人可用）\n\n# 语法说明\n\n`Result<Json<ApiResponse<()>>, AppError>`:\n- `()` 是 Rust 的单元类型（unit type），表示\"无数据\"\n- 删除成功后返回空数据",
+        "operationId": "adminDeleteUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Value"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/role": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "修改用户角色",
+        "description": "# 端点\n`PUT /api/users/:id/role`\n\n# 权限\n- `role_middleware`: 需要 SystemAdmin 权限\n- `users_write_middleware`: 需要 UsersWrite 权限\n\n# 请求体\n```json\n{ \"role\": \"admin\" }\n```\n\n# 安全约束\n\n- 角色必须在注册表中\n- 不能移除自己的管理角色（防止管理域无人可用）\n\n# 语法说明\n\n- `Path(user_id): Path<Uuid>`: 从 URL 提取 `:id` 参数并解析为 UUID\n- `Extension(current_user)`: 从请求扩展提取当前登录用户（中间件注入）",
+        "operationId": "adminUpdateUserRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "修改成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_User"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdamFields": {
+        "type": "object",
+        "required": [
+          "channels"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        }
+      },
+      "ApiResponse_BuildingPage": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "建筑列表分页",
+            "required": [
+              "items",
+              "total",
+              "page",
+              "page_size"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Building"
+                }
+              },
+              "page": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "page_size": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_ConfigContent": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "配置文件内容",
+            "required": [
+              "content"
+            ],
+            "properties": {
+              "content": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_CreateResult": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "创建/更新操作结果（返回新生成的 id）",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_CsvFileContent": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "CSV 文件内容",
+            "required": [
+              "content"
+            ],
+            "properties": {
+              "content": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_CsvFileList": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "CSV 文件列表",
+            "required": [
+              "files",
+              "dir"
+            ],
+            "properties": {
+              "dir": {
+                "type": "string"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_EventPage": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "事件列表分页",
+            "required": [
+              "items",
+              "total",
+              "page",
+              "page_size"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CityEvent"
+                }
+              },
+              "page": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "page_size": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_ExperimentInfo": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "engineNo",
+              "gasGeneratorNo",
+              "controllerNo",
+              "speedSensorNo",
+              "oilSensorNo",
+              "testItem",
+              "testTime"
+            ],
+            "properties": {
+              "controllerNo": {
+                "type": "string"
+              },
+              "engineNo": {
+                "type": "string"
+              },
+              "gasGeneratorNo": {
+                "type": "string"
+              },
+              "oilSensorNo": {
+                "type": "string"
+              },
+              "speedSensorNo": {
+                "type": "string"
+              },
+              "testItem": {
+                "type": "string"
+              },
+              "testTime": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_IpConfig": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "IP 配置（config-ftj1c.ini 的 [IP] 节，16 组 IP:Port 配对）\n\n运行时实际返回包含全部 32 个键的动态对象，\n这里仅作为 OpenAPI schema 描述，键均视为可选。",
+            "properties": {
+              "ip1": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip10": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip11": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip12": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip13": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip14": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip15": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip16": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip2": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip3": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip4": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip5": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip6": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip7": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip8": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ip9": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "port1": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port10": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port11": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port12": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port13": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port14": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port15": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port16": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port2": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port3": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port4": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port5": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port6": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port7": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port8": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "port9": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_LoginResponse": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "登录响应结构体，登录成功后返回的数据\n\n# 字段\n- `token`: JWT 令牌（用于后续请求认证）\n- `user`: 用户信息",
+            "required": [
+              "token",
+              "user"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "JWT 令牌\n前端存储在 localStorage，每次请求放在 `Authorization` 头"
+              },
+              "user": {
+                "$ref": "#/components/schemas/User",
+                "description": "用户信息"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Overview": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "城市概览聚合统计",
+            "required": [
+              "total_buildings",
+              "total_districts",
+              "total_events",
+              "total_energy_kw",
+              "total_population",
+              "active_buildings",
+              "recent_events"
+            ],
+            "properties": {
+              "active_buildings": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "recent_events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecentEvent"
+                }
+              },
+              "total_buildings": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total_districts": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total_energy_kw": {
+                "type": "number",
+                "format": "double"
+              },
+              "total_events": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total_population": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_PwdRouteStatus": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "初始密码查询路由停用状态",
+            "required": [
+              "disabled"
+            ],
+            "properties": {
+              "disabled": {
+                "type": "boolean",
+                "description": "是否停用（true 表示 GET /admin/pwd 不再返回初始密码）"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_RecordingState": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "CSV 录制状态响应",
+            "required": [
+              "recording"
+            ],
+            "properties": {
+              "recording": {
+                "type": "boolean",
+                "description": "是否正在录制"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_ReportOutput": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "basicInfo",
+              "statePoints",
+              "performanceData",
+              "standardData",
+              "designPointData"
+            ],
+            "properties": {
+              "basicInfo": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "designPointData": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DesignPointRow"
+                }
+              },
+              "performanceData": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PerformanceRow"
+                }
+              },
+              "standardData": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StandardRow"
+                }
+              },
+              "statePoints": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_SavedResult": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "配置保存结果",
+            "required": [
+              "saved"
+            ],
+            "properties": {
+              "saved": {
+                "type": "boolean"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_SentResult": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "命令发送结果",
+            "required": [
+              "sent"
+            ],
+            "properties": {
+              "sent": {
+                "type": "boolean"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_ServiceStatus": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "服务运行状态",
+            "required": [
+              "running"
+            ],
+            "properties": {
+              "running": {
+                "type": "boolean"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_SimulationState": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "模拟运行状态响应",
+            "required": [
+              "simulating"
+            ],
+            "properties": {
+              "simulating": {
+                "type": "boolean",
+                "description": "是否正在模拟"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_ThemeState": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "主题状态响应",
+            "required": [
+              "isDark"
+            ],
+            "properties": {
+              "isDark": {
+                "type": "boolean",
+                "description": "是否深色主题"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_User": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名 |\n| `email` | `String` | 邮箱（用于登录） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 语法说明\n\n- `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）",
+            "required": [
+              "id",
+              "username",
+              "email",
+              "role",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "创建时间（UTC）"
+              },
+              "email": {
+                "type": "string",
+                "description": "邮箱（唯一，用于登录）"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "用户 UUID（主键）"
+              },
+              "role": {
+                "type": "string",
+                "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "更新时间（UTC）"
+              },
+              "username": {
+                "type": "string",
+                "description": "用户名（唯一）"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Value": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {},
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_District": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "区域（含建筑数量）",
+              "required": [
+                "id",
+                "name",
+                "code",
+                "color",
+                "description",
+                "sort_order",
+                "building_count",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "building_count": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "sort_order": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_Fw150LedgerItem": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "设备台账条目（fw150 独立 schema 名，与 fw100 的 `LedgerItem` 区分）",
+              "required": [
+                "id",
+                "name",
+                "category",
+                "status"
+              ],
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_LedgerItem": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "设备台账条目\n\nfw100 直接使用本类型（schema 名 `LedgerItem`）；\nfw150 定义同名结构的 `Fw150LedgerItem`（schema 名独立）。",
+              "required": [
+                "id",
+                "name",
+                "category",
+                "status"
+              ],
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_RoleInfo": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "角色信息 DTO（通过 API 暴露给前端，前端注册表由 orval 生成类型后单一同步）",
+              "required": [
+                "key",
+                "name",
+                "permissions"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "角色标识（数据库 `users.role` 存储值）"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "角色显示名称"
+                },
+                "permissions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Permission"
+                  },
+                  "description": "角色拥有的权限点列表"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_SeedPasswordInfo": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "种子账号初始密码信息",
+              "required": [
+                "username",
+                "password",
+                "created_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "密码记录创建时间"
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "邮箱（种子账号被删除后为 null）"
+                },
+                "password": {
+                  "type": "string",
+                  "description": "初始密码明文"
+                },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "角色（种子账号被删除后为 null）"
+                },
+                "username": {
+                  "type": "string",
+                  "description": "用户名"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_User": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名 |\n| `email` | `String` | 邮箱（用于登录） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 语法说明\n\n- `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）",
+              "required": [
+                "id",
+                "username",
+                "email",
+                "role",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "创建时间（UTC）"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "邮箱（唯一，用于登录）"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "用户 UUID（主键）"
+                },
+                "role": {
+                  "type": "string",
+                  "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "更新时间（UTC）"
+                },
+                "username": {
+                  "type": "string",
+                  "description": "用户名（唯一）"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "Building": {
+        "type": "object",
+        "description": "建筑（列表项，含区域名称）",
+        "required": [
+          "id",
+          "name",
+          "district_id",
+          "district_name",
+          "x",
+          "z",
+          "width",
+          "depth",
+          "height",
+          "floors",
+          "status",
+          "energy_kw",
+          "population",
+          "occupancy",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "number",
+            "format": "double"
+          },
+          "district_id": {
+            "type": "string"
+          },
+          "district_name": {
+            "type": "string"
+          },
+          "energy_kw": {
+            "type": "number",
+            "format": "double"
+          },
+          "floors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "height": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "occupancy": {
+            "type": "number",
+            "format": "double"
+          },
+          "population": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "z": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "BuildingPage": {
+        "type": "object",
+        "description": "建筑列表分页",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Building"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ChannelData": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "Ecu"
+            ],
+            "properties": {
+              "Ecu": {
+                "$ref": "#/components/schemas/EcuFields"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Adam"
+            ],
+            "properties": {
+              "Adam": {
+                "$ref": "#/components/schemas/AdamFields"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Dyno"
+            ],
+            "properties": {
+              "Dyno": {
+                "$ref": "#/components/schemas/DynoFields"
+              }
+            }
+          }
+        ]
+      },
+      "CityEvent": {
+        "type": "object",
+        "description": "事件",
+        "required": [
+          "id",
+          "type",
+          "title",
+          "description",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfigContent": {
+        "type": "object",
+        "description": "配置文件内容",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateBuildingRequest": {
+        "type": "object",
+        "required": [
+          "district_id",
+          "name",
+          "x",
+          "z",
+          "width",
+          "depth",
+          "height",
+          "floors"
+        ],
+        "properties": {
+          "depth": {
+            "type": "number",
+            "format": "double"
+          },
+          "district_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "energy_kw": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "floors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "height": {
+            "type": "number",
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          },
+          "occupancy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "population": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "z": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CreateDistrictRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "sort_order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CreateEventRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateResult": {
+        "type": "object",
+        "description": "创建/更新操作结果（返回新生成的 id）",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "description": "管理员创建用户请求\n\n# 验证规则\n- `username`: 长度 3-50 字符\n- `email`: 必须是有效邮箱格式\n- `password`: 长度至少 6 字符\n- `role`: 可选，必须在角色注册表中\n\n# 安全考虑\n- 角色绑定由注册表白名单校验\n- 防止创建拥有非法角色的用户",
+        "required": [
+          "username",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "邮箱（必须是有效格式）"
+          },
+          "password": {
+            "type": "string",
+            "description": "密码（至少 6 字符）"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "角色标识（可选，不提供时默认为 \"fj200c_information\"）"
+          },
+          "username": {
+            "type": "string",
+            "description": "用户名（3-50 字符）"
+          }
+        }
+      },
+      "CsvFileContent": {
+        "type": "object",
+        "description": "CSV 文件内容",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "CsvFileList": {
+        "type": "object",
+        "description": "CSV 文件列表",
+        "required": [
+          "files",
+          "dir"
+        ],
+        "properties": {
+          "dir": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DesignPointRow": {
+        "type": "object",
+        "required": [
+          "speed",
+          "thrust",
+          "exhaustTemp",
+          "sfc"
+        ],
+        "properties": {
+          "exhaustTemp": {
+            "type": "string"
+          },
+          "sfc": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "string"
+          },
+          "thrust": {
+            "type": "string"
+          }
+        }
+      },
+      "District": {
+        "type": "object",
+        "description": "区域（含建筑数量）",
+        "required": [
+          "id",
+          "name",
+          "code",
+          "color",
+          "description",
+          "sort_order",
+          "building_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "building_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "code": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sort_order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "DynoFields": {
+        "type": "object",
+        "required": [
+          "jkwd",
+          "njzs",
+          "nj",
+          "njgl"
+        ],
+        "properties": {
+          "jkwd": {
+            "type": "number",
+            "format": "double"
+          },
+          "nj": {
+            "type": "number",
+            "format": "double"
+          },
+          "njgl": {
+            "type": "number",
+            "format": "double"
+          },
+          "njzs": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "EcuFields": {
+        "type": "object",
+        "required": [
+          "ngSpeed",
+          "exhaustTemp",
+          "npSpeed",
+          "machNumber",
+          "altitude",
+          "intakeTemp",
+          "throttle",
+          "engineStatus",
+          "workingVoltage",
+          "cmdExecStatus",
+          "faultCode1",
+          "faultCode2",
+          "oilPressure",
+          "oilTemp",
+          "fuelPressure",
+          "accessoryStatus",
+          "exchangerOutletTemp",
+          "fingerprintCode",
+          "frameCount",
+          "stopSolenoid",
+          "fuelPump",
+          "oilPump",
+          "ignition",
+          "starter",
+          "wheelLoadStatus",
+          "faultCodes",
+          "engineStatusU8",
+          "cmdExecU8"
+        ],
+        "properties": {
+          "accessoryStatus": {
+            "type": "string"
+          },
+          "altitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "cmdExecStatus": {
+            "type": "string"
+          },
+          "cmdExecU8": {
+            "type": "string"
+          },
+          "engineStatus": {
+            "type": "string"
+          },
+          "engineStatusU8": {
+            "type": "string"
+          },
+          "exchangerOutletTemp": {
+            "type": "number",
+            "format": "double"
+          },
+          "exhaustTemp": {
+            "type": "number",
+            "format": "double"
+          },
+          "faultCode1": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "faultCode2": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "faultCodes": {
+            "$ref": "#/components/schemas/FaultCodeFlags"
+          },
+          "fingerprintCode": {
+            "type": "string"
+          },
+          "frameCount": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fuelPressure": {
+            "type": "number",
+            "format": "double"
+          },
+          "fuelPump": {
+            "type": "boolean"
+          },
+          "ignition": {
+            "type": "boolean"
+          },
+          "intakeTemp": {
+            "type": "number",
+            "format": "double"
+          },
+          "machNumber": {
+            "type": "number",
+            "format": "double"
+          },
+          "ngSpeed": {
+            "type": "number",
+            "format": "double"
+          },
+          "npSpeed": {
+            "type": "number",
+            "format": "double"
+          },
+          "oilPressure": {
+            "type": "number",
+            "format": "double"
+          },
+          "oilPump": {
+            "type": "boolean"
+          },
+          "oilTemp": {
+            "type": "number",
+            "format": "double"
+          },
+          "starter": {
+            "type": "boolean"
+          },
+          "stopSolenoid": {
+            "type": "boolean"
+          },
+          "throttle": {
+            "type": "number",
+            "format": "double"
+          },
+          "wheelLoadStatus": {
+            "type": "boolean"
+          },
+          "workingVoltage": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "EventPage": {
+        "type": "object",
+        "description": "事件列表分页",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CityEvent"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ExperimentInfo": {
+        "type": "object",
+        "required": [
+          "engineNo",
+          "gasGeneratorNo",
+          "controllerNo",
+          "speedSensorNo",
+          "oilSensorNo",
+          "testItem",
+          "testTime"
+        ],
+        "properties": {
+          "controllerNo": {
+            "type": "string"
+          },
+          "engineNo": {
+            "type": "string"
+          },
+          "gasGeneratorNo": {
+            "type": "string"
+          },
+          "oilSensorNo": {
+            "type": "string"
+          },
+          "speedSensorNo": {
+            "type": "string"
+          },
+          "testItem": {
+            "type": "string"
+          },
+          "testTime": {
+            "type": "string"
+          }
+        }
+      },
+      "FaultCodeFlags": {
+        "type": "object",
+        "required": [
+          "fc1SelfCheckExhaust",
+          "fc1SelfCheckIntakeTemp",
+          "fc1SelfCheckOilPressure",
+          "fc1SelfCheckOilTemp",
+          "fc1SelfCheckFuelPressure",
+          "fc1SelfCheckNgSpeed",
+          "fc1SelfCheckNpSpeed",
+          "fc1SelfCheckFuelVent",
+          "fc1ColdStartAbnormal",
+          "fc1IgnitionFailure",
+          "fc1Overtemp",
+          "fc1StartTimeout",
+          "fc1StartSpeedLow",
+          "fc1NgOverspeed",
+          "fc1NpOverspeed",
+          "fc1ExhaustOvertemp",
+          "fc2NgSpeedFault",
+          "fc2NpSpeedFault",
+          "fc2ExhaustTempFault",
+          "fc2OilTempFault",
+          "fc2OilPressureFault",
+          "fc2FuelPressureFault",
+          "fc2VoltageAbnormal",
+          "fc2StartVoltageAbnormal",
+          "fc2GenVoltageAbnormal",
+          "fc2InFlightFlameout",
+          "fc2CommDisconnected"
+        ],
+        "properties": {
+          "fc1ColdStartAbnormal": {
+            "type": "boolean"
+          },
+          "fc1ExhaustOvertemp": {
+            "type": "boolean"
+          },
+          "fc1IgnitionFailure": {
+            "type": "boolean"
+          },
+          "fc1NgOverspeed": {
+            "type": "boolean"
+          },
+          "fc1NpOverspeed": {
+            "type": "boolean"
+          },
+          "fc1Overtemp": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckExhaust": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckFuelPressure": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckFuelVent": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckIntakeTemp": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckNgSpeed": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckNpSpeed": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckOilPressure": {
+            "type": "boolean"
+          },
+          "fc1SelfCheckOilTemp": {
+            "type": "boolean"
+          },
+          "fc1StartSpeedLow": {
+            "type": "boolean"
+          },
+          "fc1StartTimeout": {
+            "type": "boolean"
+          },
+          "fc2CommDisconnected": {
+            "type": "boolean"
+          },
+          "fc2ExhaustTempFault": {
+            "type": "boolean"
+          },
+          "fc2FuelPressureFault": {
+            "type": "boolean"
+          },
+          "fc2GenVoltageAbnormal": {
+            "type": "boolean"
+          },
+          "fc2InFlightFlameout": {
+            "type": "boolean"
+          },
+          "fc2NgSpeedFault": {
+            "type": "boolean"
+          },
+          "fc2NpSpeedFault": {
+            "type": "boolean"
+          },
+          "fc2OilPressureFault": {
+            "type": "boolean"
+          },
+          "fc2OilTempFault": {
+            "type": "boolean"
+          },
+          "fc2StartVoltageAbnormal": {
+            "type": "boolean"
+          },
+          "fc2VoltageAbnormal": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Ftj1cSaveConfigRequest": {
+        "type": "object",
+        "description": "保存配置请求体结构\n\n# 示例 JSON\n```json\n{\n  \"content\": \"[Udp]\\nMock = true\\n[IP]\\nip1 = 192.168.1.1\\n...\"\n}\n```",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "INI 配置文件的完整内容"
+          }
+        }
+      },
+      "Fw150LedgerItem": {
+        "type": "object",
+        "description": "设备台账条目（fw150 独立 schema 名，与 fw100 的 `LedgerItem` 区分）",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "status"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "GenerateReportRequest": {
+        "type": "object",
+        "description": "生成报表的请求体",
+        "required": [
+          "fileName",
+          "content",
+          "statePoints"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "CSV 文件内容"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "CSV 文件名（用于推导试验信息文件名）"
+          },
+          "statePoints": {
+            "type": "string",
+            "description": "状态点（逗号分隔的 RPM 值）"
+          }
+        }
+      },
+      "IpConfig": {
+        "type": "object",
+        "description": "IP 配置（config-ftj1c.ini 的 [IP] 节，16 组 IP:Port 配对）\n\n运行时实际返回包含全部 32 个键的动态对象，\n这里仅作为 OpenAPI schema 描述，键均视为可选。",
+        "properties": {
+          "ip1": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip10": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip11": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip12": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip13": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip14": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip15": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip16": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip2": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip3": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip5": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip6": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip7": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip8": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip9": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port1": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port10": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port11": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port12": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port13": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port14": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port15": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port16": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port2": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port3": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port4": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port5": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port6": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port7": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port8": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "port9": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "LedgerItem": {
+        "type": "object",
+        "description": "设备台账条目\n\nfw100 直接使用本类型（schema 名 `LedgerItem`）；\nfw150 定义同名结构的 `Fw150LedgerItem`（schema 名独立）。",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "status"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "description": "登录请求结构体，前端发送的登录数据\n\n# 验证规则\n- `email`: 必须是有效邮箱格式\n- `password`: 无特殊要求（由服务端验证）\n\n# 语法说明\n\n`#[derive(Validate)]` 启用输入验证：\n- `#[validate(email)]`: 验证邮箱格式\n- 验证失败时返回 `validator::ValidationErrors`",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "邮箱（必填，必须是有效邮箱格式）"
+          },
+          "password": {
+            "type": "string",
+            "description": "密码（必填）"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "description": "登录响应结构体，登录成功后返回的数据\n\n# 字段\n- `token`: JWT 令牌（用于后续请求认证）\n- `user`: 用户信息",
+        "required": [
+          "token",
+          "user"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT 令牌\n前端存储在 localStorage，每次请求放在 `Authorization` 头"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User",
+            "description": "用户信息"
+          }
+        }
+      },
+      "Overview": {
+        "type": "object",
+        "description": "城市概览聚合统计",
+        "required": [
+          "total_buildings",
+          "total_districts",
+          "total_events",
+          "total_energy_kw",
+          "total_population",
+          "active_buildings",
+          "recent_events"
+        ],
+        "properties": {
+          "active_buildings": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recent_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentEvent"
+            }
+          },
+          "total_buildings": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_districts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_energy_kw": {
+            "type": "number",
+            "format": "double"
+          },
+          "total_events": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_population": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PerformanceRow": {
+        "type": "object",
+        "required": [
+          "speed",
+          "thrust",
+          "exhaustTemp",
+          "fuelFlow",
+          "ambientTemp",
+          "ambientPressure"
+        ],
+        "properties": {
+          "ambientPressure": {
+            "type": "string"
+          },
+          "ambientTemp": {
+            "type": "string"
+          },
+          "exhaustTemp": {
+            "type": "string"
+          },
+          "fuelFlow": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "string"
+          },
+          "thrust": {
+            "type": "string"
+          }
+        }
+      },
+      "Permission": {
+        "type": "string",
+        "description": "权限枚举\n\n定义系统中所有可能的权限点。\n角色注册表（`roles.rs`）引用这些权限点。\n\n# RBAC 权限模型\n\n```text\n用户 → 角色 → 权限\n```\n\n例如：\n- 用户 A 的角色是 `admin`\n- `admin` 角色拥有 `[UsersRead, UsersWrite, UsersDelete, SystemAdmin]`\n- 用户 A 拥有这些权限\n\n# 语法说明\n\n`#[derive(...)]` 是 Rust 的过程宏（proc macro），自动为枚举实现：\n- `Debug`: 支持 `{:?}` 格式化输出\n- `Serialize`: 支持序列化为 JSON\n- `Deserialize`: 支持从 JSON 反序列化\n- `Clone`: 支持克隆\n- `PartialEq`: 支持 `==` 比较\n- `Eq`: 支持完全相等比较\n- `Hash`: 支持作为 HashMap 的键",
+        "enum": [
+          "Fj200cInformationMonitor",
+          "Fw100Monitor",
+          "Ftj1cMonitor",
+          "City3dView",
+          "Fw150Monitor",
+          "Fj200cMainMonitor",
+          "UsersRead",
+          "UsersWrite",
+          "UsersDelete",
+          "SystemAdmin"
+        ]
+      },
+      "PwdRouteStatus": {
+        "type": "object",
+        "description": "初始密码查询路由停用状态",
+        "required": [
+          "disabled"
+        ],
+        "properties": {
+          "disabled": {
+            "type": "boolean",
+            "description": "是否停用（true 表示 GET /admin/pwd 不再返回初始密码）"
+          }
+        }
+      },
+      "RecentEvent": {
+        "type": "object",
+        "description": "概览中的最近事件",
+        "required": [
+          "type",
+          "title",
+          "description",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordingState": {
+        "type": "object",
+        "description": "CSV 录制状态响应",
+        "required": [
+          "recording"
+        ],
+        "properties": {
+          "recording": {
+            "type": "boolean",
+            "description": "是否正在录制"
+          }
+        }
+      },
+      "ReportOutput": {
+        "type": "object",
+        "required": [
+          "basicInfo",
+          "statePoints",
+          "performanceData",
+          "standardData",
+          "designPointData"
+        ],
+        "properties": {
+          "basicInfo": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "designPointData": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DesignPointRow"
+            }
+          },
+          "performanceData": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerformanceRow"
+            }
+          },
+          "standardData": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StandardRow"
+            }
+          },
+          "statePoints": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        }
+      },
+      "RoleInfo": {
+        "type": "object",
+        "description": "角色信息 DTO（通过 API 暴露给前端，前端注册表由 orval 生成类型后单一同步）",
+        "required": [
+          "key",
+          "name",
+          "permissions"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "角色标识（数据库 `users.role` 存储值）"
+          },
+          "name": {
+            "type": "string",
+            "description": "角色显示名称"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "description": "角色拥有的权限点列表"
+          }
+        }
+      },
+      "SaveConfigRequest": {
+        "type": "object",
+        "description": "保存配置文件的请求体",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "INI 配置文件的完整内容"
+          }
+        }
+      },
+      "SavedResult": {
+        "type": "object",
+        "description": "配置保存结果",
+        "required": [
+          "saved"
+        ],
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SeedPasswordInfo": {
+        "type": "object",
+        "description": "种子账号初始密码信息",
+        "required": [
+          "username",
+          "password",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "密码记录创建时间"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "邮箱（种子账号被删除后为 null）"
+          },
+          "password": {
+            "type": "string",
+            "description": "初始密码明文"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "角色（种子账号被删除后为 null）"
+          },
+          "username": {
+            "type": "string",
+            "description": "用户名"
+          }
+        }
+      },
+      "SendCommandRequest": {
+        "type": "object",
+        "description": "发送 ECU 指令的请求体",
+        "required": [
+          "hex"
+        ],
+        "properties": {
+          "hex": {
+            "type": "string",
+            "description": "十六进制命令字符串，如 \"EB901000000000000000000000000000\""
+          }
+        }
+      },
+      "SentResult": {
+        "type": "object",
+        "description": "命令发送结果",
+        "required": [
+          "sent"
+        ],
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ServiceStatus": {
+        "type": "object",
+        "description": "服务运行状态",
+        "required": [
+          "running"
+        ],
+        "properties": {
+          "running": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SimulationState": {
+        "type": "object",
+        "description": "模拟运行状态响应",
+        "required": [
+          "simulating"
+        ],
+        "properties": {
+          "simulating": {
+            "type": "boolean",
+            "description": "是否正在模拟"
+          }
+        }
+      },
+      "StandardRow": {
+        "type": "object",
+        "required": [
+          "speed",
+          "thrust",
+          "exhaustTemp",
+          "sfc"
+        ],
+        "properties": {
+          "exhaustTemp": {
+            "type": "string"
+          },
+          "sfc": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "string"
+          },
+          "thrust": {
+            "type": "string"
+          }
+        }
+      },
+      "ThemeRequest": {
+        "type": "object",
+        "description": "主题切换请求体",
+        "required": [
+          "isDark"
+        ],
+        "properties": {
+          "isDark": {
+            "type": "boolean",
+            "description": "是否深色主题"
+          }
+        }
+      },
+      "ThemeState": {
+        "type": "object",
+        "description": "主题状态响应",
+        "required": [
+          "isDark"
+        ],
+        "properties": {
+          "isDark": {
+            "type": "boolean",
+            "description": "是否深色主题"
+          }
+        }
+      },
+      "UpdateBuildingRequest": {
+        "type": "object",
+        "properties": {
+          "depth": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "district_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "energy_kw": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "floors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occupancy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "population": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "x": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "z": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "UpdateDistrictRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort_order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "UpdateUserRoleRequest": {
+        "type": "object",
+        "description": "管理员修改用户角色时发送的数据",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "新角色标识，必须在角色注册表中"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名 |\n| `email` | `String` | 邮箱（用于登录） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 语法说明\n\n- `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）",
+        "required": [
+          "id",
+          "username",
+          "email",
+          "role",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间（UTC）"
+          },
+          "email": {
+            "type": "string",
+            "description": "邮箱（唯一，用于登录）"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "用户 UUID（主键）"
+          },
+          "role": {
+            "type": "string",
+            "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间（UTC）"
+          },
+          "username": {
+            "type": "string",
+            "description": "用户名（唯一）"
+          }
+        }
+      },
+      "UserSettings": {
+        "type": "object",
+        "description": "用户设置结构体，与数据库 `user_settings` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 默认值 | 说明 |\n|------|------|--------|------|\n| `theme` | `String` | \"light\" | 主题（light/dark） |\n| `primary_color` | `String` | \"#409eff\" | 主色调 |\n| `email_notifications` | `bool` | true | 邮件通知 |\n| `browser_notifications` | `bool` | false | 浏览器通知 |\n| `notification_types` | `Vec<String>` | [\"system\"] | 通知类型 |\n| `two_factor_auth` | `bool` | false | 双因素认证 |\n| `session_timeout` | `i32` | 60 | 会话超时（分钟） |\n| `profile_visibility` | `String` | \"public\" | 个人资料可见性 |\n| `default_post_visibility` | `String` | \"public\" | 默认帖子可见性 |\n| `data_collection` | `bool` | true | 数据收集 |\n| `language` | `String` | \"zh-CN\" | 语言 |\n| `timezone` | `String` | \"Asia/Shanghai\" | 时区 |",
+        "required": [
+          "id",
+          "user_id",
+          "theme",
+          "primary_color",
+          "email_notifications",
+          "browser_notifications",
+          "notification_types",
+          "two_factor_auth",
+          "session_timeout",
+          "profile_visibility",
+          "default_post_visibility",
+          "data_collection",
+          "language",
+          "timezone",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "browser_notifications": {
+            "type": "boolean",
+            "description": "是否启用浏览器通知"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "data_collection": {
+            "type": "boolean",
+            "description": "是否允许数据收集"
+          },
+          "default_post_visibility": {
+            "type": "string",
+            "description": "默认帖子可见性"
+          },
+          "email_notifications": {
+            "type": "boolean",
+            "description": "是否启用邮件通知"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "设置 UUID（主键）"
+          },
+          "language": {
+            "type": "string",
+            "description": "语言（如 \"zh-CN\"、\"en-US\"）"
+          },
+          "notification_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "通知类型（JSON 数组，如 [\"system\", \"alert\"]）"
+          },
+          "primary_color": {
+            "type": "string",
+            "description": "主色调（十六进制颜色码）"
+          },
+          "profile_visibility": {
+            "type": "string",
+            "description": "个人资料可见性（\"public\" 或 \"private\"）"
+          },
+          "session_timeout": {
+            "type": "integer",
+            "format": "int32",
+            "description": "会话超时时间（分钟）"
+          },
+          "theme": {
+            "type": "string",
+            "description": "主题（\"light\" 或 \"dark\"）"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "时区（如 \"Asia/Shanghai\"）"
+          },
+          "two_factor_auth": {
+            "type": "boolean",
+            "description": "是否启用双因素认证"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "用户 UUID（外键，关联 users 表）"
+          }
+        }
+      }
+    }
+  }
+}

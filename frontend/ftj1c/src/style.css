@@ -1,0 +1,326 @@
+/* 全局样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
+  color: #333;
+  overflow-x: hidden;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 响应式容器 */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* 响应式网格系统 */
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid-cols-1 {
+  grid-template-columns: repeat(1, 1fr);
+}
+.grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.grid-cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* 响应式断点 */
+@media (min-width: 640px) {
+  .container {
+    padding: 0 24px;
+  }
+  .sm\:grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sm\:grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .sm\:grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 32px;
+  }
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .md\:grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding: 0 40px;
+  }
+  .lg\:grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 移动端优化 */
+@media (max-width: 767px) {
+  html {
+    font-size: 14px;
+  }
+
+  /* 隐藏桌面端元素 */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* 移动端专用样式 */
+  .mobile-full {
+    width: 100% !important;
+  }
+  .mobile-padding {
+    padding: 16px !important;
+  }
+  .mobile-margin {
+    margin: 8px 0 !important;
+  }
+
+  /* 移动端表单优化 */
+  .el-form-item__label {
+    text-align: left !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* 移动端按钮优化 */
+  .el-button {
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* 移动端卡片优化 */
+  .el-card {
+    margin: 8px 0 !important;
+    border-radius: 8px !important;
+  }
+
+  /* 移动端表格优化 */
+  .el-table {
+    font-size: 12px !important;
+  }
+
+  .el-table th,
+  .el-table td {
+    padding: 8px 4px !important;
+  }
+}
+
+/* 平板端优化 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tablet-padding {
+    padding: 24px !important;
+  }
+  .tablet-margin {
+    margin: 16px 0 !important;
+  }
+}
+
+/* 桌面端优化 */
+@media (min-width: 1024px) {
+  .desktop-padding {
+    padding: 32px !important;
+  }
+  .desktop-margin {
+    margin: 24px 0 !important;
+  }
+
+  /* 显示桌面端元素 */
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* 工具类 */
+.flex {
+  display: flex;
+}
+.flex-col {
+  flex-direction: column;
+}
+.flex-wrap {
+  flex-wrap: wrap;
+}
+.items-center {
+  align-items: center;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.justify-end {
+  justify-content: flex-end;
+}
+
+.text-center {
+  text-align: center;
+}
+.text-left {
+  text-align: left;
+}
+.text-right {
+  text-align: right;
+}
+
+.w-full {
+  width: 100%;
+}
+.h-full {
+  height: 100%;
+}
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.p-0 {
+  padding: 0;
+}
+.p-4 {
+  padding: 16px;
+}
+.p-6 {
+  padding: 24px;
+}
+.p-8 {
+  padding: 32px;
+}
+
+.m-0 {
+  margin: 0;
+}
+.m-4 {
+  margin: 16px;
+}
+.m-6 {
+  margin: 24px;
+}
+.m-8 {
+  margin: 32px;
+}
+
+.rounded {
+  border-radius: 4px;
+}
+.rounded-lg {
+  border-radius: 8px;
+}
+.rounded-xl {
+  border-radius: 12px;
+}
+
+.shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* 动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-enter-from {
+  transform: translateX(-100%);
+}
+
+.slide-leave-to {
+  transform: translateX(100%);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 移动端滚动优化 */
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
+/* 触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  .el-button:hover {
+    transform: none !important;
+  }
+
+  .el-card:hover {
+    transform: none !important;
+  }
+}

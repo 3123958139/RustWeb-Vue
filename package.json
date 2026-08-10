@@ -1,0 +1,21 @@
+{
+  "private": true,
+  "workspaces": [
+    "frontend/fj200c_information",
+    "frontend/fj200c_main",
+    "frontend/fw100",
+    "frontend/fw150",
+    "frontend/ftj1c",
+    "frontend/admin",
+    "frontend/city3d",
+    "packages/shared"
+  ],
+  "scripts": {
+    "gen:api": "cargo test export_openapi && orval"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.16.0",
+    "orval": "^8.23.0",
+    "unplugin-vue-components": "^32.1.0"
+  }
+}
