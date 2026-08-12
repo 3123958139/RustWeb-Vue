@@ -4,6 +4,7 @@
  * 路由结构：
  * /                     → 重定向到 /login
  * /login                → 登录页
+ * /protocol_generator   → 首页，重定向到协议编辑（已登录用户回跳路径，缺它会导致 /login ↔ /protocol_generator 无限循环）
  * /protocol_generator/editor → 协议编辑（需要 ProtocolGeneratorMonitor 权限）
  * /protocol_generator/csv    → CSV 参数表编辑（需要 ProtocolGeneratorMonitor 权限）
  * 其他                  → 兜底重定向到 /login
@@ -20,6 +21,11 @@ const router = createAppRouter({
         {
             path: "/",
             redirect: "/login",
+        },
+        {
+            path: "/protocol_generator",
+            name: "ProtocolGeneratorHome",
+            redirect: "/protocol_generator/editor",
         },
         {
             path: "/login",
