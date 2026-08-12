@@ -84,6 +84,13 @@ use utoipa::OpenApi;
         crate::fj200c_main::handlers::save_experiment_handler,
         crate::fj200c_main::handlers::generate_report_handler,
         crate::fj200c_main::handlers::get_help_handler,
+        // ============ protocol_generator（通信协议生成） ============
+        crate::protocol_generator::handlers::get_default_csv,
+        crate::protocol_generator::handlers::save_default_csv,
+        crate::protocol_generator::handlers::export_markdown,
+        crate::protocol_generator::handlers::export_excel,
+        crate::protocol_generator::handlers::parse_csv,
+        crate::protocol_generator::handlers::serialize_csv,
     ),
     components(
         schemas(
@@ -150,6 +157,12 @@ use utoipa::OpenApi;
             crate::fj200c_main::handlers::RecordingState,
             crate::fj200c_main::handlers::SimulationState,
             crate::fj200c_main::handlers::ThemeState,
+            // protocol_generator 模型
+            crate::protocol_generator::models::ProtocolField,
+            crate::protocol_generator::models::ParameterDef,
+            crate::protocol_generator::models::ProtocolExportRequest,
+            crate::protocol_generator::models::CsvParseRequest,
+            crate::protocol_generator::models::TextContent,
         )
     ),
 )]
@@ -227,13 +240,19 @@ mod tests {
             "/api/fj200c_main/experiment",
             "/api/fj200c_main/report",
             "/api/fj200c_main/help",
+            // protocol_generator：6 个操作（default-csv GET/PUT + markdown + excel + csv/parse + csv/serialize）
+            "/api/protocol_generator/default-csv",
+            "/api/protocol_generator/markdown",
+            "/api/protocol_generator/excel",
+            "/api/protocol_generator/csv/parse",
+            "/api/protocol_generator/csv/serialize",
         ] {
             assert!(paths.contains_key(path), "缺少路径: {}", path);
         }
 
         // 唯一路径数：auth 2 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
-        //           + city3d 7 + fj200c_main 13（experiment 与 config 各 1 路径对应 GET/PUT 两操作）= 42
-        assert_eq!(paths.len(), 42, "路径数量与预期不符");
+        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 = 47
+        assert_eq!(paths.len(), 47, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -250,7 +269,7 @@ mod tests {
                 }
             }
         }
-        // 53 个 HTTP 操作（不含 WebSocket）：原 35 + fj200c_main 15 + seed pwd 1 + pwd-route 2
-        assert_eq!(operations, 53, "操作数量与预期不符");
+        // 59 个 HTTP 操作（不含 WebSocket）：原 53 + protocol_generator 6
+        assert_eq!(operations, 59, "操作数量与预期不符");
     }
 }

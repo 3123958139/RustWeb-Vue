@@ -57,6 +57,11 @@ struct Ftj1cAssets;
 #[folder = "frontend/city3d/dist/"]
 struct City3dAssets;
 
+/// protocol_generator 通信协议生成
+#[derive(RustEmbed)]
+#[folder = "frontend/protocol_generator/dist/"]
+struct ProtocolGeneratorAssets;
+
 // ============ 处理函数 ============
 
 /// 嵌入式静态资源处理器（泛型，按应用实例化）
@@ -128,4 +133,7 @@ pub fn embedded_router() -> Router {
         .route("/city3d", get(serve_embedded::<City3dAssets>))
         .route("/city3d/", get(serve_embedded::<City3dAssets>))
         .route("/city3d/*path", get(serve_embedded::<City3dAssets>))
+        .route("/protocol_generator", get(serve_embedded::<ProtocolGeneratorAssets>))
+        .route("/protocol_generator/", get(serve_embedded::<ProtocolGeneratorAssets>))
+        .route("/protocol_generator/*path", get(serve_embedded::<ProtocolGeneratorAssets>))
 }

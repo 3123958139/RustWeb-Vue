@@ -18,117 +18,117 @@
       <div class="fm-page">
         <div class="report-wrap">
           <div class="watermark">©{{ currentYear }} 7304厂</div>
-          <div class="fm-panel-header report-header">报表生成</div>
+          <!--          <div class="fm-panel-header report-header">报表生成</div>-->
 
-        <div class="fm-panel report-toolbar">
-          <div class="toolbar-row">
-            <label class="tool-label">数据文件：</label>
-            <el-select
-              v-model="selectedFile"
-              class="file-select"
-              placeholder="请选择 CSV 数据文件"
-              :loading="fileLoading"
-              filterable
-            >
-              <el-option
-                v-for="f in csvFiles"
-                :key="f"
-                :label="f"
-                :value="f"
+          <div class="fm-panel report-toolbar">
+            <div class="toolbar-row">
+              <label class="tool-label">数据文件：</label>
+              <el-select
+                  v-model="selectedFile"
+                  :loading="fileLoading"
+                  class="file-select"
+                  filterable
+                  placeholder="请选择 CSV 数据文件"
+              >
+                <el-option
+                    v-for="f in csvFiles"
+                    :key="f"
+                    :label="f"
+                    :value="f"
+                />
+              </el-select>
+              <el-button :loading="fileLoading" size="small" @click="loadFileList">刷新列表</el-button>
+            </div>
+            <div class="toolbar-row">
+              <label class="tool-label">状态点：</label>
+              <el-input
+                  v-model="statePoints"
+                  class="state-points-input"
+                  placeholder="逗号分隔，如 30000,31000,32000,..."
               />
-            </el-select>
-            <el-button size="small" @click="loadFileList" :loading="fileLoading">刷新列表</el-button>
-          </div>
-          <div class="toolbar-row">
-            <label class="tool-label">状态点：</label>
-            <el-input
-              v-model="statePoints"
-              class="state-points-input"
-              placeholder="逗号分隔，如 30000,31000,32000,..."
-            />
-            <el-button
-              size="small"
-              type="primary"
-              :disabled="generating || !selectedFile"
-              :loading="generating"
-              @click="generateReport"
-            >
-              {{ generating ? '生成中...' : '生成报表' }}
-            </el-button>
-          </div>
-        </div>
-
-        <div v-if="error" class="error-bar">{{ error }}</div>
-
-        <div v-if="report" class="report-body">
-          <div class="report-title">FJ-200C涡桨发动机试车数据</div>
-
-          <div class="section">
-            <div class="section-title">一、试验基本信息</div>
-            <table class="info-table">
-              <tr>
-                <td class="info-label">发动机编号</td>
-                <td class="info-value"><input v-model="basicInfo[0]" class="info-input" /></td>
-                <td class="info-label">燃气发生器编号</td>
-                <td class="info-value"><input v-model="basicInfo[1]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">电控器编号</td>
-                <td class="info-value"><input v-model="basicInfo[2]" class="info-input" /></td>
-                <td class="info-label">转速传感器编号</td>
-                <td class="info-value"><input v-model="basicInfo[3]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">滑油温压一体传感器编号</td>
-                <td class="info-value"><input v-model="basicInfo[4]" class="info-input" /></td>
-                <td class="info-label">试验项目</td>
-                <td class="info-value"><input v-model="basicInfo[5]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">试验时间</td>
-                <td class="info-value"><input v-model="basicInfo[6]" class="info-input" /></td>
-                <td class="info-label">发动机状态</td>
-                <td class="info-value"><input v-model="basicInfo[7]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">冷灵活性</td>
-                <td class="info-value"><input v-model="basicInfo[8]" class="info-input" /></td>
-                <td class="info-label">试验指挥</td>
-                <td class="info-value"><input v-model="basicInfo[9]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">热灵活性</td>
-                <td class="info-value"><input v-model="basicInfo[10]" class="info-input" /></td>
-                <td class="info-label">操作人员</td>
-                <td class="info-value"><input v-model="basicInfo[11]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">试验序号</td>
-                <td class="info-value"><input v-model="basicInfo[12]" class="info-input" /></td>
-                <td class="info-label">检验人员</td>
-                <td class="info-value"><input v-model="basicInfo[13]" class="info-input" /></td>
-              </tr>
-              <tr>
-                <td class="info-label">停车原因</td>
-                <td class="info-value" colspan="3"><input v-model="basicInfo[14]" class="info-input" /></td>
-              </tr>
-            </table>
+              <el-button
+                  :disabled="generating || !selectedFile"
+                  :loading="generating"
+                  size="small"
+                  type="primary"
+                  @click="generateReport"
+              >
+                {{ generating ? '生成中...' : '生成报表' }}
+              </el-button>
+            </div>
           </div>
 
-          <div class="section">
-            <div class="section-title">二、试验性能数据</div>
-            <table class="data-table">
-              <thead>
+          <div v-if="error" class="error-bar">{{ error }}</div>
+
+          <div v-if="report" class="report-body">
+            <div class="report-title">FJ-200C涡桨发动机试车数据</div>
+
+            <div class="section">
+              <div class="section-title">一、试验基本信息</div>
+              <table class="info-table">
                 <tr>
-                  <th>转速<br />r/min</th>
-                  <th>推力<br />N</th>
-                  <th>排气温度<br />°C</th>
-                  <th>燃油流量<br />g/s</th>
-                  <th>大气温度<br />°C</th>
-                  <th>大气压力<br />KPa</th>
+                  <td class="info-label">发动机编号</td>
+                  <td class="info-value"><input v-model="basicInfo[0]" class="info-input"/></td>
+                  <td class="info-label">燃气发生器编号</td>
+                  <td class="info-value"><input v-model="basicInfo[1]" class="info-input"/></td>
                 </tr>
-              </thead>
-              <tbody>
+                <tr>
+                  <td class="info-label">电控器编号</td>
+                  <td class="info-value"><input v-model="basicInfo[2]" class="info-input"/></td>
+                  <td class="info-label">转速传感器编号</td>
+                  <td class="info-value"><input v-model="basicInfo[3]" class="info-input"/></td>
+                </tr>
+                <tr>
+                  <td class="info-label">滑油温压一体传感器编号</td>
+                  <td class="info-value"><input v-model="basicInfo[4]" class="info-input"/></td>
+                  <td class="info-label">试验项目</td>
+                  <td class="info-value"><input v-model="basicInfo[5]" class="info-input"/></td>
+                </tr>
+                <tr>
+                  <td class="info-label">试验时间</td>
+                  <td class="info-value"><input v-model="basicInfo[6]" class="info-input"/></td>
+                  <td class="info-label">发动机状态</td>
+                  <td class="info-value"><input v-model="basicInfo[7]" class="info-input"/></td>
+                </tr>
+                <tr>
+                  <td class="info-label">冷灵活性</td>
+                  <td class="info-value"><input v-model="basicInfo[8]" class="info-input"/></td>
+                  <td class="info-label">试验指挥</td>
+                  <td class="info-value"><input v-model="basicInfo[9]" class="info-input"/></td>
+                </tr>
+                <tr>
+                  <td class="info-label">热灵活性</td>
+                  <td class="info-value"><input v-model="basicInfo[10]" class="info-input"/></td>
+                  <td class="info-label">操作人员</td>
+                  <td class="info-value"><input v-model="basicInfo[11]" class="info-input"/></td>
+                </tr>
+                <tr>
+                  <td class="info-label">试验序号</td>
+                  <td class="info-value"><input v-model="basicInfo[12]" class="info-input"/></td>
+                  <td class="info-label">检验人员</td>
+                  <td class="info-value"><input v-model="basicInfo[13]" class="info-input"/></td>
+                </tr>
+                <tr>
+                  <td class="info-label">停车原因</td>
+                  <td class="info-value" colspan="3"><input v-model="basicInfo[14]" class="info-input"/></td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="section">
+              <div class="section-title">二、试验性能数据</div>
+              <table class="data-table">
+                <thead>
+                <tr>
+                  <th>转速<br/>r/min</th>
+                  <th>推力<br/>N</th>
+                  <th>排气温度<br/>°C</th>
+                  <th>燃油流量<br/>g/s</th>
+                  <th>大气温度<br/>°C</th>
+                  <th>大气压力<br/>KPa</th>
+                </tr>
+                </thead>
+                <tbody>
                 <tr v-for="(row, i) in report.performanceData" :key="i">
                   <td>{{ row.speed }}</td>
                   <td>{{ row.thrust }}</td>
@@ -137,73 +137,73 @@
                   <td>{{ row.ambientTemp }}</td>
                   <td>{{ row.ambientPressure }}</td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
 
-          <div class="section">
-            <div class="section-title">三、试验标准数据</div>
-            <table class="data-table">
-              <thead>
+            <div class="section">
+              <div class="section-title">三、试验标准数据</div>
+              <table class="data-table">
+                <thead>
                 <tr>
-                  <th>转速<br />r/min</th>
-                  <th>推力<br />daN</th>
-                  <th>排气温度<br />°C</th>
-                  <th>耗油率<br />kg/(daN·h)</th>
+                  <th>转速<br/>r/min</th>
+                  <th>推力<br/>daN</th>
+                  <th>排气温度<br/>°C</th>
+                  <th>耗油率<br/>kg/(daN·h)</th>
                 </tr>
-              </thead>
-              <tbody>
+                </thead>
+                <tbody>
                 <tr v-for="(row, i) in report.standardData" :key="i">
                   <td>{{ row.speed }}</td>
                   <td>{{ row.thrust }}</td>
                   <td>{{ row.exhaustTemp }}</td>
                   <td>{{ row.sfc }}</td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
 
-          <div class="section">
-            <div class="section-title">四、设计点性能数据</div>
-            <table class="data-table">
-              <thead>
+            <div class="section">
+              <div class="section-title">四、设计点性能数据</div>
+              <table class="data-table">
+                <thead>
                 <tr>
-                  <th>转速<br />r/min</th>
-                  <th>推力<br />daN</th>
-                  <th>排气温度<br />°C</th>
-                  <th>耗油率<br />kg/(daN·h)</th>
+                  <th>转速<br/>r/min</th>
+                  <th>推力<br/>daN</th>
+                  <th>排气温度<br/>°C</th>
+                  <th>耗油率<br/>kg/(daN·h)</th>
                 </tr>
-              </thead>
-              <tbody>
+                </thead>
+                <tbody>
                 <tr v-for="(row, i) in report.designPointData" :key="i">
                   <td>{{ row.speed }}</td>
                   <td>{{ row.thrust }}</td>
                   <td>{{ row.exhaustTemp }}</td>
                   <td>{{ row.sfc }}</td>
                 </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="print-area">
+              <el-button type="primary" @click="handlePrint">打印 / 导出PDF</el-button>
+            </div>
           </div>
 
-          <div class="print-area">
-            <el-button type="primary" @click="handlePrint">打印 / 导出PDF</el-button>
+          <div v-else-if="!generating" class="empty-state">
+            请选择 CSV 数据文件并点击"生成报表"
           </div>
-        </div>
-
-        <div v-else-if="!generating" class="empty-state">
-          请选择 CSV 数据文件并点击"生成报表"
         </div>
       </div>
-    </div>
     </div>
   </ScaledPage>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import type { ReportOutput } from '@shared/api/generated'
-import { fj200cMainApi } from '@/api'
+import {onMounted, ref} from 'vue'
+import {ElMessage} from 'element-plus'
+import type {ReportOutput} from '@shared/api/generated'
+import {fj200cMainApi} from '@/api'
 import ScaledPage from '@/fj200c_main/components/ScaledPage.vue'
 
 const currentYear = new Date().getFullYear()
@@ -260,15 +260,15 @@ async function generateReport() {
     }
     // 调用后端生成报表
     const response = await fj200cMainApi.generateReport(
-      selectedFile.value,
-      csvResp.data.content,
-      statePoints.value,
+        selectedFile.value,
+        csvResp.data.content,
+        statePoints.value,
     )
     if (response.success && response.data) {
       report.value = response.data
       basicInfo.value = response.data.basicInfo.length === 15
-        ? [...response.data.basicInfo]
-        : Array(15).fill('')
+          ? [...response.data.basicInfo]
+          : Array(15).fill('')
     } else {
       error.value = response.message || '生成失败'
     }

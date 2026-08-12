@@ -11,7 +11,7 @@ rem Build frontends in PARALLEL (max 4 concurrent, see build-frontends.ps1).
 rem Order still matters: frontends must be built BEFORE the backend, because the
 rem frontend dist is embedded INTO the exe at compile time
 rem (cargo build --release --features embedded, see src/embedded_assets.rs).
-echo Building 7 frontends in parallel (4 concurrent)...
+echo Building 8 frontends in parallel (4 concurrent)...
 powershell -NoProfile -ExecutionPolicy Bypass -File build-frontends.ps1
 if errorlevel 1 (
     echo.
@@ -20,8 +20,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem [7] Build backend with embedded frontend assets (single exe)
-echo [7] Building backend (cargo build --release --features embedded)...
+rem [8] Build backend with embedded frontend assets (single exe)
+echo [8] Building backend (cargo build --release --features embedded)...
 call cargo build --release --features embedded
 if errorlevel 1 (
     echo.
@@ -166,6 +166,7 @@ echo   Fw150:                   http://localhost:3000/fw150
 echo   Ftj1c:                   http://localhost:3000/ftj1c
 echo   Admin:                   http://localhost:3000/admin
 echo   City3d:                  http://localhost:3000/city3d
+echo   Protocol_generator:      http://localhost:3000/protocol_generator
 echo ----------------------------------------
 
 cd deploy

@@ -7,7 +7,7 @@ Rust + Axum 后端 + 7 个 Vue 3 前端应用的全栈管理系统。不是 Taur
 ## 架构
 
 - **后端** `src/` — Axum 0.7 Web 框架，SQLite (sqlx)，JWT 认证，RBAC 角色权限
-- **前端** `frontend/` — 7 个独立 Vue 3 + Vite 6 + Element Plus + Pinia 应用，各占不同端口
+- **前端** `frontend/` — 8 个独立 Vue 3 + Vite 6 + Element Plus + Pinia 应用，各占不同端口
 - **共享包** `packages/shared/` — `@rustweb/shared`，npm workspaces 引用，通过 `@shared` alias 使用
 - **建表与种子数据** — 由 `src/database.rs` 内建表 + 插入种子账号（无 sqlx 迁移文件）
 - **类型同步** — utoipa + OpenAPI + orval（已替代旧 ts-rs 方案）
@@ -23,6 +23,7 @@ Rust + Axum 后端 + 7 个 Vue 3 前端应用的全栈管理系统。不是 Taur
 | `frontend/city3d` | 城市 3D 展示 | 5177 | `/city3d` |
 | `frontend/fw150` | 设备台账 | 5178 | `/fw150` |
 | `frontend/fj200c_main` | 发动机测控（ECU/ADAM/DYNO 三路串口） | 5179 | `/fj200c_main` |
+| `frontend/protocol_generator` | 通信协议生成 | 5180 | `/protocol_generator` |
 
 所有前端 `vite.config.ts` 中 `/api` 代理到 `http://localhost:3000`（fj200c_information/fj200c_main/ftj1c 额外开启 `ws: true`）。`base` 为 `command === "build" ? "/<app>/" : "/"`，`@` = `src/`，`@shared` = `../../packages/shared/src`。
 
@@ -39,6 +40,7 @@ Rust + Axum 后端 + 7 个 Vue 3 前端应用的全栈管理系统。不是 Taur
 | `fw150` | Fw150Monitor | fw150 |
 | `ftj1c` | Ftj1cMonitor | ftj1c |
 | `city3d` | City3dView | city3d |
+| `protocol_generator` | ProtocolGeneratorMonitor | protocol_generator |
 
 新增角色：`src/roles.rs` 注册表加一项 → `npm run gen:api` 同步前端类型 → `roles.ts` 的 `MENU_CONFIG`/`ROLE_APP_URLS` 加菜单与地址 → 复制 `src/role_template/` 为后端模块 → 复制现有前端为新应用 → 见下文「新增角色」章节。
 
@@ -89,6 +91,7 @@ deploy.bat                   # 7 个前端依次 npm run build → cargo build -
 - `src/ftj1c/` — UDP 组播通信监控：二级目录含 UDP 接收（`udp.rs`）、帧提取，WebSocket 广播
 - `src/fw100/` / `src/fw150/` — 设备台账（handler + service）
 - `src/city3d/` — 城市区域/建筑/事件管理 + 概览聚合统计（二级目录含 `models.rs`）
+- `src/protocol_generator/` — 通信协议生成（从 demo-protocol 迁移）：参数表 CSV 读写/解析、协议 C# 代码生成、Excel/Markdown 导出（二级目录含 `generator.rs`）
 - `src/role_template/` — 新角色模块参考模板
 - `src/embedded_assets.rs` — 单 exe 打包：`--features embedded` 时用 rust-embed 将 7 个前端 dist 编译期内嵌，内存服务静态资源
 - `src/routes.rs` — 路由集中注册；`src/roles.rs` — 角色注册表；`src/api_docs.rs` — OpenAPI 聚合
@@ -106,6 +109,7 @@ deploy.bat                   # 7 个前端依次 npm run build → cargo build -
 | `/api/fw150/*` | Fw150Monitor | 设备台账 |
 | `/api/ftj1c/*` | Ftj1cMonitor | 服务启停/IP 配置/config.ini；`WS /api/ftj1c/ws?token=` |
 | `/api/city3d/*` | City3dView | 建筑/区域/事件/overview |
+| `/api/protocol_generator/*` | ProtocolGeneratorMonitor | 通信协议生成：参数表 CSV 读写/解析、协议 C# 代码生成、Excel/Markdown 导出 |
 | `/api-docs/openapi.json` | 公开 | 实时 OpenAPI spec（配合 Swagger UI） |
 
 WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通过 `?token=` 查询参数，handler 内部校验。
@@ -148,7 +152,7 @@ deploy/
 - 改名/新增前端应用时，`main.rs` 静态托管、`src/embedded_assets.rs` 嵌入结构体与路由、`deploy.bat`、`package.json` workspaces、`vite.config.ts` base/port 都要同步改
 - `Cargo.lock` 被 `.gitignore` 忽略，`package-lock.json` 需提交
 - `config-fj200c_information.ini` 修改立即生效（热加载），`config-fj200c_main.ini` 与 `config-ftj1c.ini` 需重启服务
-- 6 个用户端 + admin 共享同一登录态（localStorage token），跨应用跳转 token 自动传递
+- 7 个用户端 + admin 共享同一登录态（localStorage token），跨应用跳转 token 自动传递
 
 ## 新增角色流程（前端 + 后端）
 

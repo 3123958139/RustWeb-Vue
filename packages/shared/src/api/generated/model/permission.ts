@@ -44,6 +44,7 @@ export const Permission = {
   City3dView: 'City3dView',
   Fw150Monitor: 'Fw150Monitor',
   Fj200cMainMonitor: 'Fj200cMainMonitor',
+  ProtocolGeneratorMonitor: 'ProtocolGeneratorMonitor',
   UsersRead: 'UsersRead',
   UsersWrite: 'UsersWrite',
   UsersDelete: 'UsersDelete',

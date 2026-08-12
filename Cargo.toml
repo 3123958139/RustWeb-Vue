@@ -55,6 +55,9 @@ rand = "0.8"
 # ftj1c 通信监控模块（从 demo-test3-ftj 迁移）：UDP 组播（SO_REUSEADDR / 1MB 接收缓冲）
 socket2 = "0.5"
 
+# protocol_generator 协议生成模块（从 demo-protocol 迁移）：Excel 导出
+rust_xlsxwriter = "0.97.0"
+
 # OpenAPI 规范生成（方案一：utoipa + openapi.json + orval）
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 

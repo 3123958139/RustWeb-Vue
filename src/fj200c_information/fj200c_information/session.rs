@@ -30,7 +30,7 @@ use crate::common::frame_extractor::FrameExtractor;
 use crate::common::utils;
 use crate::fj200c_information::csv_sink::CsvSink;
 use crate::fj200c_information::decode::{
-    make_decoder, frame_validator, CSV_HEADERS, ExtractedFrame, FrameType, FRAME_LEN, HEADER,
+    frame_validator, make_decoder, ExtractedFrame, FrameType, CSV_HEADERS, FRAME_LEN, HEADER,
 };
 use crate::fj200c_information::frame_bundle::FrameBundle;
 use crate::fj200c_information::mock::STOP_SIGNAL;
@@ -98,7 +98,9 @@ pub fn run_one_connection(
     info!("会话线程启动: 连接 {} 开始读取数据", connection_index);
 
     // 从配置文件读取 CSV 相关设置
-    let csv_enabled = cfg.get_or("CSV", "Enabled", "true").eq_ignore_ascii_case("true");
+    let csv_enabled = cfg
+        .get_or("CSV", "Enabled", "true")
+        .eq_ignore_ascii_case("true");
     let csv_dir = cfg.get_or("CSV", "Dir", "csv");
 
     // 设置串口接收超时
@@ -136,7 +138,11 @@ pub fn run_one_connection(
         if let Some(cmd_rx) = COMMAND_RX.get() {
             if let Ok(cmd) = cmd_rx.lock().unwrap_or_else(|e| e.into_inner()).try_recv() {
                 match control.send(&cmd) {
-                    Ok(_) => info!("连接 {} 发送命令: {}", connection_index, utils::format_hex(&cmd)),
+                    Ok(_) => info!(
+                        "连接 {} 发送命令: {}",
+                        connection_index,
+                        utils::format_hex(&cmd)
+                    ),
                     Err(e) => warn!("连接 {} 发送命令失败: {}", connection_index, e),
                 }
             }
@@ -249,7 +255,10 @@ fn handle_frame(
                     "fj200c_information_{}.csv",
                     chrono::Local::now().format("%Y%m%d_%H%M%S")
                 );
-                sink.begin(filename, CSV_HEADERS.iter().map(|s| s.to_string()).collect());
+                sink.begin(
+                    filename,
+                    CSV_HEADERS.iter().map(|s| s.to_string()).collect(),
+                );
             }
         }
         FrameType::SYSJZJK => {
@@ -296,6 +305,7 @@ fn handle_frame(
             connection_index,
             rows,
         };
+        info!("{:?}", event.clone());
         if let Ok(json) = crate::common::ws::serialize(&event) {
             let _ = tx.send(json);
         }
@@ -311,52 +321,93 @@ fn handle_frame(
 /// 包括产品名称、编号、累计时间、指纹码等标识信息。
 /// 解码结果写入全局 `SharedData` 单例，供 HTTP handler 读取推送。
 fn decode_shared_data(frame: &[u8]) {
-    if frame.len() < 67 {
+    if frame.len() < 49 {
         return;
     }
     let shared = SharedData::global();
     let mut ascii: [u8; 8] = [0; 8];
 
-    ascii.copy_from_slice(&frame[4..12]);
-    *shared.field_product_name.write().unwrap_or_else(|e| e.into_inner()) =
+    ascii.copy_from_slice(&frame[5..13]);
+    *shared
+        .field_product_name
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) =
         utils::little_endian_bytes_to_ascii(&ascii).unwrap_or_else(|_| "Err".into());
 
-    ascii.copy_from_slice(&frame[12..20]);
-    *shared.field_engine_product_code.write().unwrap_or_else(|e| e.into_inner()) =
+    ascii.copy_from_slice(&frame[13..21]);
+    *shared
+        .field_engine_product_code
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) =
         utils::little_endian_bytes_to_ascii(&ascii).unwrap_or_else(|_| "Err".into());
 
-    *shared.field_engine_factory_number.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[20..24]);
-    *shared.field_engine_test_date.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[24..28]);
+    *shared
+        .field_engine_factory_number
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[21..25]);
+    *shared
+        .field_engine_test_date
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[25..29]);
 
-    ascii.copy_from_slice(&frame[28..36]);
-    *shared.field_controller_product_code.write().unwrap_or_else(|e| e.into_inner()) =
+    ascii.copy_from_slice(&frame[29..37]);
+    *shared
+        .field_controller_product_code
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) =
         utils::little_endian_bytes_to_ascii(&ascii).unwrap_or_else(|_| "Err".into());
 
-    *shared.field_controller_number.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[36..40]);
-    *shared.field_gas_generator_number.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[40..42]);
-    *shared.field_controller_power_on_seconds.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[42..44]);
-    *shared.field_controller_power_on_hours.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[44..48]);
-    *shared.field_engine_work_seconds.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[48..50]);
-    *shared.field_engine_work_hours.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[50..54]);
+    *shared
+        .field_controller_number
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[37..41]);
+    *shared
+        .field_gas_generator_number
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[41..45]);
+    // *shared
+    //     .field_controller_power_on_seconds
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[42..44]);
+    // *shared
+    //     .field_controller_power_on_hours
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[44..48]);
+    // *shared
+    //     .field_engine_work_seconds
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[48..50]);
+    // *shared
+    //     .field_engine_work_hours
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[50..54]);
+    //
+    // *shared
+    //     .field_engine_start_count
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) =
+    //     format!("{}", frame[54] as u16 + frame[54] as u16 * 256u16);
 
-    *shared.field_engine_start_count.write().unwrap_or_else(|e| e.into_inner()) = format!(
-        "{}",
-        frame[54] as u16 + frame[54] as u16 * 256u16
-    );
+    *shared
+        .field_engine_software_fingerprint
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[46..50]);
+    *shared
+        .field_bootloader_fingerprint
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[50..54]);
 
-    *shared.field_engine_software_fingerprint.write().unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[56..60]);
-    *shared.field_bootloader_fingerprint.write().unwrap_or_else(|e| e.into_inner()) =
-        utils::format_hex(&frame[60..64]);
-
-    *shared.field_software_upgrade_count.write().unwrap_or_else(|e| e.into_inner()) = format!(
-        "{}",
-        frame[64] as u16 + frame[65] as u16 * 256u16
-    );
-
-    *shared.field_power_on_count.write().unwrap_or_else(|e| e.into_inner()) = format!(
-        "{}",
-        frame[65] as u16 + frame[66] as u16 * 256u16
-    );
+    // *shared
+    //     .field_software_upgrade_count
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) =
+    //     format!("{}", frame[64] as u16 + frame[65] as u16 * 256u16);
+    //
+    // *shared
+    //     .field_power_on_count
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) =
+    //     format!("{}", frame[65] as u16 + frame[66] as u16 * 256u16);
 }
 
 /// 汇总 16 个 SharedData 字段为表格行（按字段名排序）
@@ -386,24 +437,24 @@ fn shared_data_rows() -> Vec<TableRow> {
     push_row!("电控器产品代号", shared.field_controller_product_code);
     push_row!("电控器编号", shared.field_controller_number);
     push_row!("燃气发生器编号", shared.field_gas_generator_number);
-    push_row!(
-        "电控器加电累计时间（秒）",
-        shared.field_controller_power_on_seconds
-    );
-    push_row!(
-        "电控器加点累计时间（时）",
-        shared.field_controller_power_on_hours
-    );
-    push_row!("发动机工作累计时间（秒）", shared.field_engine_work_seconds);
-    push_row!("发动机工作累计时间（时）", shared.field_engine_work_hours);
-    push_row!("发动机累计起动工作次数", shared.field_engine_start_count);
+    // push_row!(
+    //     "电控器加电累计时间（秒）",
+    //     shared.field_controller_power_on_seconds
+    // );
+    // push_row!(
+    //     "电控器加点累计时间（时）",
+    //     shared.field_controller_power_on_hours
+    // );
+    // push_row!("发动机工作累计时间（秒）", shared.field_engine_work_seconds);
+    // push_row!("发动机工作累计时间（时）", shared.field_engine_work_hours);
+    // push_row!("发动机累计起动工作次数", shared.field_engine_start_count);
     push_row!(
         "发动机控制软件指纹码",
         shared.field_engine_software_fingerprint
     );
     push_row!("bootloader指纹码", shared.field_bootloader_fingerprint);
-    push_row!("软件升级累计次数", shared.field_software_upgrade_count);
-    push_row!("通电工作累计次数", shared.field_power_on_count);
+    // push_row!("软件升级累计次数", shared.field_software_upgrade_count);
+    // push_row!("通电工作累计次数", shared.field_power_on_count);
 
     rows.sort_by(|a, b| a.field.cmp(&b.field));
     rows

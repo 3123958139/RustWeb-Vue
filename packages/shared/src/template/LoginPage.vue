@@ -7,7 +7,7 @@
   用法：
   ```vue
   <template>
-    <LoginPage title="登录" subtitle="欢迎回来" />
+    <LoginPage title="用户登录" subtitle="欢迎回来" />
   </template>
   <script setup lang="ts">
   import { LoginPage } from "@shared";
@@ -23,203 +23,206 @@
 <template>
   <div class="login-container">
     <!-- 动态 SVG 背景：宇航员太空漂浮 -->
-    <div class="bg-scene" aria-hidden="true">
+    <div aria-hidden="true" class="bg-scene">
       <svg
-        viewBox="0 0 1920 1080"
-        preserveAspectRatio="xMidYMid slice"
-        xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="xMidYMid slice"
+          viewBox="0 0 1920 1080"
+          xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="space" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#04060f" />
-            <stop offset="50%" stop-color="#0a1430" />
-            <stop offset="100%" stop-color="#16284f" />
+          <linearGradient id="space" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#04060f"/>
+            <stop offset="50%" stop-color="#0a1430"/>
+            <stop offset="100%" stop-color="#16284f"/>
           </linearGradient>
           <radialGradient id="nebulaPurple" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0%" stop-color="rgba(124,80,220,0.3)" />
-            <stop offset="100%" stop-color="rgba(124,80,220,0)" />
+            <stop offset="0%" stop-color="rgba(124,80,220,0.3)"/>
+            <stop offset="100%" stop-color="rgba(124,80,220,0)"/>
           </radialGradient>
           <radialGradient id="nebulaTeal" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0%" stop-color="rgba(40,180,200,0.2)" />
-            <stop offset="100%" stop-color="rgba(40,180,200,0)" />
+            <stop offset="0%" stop-color="rgba(40,180,200,0.2)"/>
+            <stop offset="100%" stop-color="rgba(40,180,200,0)"/>
           </radialGradient>
           <radialGradient id="atmos" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="70%" stop-color="rgba(110,180,255,0.22)" />
-            <stop offset="100%" stop-color="rgba(110,180,255,0)" />
+            <stop offset="70%" stop-color="rgba(110,180,255,0.22)"/>
+            <stop offset="100%" stop-color="rgba(110,180,255,0)"/>
           </radialGradient>
           <radialGradient id="earthGrad" cx="0.35" cy="0.3" r="0.9">
-            <stop offset="0%" stop-color="#3d8fdc" />
-            <stop offset="70%" stop-color="#1b5cad" />
-            <stop offset="100%" stop-color="#0a2f6d" />
+            <stop offset="0%" stop-color="#3d8fdc"/>
+            <stop offset="70%" stop-color="#1b5cad"/>
+            <stop offset="100%" stop-color="#0a2f6d"/>
           </radialGradient>
           <radialGradient id="earthShade" cx="0.3" cy="0.3" r="0.95">
-            <stop offset="0%" stop-color="rgba(255,255,255,0)" />
-            <stop offset="60%" stop-color="rgba(10,20,50,0)" />
-            <stop offset="100%" stop-color="rgba(4,10,28,0.55)" />
+            <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
+            <stop offset="60%" stop-color="rgba(10,20,50,0)"/>
+            <stop offset="100%" stop-color="rgba(4,10,28,0.55)"/>
           </radialGradient>
           <radialGradient id="visorGrad" cx="0.4" cy="0.35" r="0.8">
-            <stop offset="0%" stop-color="#7cc4ff" />
-            <stop offset="60%" stop-color="#2f6fd6" />
-            <stop offset="100%" stop-color="#0b1f4d" />
+            <stop offset="0%" stop-color="#7cc4ff"/>
+            <stop offset="60%" stop-color="#2f6fd6"/>
+            <stop offset="100%" stop-color="#0b1f4d"/>
           </radialGradient>
           <radialGradient id="moonGlow" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0%" stop-color="rgba(255,250,220,0.25)" />
-            <stop offset="100%" stop-color="rgba(255,250,220,0)" />
+            <stop offset="0%" stop-color="rgba(255,250,220,0.25)"/>
+            <stop offset="100%" stop-color="rgba(255,250,220,0)"/>
           </radialGradient>
         </defs>
 
         <!-- 深空背景 -->
-        <rect width="1920" height="1080" fill="url(#space)" />
+        <rect fill="url(#space)" height="1080" width="1920"/>
 
         <!-- 星云 -->
-        <ellipse cx="1650" cy="220" rx="500" ry="320" fill="url(#nebulaPurple)" />
-        <ellipse cx="220" cy="330" rx="460" ry="300" fill="url(#nebulaTeal)" />
-        <ellipse cx="1500" cy="900" rx="420" ry="260" fill="url(#nebulaPurple)" opacity="0.5" />
+        <ellipse cx="1650" cy="220" fill="url(#nebulaPurple)" rx="500" ry="320"/>
+        <ellipse cx="220" cy="330" fill="url(#nebulaTeal)" rx="460" ry="300"/>
+        <ellipse cx="1500" cy="900" fill="url(#nebulaPurple)" opacity="0.5" rx="420" ry="260"/>
 
         <!-- 星星（闪烁） -->
-        <circle class="star" cx="120" cy="120" r="1.5" fill="#eaf4ff" />
-        <circle class="star" cx="300" cy="200" r="2.2" fill="#eaf4ff" style="animation-delay: 0.4s" />
-        <circle class="star" cx="520" cy="110" r="1.3" fill="#eaf4ff" style="animation-delay: 1.2s" />
-        <circle class="star" cx="700" cy="180" r="1.8" fill="#eaf4ff" style="animation-delay: 0.8s" />
-        <circle class="star" cx="880" cy="80" r="1.2" fill="#eaf4ff" style="animation-delay: 1.6s" />
-        <circle class="star" cx="1050" cy="150" r="2" fill="#eaf4ff" style="animation-delay: 0.2s" />
-        <circle class="star" cx="1230" cy="100" r="1.4" fill="#eaf4ff" style="animation-delay: 2s" />
-        <circle class="star" cx="1380" cy="200" r="1.7" fill="#eaf4ff" style="animation-delay: 1s" />
-        <circle class="star" cx="1580" cy="120" r="1.3" fill="#eaf4ff" style="animation-delay: 0.6s" />
-        <circle class="star" cx="1720" cy="240" r="2.1" fill="#eaf4ff" style="animation-delay: 1.4s" />
-        <circle class="star" cx="1850" cy="140" r="1.5" fill="#eaf4ff" style="animation-delay: 0.3s" />
-        <circle class="star" cx="640" cy="300" r="1.1" fill="#eaf4ff" style="animation-delay: 2.2s" />
-        <circle class="star" cx="1440" cy="320" r="1.4" fill="#eaf4ff" style="animation-delay: 1.8s" />
-        <circle class="star" cx="90" cy="330" r="1.2" fill="#eaf4ff" style="animation-delay: 0.9s" />
+        <circle class="star" cx="120" cy="120" fill="#eaf4ff" r="1.5"/>
+        <circle class="star" cx="300" cy="200" fill="#eaf4ff" r="2.2" style="animation-delay: 0.4s"/>
+        <circle class="star" cx="520" cy="110" fill="#eaf4ff" r="1.3" style="animation-delay: 1.2s"/>
+        <circle class="star" cx="700" cy="180" fill="#eaf4ff" r="1.8" style="animation-delay: 0.8s"/>
+        <circle class="star" cx="880" cy="80" fill="#eaf4ff" r="1.2" style="animation-delay: 1.6s"/>
+        <circle class="star" cx="1050" cy="150" fill="#eaf4ff" r="2" style="animation-delay: 0.2s"/>
+        <circle class="star" cx="1230" cy="100" fill="#eaf4ff" r="1.4" style="animation-delay: 2s"/>
+        <circle class="star" cx="1380" cy="200" fill="#eaf4ff" r="1.7" style="animation-delay: 1s"/>
+        <circle class="star" cx="1580" cy="120" fill="#eaf4ff" r="1.3" style="animation-delay: 0.6s"/>
+        <circle class="star" cx="1720" cy="240" fill="#eaf4ff" r="2.1" style="animation-delay: 1.4s"/>
+        <circle class="star" cx="1850" cy="140" fill="#eaf4ff" r="1.5" style="animation-delay: 0.3s"/>
+        <circle class="star" cx="640" cy="300" fill="#eaf4ff" r="1.1" style="animation-delay: 2.2s"/>
+        <circle class="star" cx="1440" cy="320" fill="#eaf4ff" r="1.4" style="animation-delay: 1.8s"/>
+        <circle class="star" cx="90" cy="330" fill="#eaf4ff" r="1.2" style="animation-delay: 0.9s"/>
 
         <!-- 十字星光 -->
         <g class="glint" transform="translate(620, 200)">
-          <rect x="-7" y="-1.2" width="14" height="2.4" rx="1.2" fill="#dcebff" />
-          <rect x="-1.2" y="-7" width="2.4" height="14" rx="1.2" fill="#dcebff" />
+          <rect fill="#dcebff" height="2.4" rx="1.2" width="14" x="-7" y="-1.2"/>
+          <rect fill="#dcebff" height="14" rx="1.2" width="2.4" x="-1.2" y="-7"/>
         </g>
-        <g class="glint" transform="translate(1280, 300)" style="animation-delay: 1.5s">
-          <rect x="-5" y="-0.9" width="10" height="1.8" rx="0.9" fill="#dcebff" />
-          <rect x="-0.9" y="-5" width="1.8" height="10" rx="0.9" fill="#dcebff" />
+        <g class="glint" style="animation-delay: 1.5s" transform="translate(1280, 300)">
+          <rect fill="#dcebff" height="1.8" rx="0.9" width="10" x="-5" y="-0.9"/>
+          <rect fill="#dcebff" height="10" rx="0.9" width="1.8" x="-0.9" y="-5"/>
         </g>
-        <g class="glint" transform="translate(900, 130)" style="animation-delay: 3s">
-          <rect x="-4" y="-0.7" width="8" height="1.4" rx="0.7" fill="#dcebff" />
-          <rect x="-0.7" y="-4" width="1.4" height="8" rx="0.7" fill="#dcebff" />
+        <g class="glint" style="animation-delay: 3s" transform="translate(900, 130)">
+          <rect fill="#dcebff" height="1.4" rx="0.7" width="8" x="-4" y="-0.7"/>
+          <rect fill="#dcebff" height="8" rx="0.7" width="1.4" x="-0.7" y="-4"/>
         </g>
 
         <!-- 蓝色行星（地球） -->
         <g>
-          <circle cx="240" cy="880" r="360" fill="url(#atmos)" />
-          <circle cx="240" cy="880" r="300" fill="url(#earthGrad)" />
+          <circle cx="240" cy="880" fill="url(#atmos)" r="360"/>
+          <circle cx="240" cy="880" fill="url(#earthGrad)" r="300"/>
           <path
-            d="M120 760 q60 -40 120 -10 q40 30 -10 70 q-60 30 -110 -10 Z"
-            fill="rgba(110,210,150,0.4)"
+              d="M120 760 q60 -40 120 -10 q40 30 -10 70 q-60 30 -110 -10 Z"
+              fill="rgba(110,210,150,0.4)"
           />
           <path
-            d="M300 840 q80 -30 130 30 q20 60 -50 80 q-70 10 -100 -40 q-20 -40 20 -70 Z"
-            fill="rgba(110,210,150,0.3)"
+              d="M300 840 q80 -30 130 30 q20 60 -50 80 q-70 10 -100 -40 q-20 -40 20 -70 Z"
+              fill="rgba(110,210,150,0.3)"
           />
           <path
-            d="M180 980 q70 -20 110 30 q10 50 -50 60 q-60 10 -70 -40 q-10 -30 10 -50 Z"
-            fill="rgba(110,210,150,0.28)"
+              d="M180 980 q70 -20 110 30 q10 50 -50 60 q-60 10 -70 -40 q-10 -30 10 -50 Z"
+              fill="rgba(110,210,150,0.28)"
           />
-          <ellipse cx="150" cy="800" rx="90" ry="26" fill="rgba(255,255,255,0.22)" transform="rotate(-18 150 800)" />
-          <ellipse cx="300" cy="960" rx="120" ry="30" fill="rgba(255,255,255,0.16)" transform="rotate(12 300 960)" />
-          <ellipse cx="80" cy="990" rx="70" ry="20" fill="rgba(255,255,255,0.18)" transform="rotate(-8 80 990)" />
-          <circle cx="240" cy="880" r="300" fill="url(#earthShade)" />
+          <ellipse cx="150" cy="800" fill="rgba(255,255,255,0.22)" rx="90" ry="26" transform="rotate(-18 150 800)"/>
+          <ellipse cx="300" cy="960" fill="rgba(255,255,255,0.16)" rx="120" ry="30" transform="rotate(12 300 960)"/>
+          <ellipse cx="80" cy="990" fill="rgba(255,255,255,0.18)" rx="70" ry="20" transform="rotate(-8 80 990)"/>
+          <circle cx="240" cy="880" fill="url(#earthShade)" r="300"/>
         </g>
 
         <!-- 宇航员（漂浮摆动） -->
         <g class="astro">
           <g transform="translate(1450, 400) scale(0.85) rotate(-10)">
             <!-- 背包 -->
-            <rect x="-66" y="-52" width="46" height="118" rx="16" fill="#93a7c4" />
-            <rect x="-58" y="58" width="10" height="10" rx="3" fill="#6f86a6" />
-            <rect x="-44" y="60" width="10" height="10" rx="3" fill="#6f86a6" />
+            <rect fill="#93a7c4" height="118" rx="16" width="46" x="-66" y="-52"/>
+            <rect fill="#6f86a6" height="10" rx="3" width="10" x="-58" y="58"/>
+            <rect fill="#6f86a6" height="10" rx="3" width="10" x="-44" y="60"/>
             <!-- 躯干 -->
-            <rect x="-46" y="-40" width="88" height="104" rx="30" fill="#f2f6fc" />
-            <rect x="-14" y="-10" width="26" height="30" rx="7" fill="#dbe6f2" />
-            <rect x="-6" y="34" width="12" height="16" rx="5" fill="#8fa5c2" />
-            <path d="M-46 -8 h88" stroke="#c9d6e6" stroke-width="2" fill="none" />
-            <path d="M-46 20 h88" stroke="#c9d6e6" stroke-width="2" fill="none" />
+            <rect fill="#f2f6fc" height="104" rx="30" width="88" x="-46" y="-40"/>
+            <rect fill="#dbe6f2" height="30" rx="7" width="26" x="-14" y="-10"/>
+            <rect fill="#8fa5c2" height="16" rx="5" width="12" x="-6" y="34"/>
+            <path d="M-46 -8 h88" fill="none" stroke="#c9d6e6" stroke-width="2"/>
+            <path d="M-46 20 h88" fill="none" stroke="#c9d6e6" stroke-width="2"/>
             <!-- 胸口姓名 -->
             <text
-              x="0"
-              y="10"
-              text-anchor="middle"
-              font-family="Arial, sans-serif"
-              font-size="13"
-              font-weight="700"
-              letter-spacing="1"
-              fill="#2f6fd6"
-            >dengch</text>
+                fill="#2f6fd6"
+                font-family="Arial, sans-serif"
+                font-size="13"
+                font-weight="700"
+                letter-spacing="1"
+                text-anchor="middle"
+                x="0"
+                y="10"
+            >dengch
+            </text>
             <!-- 左臂（张开） -->
             <g transform="rotate(-42 -52 2)">
-              <rect x="-92" y="-16" width="80" height="30" rx="15" fill="#f2f6fc" />
-              <rect x="-98" y="-14" width="34" height="26" rx="13" fill="#dbe6f2" />
+              <rect fill="#f2f6fc" height="30" rx="15" width="80" x="-92" y="-16"/>
+              <rect fill="#dbe6f2" height="26" rx="13" width="34" x="-98" y="-14"/>
             </g>
             <!-- 右臂（张开） -->
             <g transform="rotate(38 52 2)">
-              <rect x="12" y="-16" width="80" height="30" rx="15" fill="#f2f6fc" />
-              <rect x="64" y="-14" width="34" height="26" rx="13" fill="#dbe6f2" />
+              <rect fill="#f2f6fc" height="30" rx="15" width="80" x="12" y="-16"/>
+              <rect fill="#dbe6f2" height="26" rx="13" width="34" x="64" y="-14"/>
             </g>
             <!-- 腿 -->
             <g transform="rotate(9 -22 66)">
-              <rect x="-36" y="60" width="30" height="74" rx="15" fill="#f2f6fc" />
-              <rect x="-40" y="126" width="40" height="18" rx="9" fill="#93a7c4" />
+              <rect fill="#f2f6fc" height="74" rx="15" width="30" x="-36" y="60"/>
+              <rect fill="#93a7c4" height="18" rx="9" width="40" x="-40" y="126"/>
             </g>
             <g transform="rotate(-7 22 66)">
-              <rect x="8" y="60" width="30" height="74" rx="15" fill="#f2f6fc" />
-              <rect x="2" y="126" width="40" height="18" rx="9" fill="#93a7c4" />
+              <rect fill="#f2f6fc" height="74" rx="15" width="30" x="8" y="60"/>
+              <rect fill="#93a7c4" height="18" rx="9" width="40" x="2" y="126"/>
             </g>
             <!-- 头盔与面罩 -->
-            <circle cx="0" cy="-64" r="40" fill="#f2f6fc" />
-            <circle cx="0" cy="-64" r="40" fill="none" stroke="#dbe6f2" stroke-width="3" />
-            <circle cx="7" cy="-62" r="29" fill="url(#visorGrad)" />
-            <ellipse cx="-2" cy="-72" rx="10" ry="6" fill="rgba(255,255,255,0.55)" transform="rotate(-24 -2 -72)" />
+            <circle cx="0" cy="-64" fill="#f2f6fc" r="40"/>
+            <circle cx="0" cy="-64" fill="none" r="40" stroke="#dbe6f2" stroke-width="3"/>
+            <circle cx="7" cy="-62" fill="url(#visorGrad)" r="29"/>
+            <ellipse cx="-2" cy="-72" fill="rgba(255,255,255,0.55)" rx="10" ry="6" transform="rotate(-24 -2 -72)"/>
           </g>
         </g>
 
         <!-- 月亮 -->
         <g>
-          <circle cx="1450" cy="640" r="64" fill="url(#moonGlow)" />
-          <circle cx="1450" cy="640" r="46" fill="#e8e4d8" />
-          <circle cx="1434" cy="626" r="8" fill="#d3cdbd" />
-          <circle cx="1462" cy="648" r="5" fill="#d3cdbd" />
-          <circle cx="1442" cy="658" r="4" fill="#d3cdbd" />
-          <circle cx="1456" cy="622" r="3" fill="#d3cdbd" />
+          <circle cx="1450" cy="640" fill="url(#moonGlow)" r="64"/>
+          <circle cx="1450" cy="640" fill="#e8e4d8" r="46"/>
+          <circle cx="1434" cy="626" fill="#d3cdbd" r="8"/>
+          <circle cx="1462" cy="648" fill="#d3cdbd" r="5"/>
+          <circle cx="1442" cy="658" fill="#d3cdbd" r="4"/>
+          <circle cx="1456" cy="622" fill="#d3cdbd" r="3"/>
         </g>
 
         <!-- 漂浮物（缓慢自转） -->
         <g class="debris" transform="translate(760, 300)">
-          <rect x="-7" y="-16" width="14" height="32" rx="7" fill="rgba(242,246,252,0.55)" />
+          <rect fill="rgba(242,246,252,0.55)" height="32" rx="7" width="14" x="-7" y="-16"/>
         </g>
-        <g class="debris" transform="translate(1280, 520)" style="animation-delay: -14s">
-          <rect x="-16" y="-6" width="32" height="12" rx="6" fill="rgba(242,246,252,0.4)" />
-          <rect x="-2" y="-14" width="4" height="28" rx="2" fill="rgba(242,246,252,0.35)" />
+        <g class="debris" style="animation-delay: -14s" transform="translate(1280, 520)">
+          <rect fill="rgba(242,246,252,0.4)" height="12" rx="6" width="32" x="-16" y="-6"/>
+          <rect fill="rgba(242,246,252,0.35)" height="28" rx="2" width="4" x="-2" y="-14"/>
         </g>
-        <g class="debris" transform="translate(1330, 250)" style="animation-delay: -26s">
-          <circle r="8" fill="rgba(242,246,252,0.35)" />
+        <g class="debris" style="animation-delay: -26s" transform="translate(1330, 250)">
+          <circle fill="rgba(242,246,252,0.35)" r="8"/>
         </g>
-        <g class="debris" transform="translate(700, 620)" style="animation-delay: -33s">
-          <rect x="-12" y="-4" width="24" height="8" rx="4" fill="rgba(242,246,252,0.4)" />
+        <g class="debris" style="animation-delay: -33s" transform="translate(700, 620)">
+          <rect fill="rgba(242,246,252,0.4)" height="8" rx="4" width="24" x="-12" y="-4"/>
         </g>
 
         <!-- 远处小火箭 -->
         <g transform="translate(430, 150) rotate(-32)">
-          <polygon points="-8,-34 8,-34 16,26 8,34 -8,34 -16,26" fill="#f2f6fc" />
-          <polygon points="-16,26 16,26 8,44 -8,44" fill="#c9d6e6" />
-          <circle cx="0" cy="-14" r="6" fill="url(#visorGrad)" />
-          <ellipse class="flame" cx="0" cy="52" rx="5" ry="12" fill="#ffb347" />
-          <ellipse class="flame" cx="0" cy="50" rx="2.5" ry="8" fill="#ffe08a" style="animation-delay: 0.15s" />
+          <polygon fill="#f2f6fc" points="-8,-34 8,-34 16,26 8,34 -8,34 -16,26"/>
+          <polygon fill="#c9d6e6" points="-16,26 16,26 8,44 -8,44"/>
+          <circle cx="0" cy="-14" fill="url(#visorGrad)" r="6"/>
+          <ellipse class="flame" cx="0" cy="52" fill="#ffb347" rx="5" ry="12"/>
+          <ellipse class="flame" cx="0" cy="50" fill="#ffe08a" rx="2.5" ry="8" style="animation-delay: 0.15s"/>
         </g>
       </svg>
     </div>
     <div class="login-wrapper">
-      <el-card class="login-card" :body-style="{ padding: '32px' }">
+      <el-card :body-style="{ padding: '32px' }" class="login-card">
         <template #header>
           <div class="card-header">
             <div class="logo-icon">
-              <el-icon :size="34" color="#409eff"><Monitor /></el-icon>
+              <el-icon :size="34" color="#409eff">
+                <Monitor/>
+              </el-icon>
             </div>
             <h2 class="login-title">{{ title }}</h2>
             <p class="login-subtitle">{{ subtitle }}</p>
@@ -227,45 +230,47 @@
         </template>
 
         <el-form
-          ref="formRef"
-          :model="form"
-          :rules="rules"
-          label-position="top"
-          class="login-form"
-          @submit.prevent="handleLogin"
+            ref="formRef"
+            :model="form"
+            :rules="rules"
+            class="login-form"
+            label-position="top"
+            @submit.prevent="handleLogin"
         >
           <el-form-item label="邮箱" prop="email">
             <el-input
-              v-model="form.email"
-              type="email"
-              placeholder="请输入邮箱"
-              clearable
-              size="large"
-              :prefix-icon="Message"
+                v-model="form.email"
+                :prefix-icon="Message"
+                clearable
+                placeholder="请输入邮箱"
+                size="large"
+                type="email"
             />
           </el-form-item>
 
           <el-form-item label="密码" prop="password">
             <el-input
-              v-model="form.password"
-              type="password"
-              placeholder="请输入密码"
-              clearable
-              size="large"
-              :prefix-icon="Lock"
-              @keyup.enter="handleLogin"
+                v-model="form.password"
+                :prefix-icon="Lock"
+                clearable
+                placeholder="请输入密码"
+                size="large"
+                type="password"
+                @keyup.enter="handleLogin"
             />
           </el-form-item>
 
           <el-form-item>
             <el-button
-              type="primary"
-              :loading="loading"
-              size="large"
-              class="login-button"
-              @click="handleLogin"
+                :loading="loading"
+                class="login-button"
+                size="large"
+                type="primary"
+                @click="handleLogin"
             >
-              <el-icon v-if="!loading"><Right /></el-icon>
+              <el-icon v-if="!loading">
+                <Right/>
+              </el-icon>
               {{ loading ? "登录中..." : "立即登录" }}
             </el-button>
           </el-form-item>
@@ -279,13 +284,13 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
-import { Lock, Message, Monitor, Right } from "@element-plus/icons-vue";
-import { getAppAuthStore, getMenusByRole, getRoleAppUrl } from "..";
-import type { FormInstance, FormRules } from "element-plus";
+<script lang="ts" setup>
+import {reactive, ref} from "vue";
+import {useRouter} from "vue-router";
+import type {FormInstance, FormRules} from "element-plus";
+import {ElMessage} from "element-plus";
+import {Lock, Message, Monitor, Right} from "@element-plus/icons-vue";
+import {getAppAuthStore, getMenusByRole, getRoleAppUrl} from "..";
 
 /**
  * 认证 Store 的最小接口形状
@@ -301,18 +306,18 @@ interface AuthStoreShape {
 }
 
 const props = withDefaults(
-  defineProps<{
-    title?: string;
-    subtitle?: string;
-    footerText?: string;
-    appKind?: "user" | "admin";
-  }>(),
-  {
-    title: "用户登录",
-    subtitle: "欢迎回来",
-    footerText: "账号由管理员创建并分配角色",
-    appKind: "user",
-  },
+    defineProps<{
+      title?: string;
+      subtitle?: string;
+      footerText?: string;
+      appKind?: "user" | "admin";
+    }>(),
+    {
+      title: "用户登录",
+      subtitle: "欢迎回来",
+      footerText: "账号由管理员创建并分配角色",
+      appKind: "user",
+    },
 );
 
 const router = useRouter();
@@ -328,12 +333,12 @@ const form = reactive({
 
 const rules: FormRules = {
   email: [
-    { required: true, message: "请输入邮箱", trigger: "blur" },
-    { type: "email", message: "请输入正确的邮箱格式", trigger: "blur" },
+    {required: true, message: "请输入邮箱", trigger: "blur"},
+    {type: "email", message: "请输入正确的邮箱格式", trigger: "blur"},
   ],
   password: [
-    { required: true, message: "请输入密码", trigger: "blur" },
-    { min: 6, message: "密码长度不能少于6位", trigger: "blur" },
+    {required: true, message: "请输入密码", trigger: "blur"},
+    {min: 6, message: "密码长度不能少于6位", trigger: "blur"},
   ],
 };
 

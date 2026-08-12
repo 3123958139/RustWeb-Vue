@@ -94,6 +94,9 @@ pub fn create_router(db: DatabaseConnection) -> Router {
     // - 城市概览聚合统计（3D 场景 HUD 数据源）
     let city3d_routes = crate::city3d::routes::city3d_router(db.clone());
     let fw150_routes = crate::fw150::routes::fw150_router(db.clone());
+    // protocol_generator 角色路由（需要 ProtocolGeneratorMonitor 权限）：
+    // - 通信协议生成（Markdown / Excel / CSV 参数表）
+    let protocol_generator_routes = crate::protocol_generator::routes::protocol_generator_router(db.clone());
 
     // ============ 2. 组装路由树 ============
     //
@@ -148,5 +151,6 @@ pub fn create_router(db: DatabaseConnection) -> Router {
         // 注入数据库连接池到所有处理器
         // 处理器通过 `State(db): State<DatabaseConnection>` 提取
         .nest("/api/fw150", fw150_routes)
+        .nest("/api/protocol_generator", protocol_generator_routes)
         .with_state(db)
 }

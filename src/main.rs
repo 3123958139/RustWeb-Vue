@@ -49,6 +49,7 @@ mod fj200c_main; // fj200c_main 角色模块：发动机测控（ECU/ADAM/DYNO �
 mod ftj1c; // ftj1c 角色模块：UDP 组播通信监控
 mod fw100; // fw150 角色模块：设备台账管理
 mod fw150;
+mod protocol_generator; // protocol_generator 角色模块：通信协议生成器
 mod role_template; // 角色模板：新角色开发的参考模板
 mod roles; // 角色注册表：全系统角色定义的单一事实来源
 mod routes; // 路由模块：集中注册所有 API 路由
@@ -240,6 +241,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .nest_service(
                 "/fw150",
                 ServeDir::new("dist-fw150").fallback(ServeFile::new("dist-fw150/index.html")),
+            )
+            .nest_service(
+                "/protocol_generator",
+                ServeDir::new("dist-protocol_generator")
+                    .fallback(ServeFile::new("dist-protocol_generator/index.html")),
             );
 
         app

@@ -13,18 +13,20 @@ Rust + Axum 后端 + 6 个 Vue 3 前端应用的多角色管理系统。RBAC 角
 ```
 RustWeb-Vue/
 ├── src/                    # Rust 后端
-│   ├── main.rs             # 入口：路由 + CORS + 6 个 dist-*/ 静态托管
+│   ├── main.rs             # 入口：路由 + CORS + 8 个 dist-*/ 静态托管
 │   ├── routes.rs           # 路由集中注册
 │   ├── roles.rs            # 角色注册表（RBAC 唯一源，经 /api/meta/roles 暴露）
 │   ├── api_docs.rs         # OpenAPI 聚合 + export_openapi 测试
 │   ├── common/             # 认证、中间件、模型、DTO、错误处理、JWT
 │   ├── admin/              # 用户管理
-│   ├── fj200c/             # 发动机监控（串口/模拟、帧解码、CSV、WebSocket）
+│   ├── fj200c_information/ # 发动机监控（串口/模拟、帧解码、CSV、WebSocket）
+│   ├── fj200c_main/        # 发动机测控（ECU/ADAM/DYNO 三路串口、试验、报表）
 │   ├── ftj1c/              # UDP 组播通信监控
 │   ├── fw100/  fw150/      # 设备台账
 │   ├── city3d/             # 城市区域/建筑/事件 + 概览统计
+│   ├── protocol_generator/ # 通信协议生成（参数表 CSV、协议代码、Excel/Markdown 导出）
 │   └── role_template/      # 新角色模块参考模板
-├── frontend/               # 6 个独立 Vue 应用（见下表）
+├── frontend/               # 8 个独立 Vue 应用（见下表）
 ├── packages/shared/        # @rustweb/shared 共享包
 │   └── src/
 │       ├── roles.ts        # 前端菜单配置 + 注册表拉取/缓存（loadRoleRegistry）
@@ -43,14 +45,16 @@ RustWeb-Vue/
 
 | 应用 | 目录 | 用途 | dev 端口 | 生产路径 |
 |---|---|---|---|---|
-| 发动机监控 | `frontend/fj200c` | 服务启停、命令下发、实时监控、可视化、CSV 数据 | 5173 | `/fj200c` |
+| 发动机监控 | `frontend/fj200c_information` | 服务启停、命令下发、实时监控、可视化、CSV 数据 | 5173 | `/fj200c_information` |
 | 管理后台 | `frontend/admin` | 用户管理 | 5174 | `/admin` |
 | 设备台账 | `frontend/fw100` | 设备台账 CRUD | 5175 | `/fw100` |
 | 通信监控 | `frontend/ftj1c` | UDP 组播实时监控 | 5176 | `/ftj1c` |
 | 城市 3D | `frontend/city3d` | 3D 场景展示与数据管理 | 5177 | `/city3d` |
 | 设备台账 | `frontend/fw150` | 设备台账 CRUD | 5178 | `/fw150` |
+| 发动机测控 | `frontend/fj200c_main` | ECU/ADAM/DYNO 三路串口测控、试验、报表 | 5179 | `/fj200c_main` |
+| 通信协议生成 | `frontend/protocol_generator` | 参数表 CSV 编辑、协议 C# 代码生成、Excel/Markdown 导出 | 5180 | `/protocol_generator` |
 
-6 个应用共享同一登录态（localStorage token），跨应用跳转自动传递；各自 `vite.config.ts` 将 `/api` 代理到后端 :3000（fj200c / ftj1c 额外开启 WebSocket 代理）。
+8 个应用共享同一登录态（localStorage token），跨应用跳转自动传递；各自 `vite.config.ts` 将 `/api` 代理到后端 :3000（fj200c_information / ftj1c / fj200c_main 额外开启 WebSocket 代理）。
 
 ## 角色与权限（RBAC）
 

@@ -8,6 +8,7 @@
     "frontend/ftj1c",
     "frontend/admin",
     "frontend/city3d",
+    "frontend/protocol_generator",
     "packages/shared"
   ],
   "scripts": {

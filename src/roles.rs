@@ -147,6 +147,12 @@ pub static ROLE_REGISTRY: &[RoleDef] = &[
         name: "fj200c_main",
         permissions: &[Permission::Fj200cMainMonitor],
     },
+    // protocol_generator 角色：通信协议生成面板
+    RoleDef {
+        key: "protocol_generator",
+        name: "protocol_generator",
+        permissions: &[Permission::ProtocolGeneratorMonitor],
+    },
 ];
 
 /// 按 key 查找角色定义

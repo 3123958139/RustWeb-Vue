@@ -36,8 +36,9 @@
  * 例如：fj200c_information 应用可以添加"创建服务"按钮。
  *
  * ### 自动隐藏（autoHide）
- * 默认开启：鼠标移出导航栏区域（超过导航栏高度）后 250ms 自动上滑隐藏；
- * 鼠标移到视口顶部（导航栏高度内）时重新滑出。通过 `autoHide` prop 可关闭。
+ * 导航栏右侧提供「自动隐藏」复选框，勾选后启用：鼠标移出导航栏区域（超过导航栏高度）
+ * 后 250ms 自动上滑隐藏；鼠标移到视口顶部（导航栏高度内）时重新滑出。
+ * 默认不勾选（导航栏常驻）。也可通过 `autoHide` prop 控制初始勾选状态。
  * 隐藏通过外层 slot（普通元素）高度 64px→0 折叠实现，导航栏本体保持 64px 恒定；
  * 避免在 sticky 元素上做高度动画（部分运行环境下 sticky 元素高度重算失效、
  * 折叠后无法恢复显示）。
@@ -154,6 +155,14 @@
           - 例如：创建服务、导出数据等
         -->
         <div class="nav-actions">
+          <!-- 自动隐藏开关 -->
+          <el-checkbox
+            v-model="autoHideEnabled"
+            class="auto-hide-toggle"
+            size="small"
+          >
+            自动隐藏
+          </el-checkbox>
           <slot name="actions"></slot>
         </div>
 
@@ -199,7 +208,7 @@
  * - 共享包：getAppAuthStore, findRole, 类型定义
  */
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 // 导入 Element Plus 图标组件
@@ -240,14 +249,21 @@ interface AuthStoreShape {
 /**
  * 导航栏自动隐藏配置
  *
- * - `autoHide`: 是否启用自动隐藏（默认 true）
+ * - `autoHide`: 初始是否启用自动隐藏（默认 false，由导航栏内复选框控制）
  */
 const props = withDefaults(
   defineProps<{
     autoHide?: boolean
   }>(),
-  { autoHide: true },
+  { autoHide: false },
 )
+
+/**
+ * 自动隐藏开关状态（复选框 v-model）
+ *
+ * 默认不勾选（导航栏常驻），勾选后启用鼠标移出隐藏。
+ */
+const autoHideEnabled = ref(props.autoHide)
 
 /**
  * 自动隐藏状态
@@ -275,7 +291,7 @@ const HIDE_ZONE = 96
  * - 鼠标移出隐藏触发区：延迟隐藏
  */
 const onMouseMove = (e: MouseEvent) => {
-  if (!props.autoHide) return
+  if (!autoHideEnabled.value) return
   const target = e.target as HTMLElement | null
   const overNav = !!target?.closest('.app-navbar, .el-dropdown-menu, .el-dropdown__popper')
   if (overNav || e.clientY <= SHOW_ZONE) {
@@ -289,11 +305,24 @@ const onMouseMove = (e: MouseEvent) => {
   }
 }
 
-onMounted(() => {
-  if (props.autoHide) {
+/**
+ * 同步自动隐藏监听器
+ *
+ * 勾选时注册 mousemove 监听，取消时移除；切换瞬间始终先恢复导航栏可见。
+ */
+const applyAutoHide = () => {
+  visible.value = true
+  clearTimeout(hideTimer)
+  if (autoHideEnabled.value) {
     document.addEventListener('mousemove', onMouseMove, { passive: true })
+  } else {
+    document.removeEventListener('mousemove', onMouseMove)
   }
-})
+}
+
+onMounted(applyAutoHide)
+
+watch(autoHideEnabled, applyAutoHide)
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousemove', onMouseMove)
@@ -618,6 +647,11 @@ const handleCommand = (command: string): void => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.auto-hide-toggle {
+  margin-right: 4px;
+  white-space: nowrap;
 }
 
 .user-dropdown {

@@ -8,3 +8,4 @@ export * from './api/fw100/fw100';
 export * from './api/fw150/fw150';
 export * from './model';
 export * from './api/meta/meta';
+export * from './api/protocol-generator/protocol-generator';

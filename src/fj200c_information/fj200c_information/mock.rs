@@ -34,9 +34,9 @@ pub static STOP_SIGNAL: AtomicBool = AtomicBool::new(false);
 pub const MOCK_FRAME_TYPES: [u8; 8] = [0xEF, 0xED, 0xDE, 0xDC, 0xBD, 0xDB, 0xBF, 0xBE];
 
 /// 帧总长度（字节）
-const FRAME_LEN: usize = 100;
+const FRAME_LEN: usize = 0x3C;
 /// 帧头标识
-const HEADER: [u8; 3] = [0xEB, 0x90, 0x64];
+const HEADER: [u8; 3] = [0xEB, 0x90, 0x3C];
 /// 模拟帧生成间隔（毫秒，20Hz）
 const MOCK_INTERVAL_MS: u64 = 50;
 
@@ -52,16 +52,19 @@ pub fn make_mock_frame(seq: u32) -> [u8; FRAME_LEN] {
 
     f[4] = rng.gen_range(0..=255);
     f[5] = 0;
-    let hbgd = (2000.0 + 8000.0 * (0.5 + 0.5 * (t * 0.1).sin()) + rng.gen_range(-50.0..50.0)) as i16;
+    let hbgd =
+        (2000.0 + 8000.0 * (0.5 + 0.5 * (t * 0.1).sin()) + rng.gen_range(-50.0..50.0)) as i16;
     f[6..8].copy_from_slice(&hbgd.to_le_bytes());
 
     let ng = (5000.0 + 5500.0 * (0.5 + 0.5 * (t * 0.15).sin()) + rng.gen_range(-20.0..20.0)) as i16;
     f[8..10].copy_from_slice(&ng.to_le_bytes());
 
-    let pqwd = (5730.0 + 6000.0 * (0.5 + 0.5 * (t * 0.2).sin()) + rng.gen_range(-30.0..30.0)) as i16;
+    let pqwd =
+        (5730.0 + 6000.0 * (0.5 + 0.5 * (t * 0.2).sin()) + rng.gen_range(-30.0..30.0)) as i16;
     f[10..12].copy_from_slice(&pqwd.to_le_bytes());
 
-    let jqwd = (2730.0 + 500.0 * (0.5 + 0.5 * (t * 0.08).sin()) + rng.gen_range(-10.0..10.0)) as i16;
+    let jqwd =
+        (2730.0 + 500.0 * (0.5 + 0.5 * (t * 0.08).sin()) + rng.gen_range(-10.0..10.0)) as i16;
     f[12..14].copy_from_slice(&jqwd.to_le_bytes());
 
     let np = (5000.0 + 6000.0 * (0.5 + 0.5 * (t * 0.18).sin()) + rng.gen_range(-30.0..30.0)) as i16;
@@ -96,19 +99,23 @@ pub fn make_mock_frame(seq: u32) -> [u8; FRAME_LEN] {
 
     f[25] = (60 + rng.gen_range(-15..15)) as u8;
 
-    let hywd = (3330.0 + 600.0 * (0.5 + 0.5 * (t * 0.12).sin()) + rng.gen_range(-20.0..20.0)) as i16;
+    let hywd =
+        (3330.0 + 600.0 * (0.5 + 0.5 * (t * 0.12).sin()) + rng.gen_range(-20.0..20.0)) as i16;
     f[26..28].copy_from_slice(&hywd.to_le_bytes());
 
     let ryyl = (150 + rng.gen_range(-30..30)) as i16;
     f[28..30].copy_from_slice(&ryyl.to_le_bytes());
 
-    let dlwls_a = (5000.0 + 5500.0 * (0.5 + 0.5 * (t * 0.16).sin()) + rng.gen_range(-40.0..40.0)) as i16;
+    let dlwls_a =
+        (5000.0 + 5500.0 * (0.5 + 0.5 * (t * 0.16).sin()) + rng.gen_range(-40.0..40.0)) as i16;
     f[32..34].copy_from_slice(&dlwls_a.to_le_bytes());
 
-    let dlwls_b = (4950.0 + 5500.0 * (0.5 + 0.5 * (t * 0.16).sin()) + rng.gen_range(-40.0..40.0)) as i16;
+    let dlwls_b =
+        (4950.0 + 5500.0 * (0.5 + 0.5 * (t * 0.16).sin()) + rng.gen_range(-40.0..40.0)) as i16;
     f[34..36].copy_from_slice(&dlwls_b.to_le_bytes());
 
-    let hrqck = (3230.0 + 400.0 * (0.5 + 0.5 * (t * 0.1).sin()) + rng.gen_range(-15.0..15.0)) as i16;
+    let hrqck =
+        (3230.0 + 400.0 * (0.5 + 0.5 * (t * 0.1).sin()) + rng.gen_range(-15.0..15.0)) as i16;
     f[37..39].copy_from_slice(&hrqck.to_le_bytes());
 
     f[39] = 0x01;
@@ -213,7 +220,11 @@ mod tests {
     #[test]
     fn test_mock_frame_valid() {
         let frame = make_mock_frame(0);
-        let sum: u16 = frame[..FRAME_LEN - 1].iter().map(|&b| b as u16).sum::<u16>() % 256;
+        let sum: u16 = frame[..FRAME_LEN - 1]
+            .iter()
+            .map(|&b| b as u16)
+            .sum::<u16>()
+            % 256;
         assert_eq!(sum as u8, frame[FRAME_LEN - 1]);
         assert_eq!(&frame[..3], &HEADER);
     }

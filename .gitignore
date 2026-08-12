@@ -114,7 +114,8 @@ temp/
 
 # Build outputs
 dist/
-build/
+build/*
+!build/vite.base.ts
 
 # OS generated files
 Thumbs.db

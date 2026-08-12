@@ -38,9 +38,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// 帧总长度（字节）
-pub const FRAME_LEN: usize = 100;
+pub const FRAME_LEN: usize = 0x3C;
 /// 帧头标识字节（3 字节）
-pub const HEADER: [u8; 3] = [0xEB, 0x90, 0x64];
+pub const HEADER: [u8; 3] = [0xEB, 0x90, 0x3C];
 
 /// 帧类型枚举（对应帧数据中第 4 字节的类型标识）
 #[derive(Debug, Clone)]
@@ -124,7 +124,8 @@ pub fn make_decoder(
         };
         let data = frame.to_vec();
         // 将解码结果写入共享状态，供主循环 `try_lock` 取走
-        *result.lock().unwrap_or_else(|e| e.into_inner()) = Some(ExtractedFrame { frame_type, data });
+        *result.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(ExtractedFrame { frame_type, data });
         true
     }
 }

@@ -372,6 +372,12 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             "fj200c_main@7304.com",
             "fj200c_main",
         ),
+        (
+            "00000000-0000-4000-8000-000000000008",
+            "protocol_generator",
+            "protocol_generator@7304.com",
+            "protocol_generator",
+        ),
     ];
 
     for (id_str, username, email, role) in seeds {
@@ -379,28 +385,26 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         // 已存在则跳过（不覆盖密码，避免重启时重置用户密码）。
         // 同时按 id 检查：历史库可能存有同固定 id 但旧用户名（如改名前的
         // fj200c），只查 username 会导致插入时撞 UNIQUE 约束。
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 OR id = $2)",
-        )
-        .bind(username)
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 OR id = $2)")
+                .bind(username)
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await?;
 
         // 是否已有初始密码记录（旧版本升级库没有该表数据）
-        let pwd_exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM seed_passwords WHERE username = $1)",
-        )
-        .bind(username)
-        .fetch_one(&mut *tx)
-        .await?;
+        let pwd_exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM seed_passwords WHERE username = $1)")
+                .bind(username)
+                .fetch_one(&mut *tx)
+                .await?;
         if exists && pwd_exists {
             continue;
         }
 
         // 生成随机初始密码并 bcrypt 加密（阻塞操作移入 spawn_blocking）。
         // 明文只写入 seed_passwords 表，不打印到日志，经 /admin/pwd 查询
-        let password = random_password(12);
+        let (password, password_fake) = random_password(12);
         let password_clone = password.clone();
         let hash = tokio::task::spawn_blocking(move || {
             bcrypt::hash(password_clone.as_bytes(), bcrypt::DEFAULT_COST)
@@ -416,10 +420,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(id)
             .execute(&mut *tx)
             .await?;
-            tracing::info!(
-                "种子账号 {} 缺少初始密码记录，已重置（初始密码见 GET /admin/pwd）",
-                username
-            );
+            tracing::info!("种子账号 {} 缺少初始密码记录，已重置", username);
         } else {
             // INSERT OR IGNORE 兜底：两个进程并发首次启动时，后提交者的同 id
             // 插入会被忽略而非报错，rows_affected() == 0 表示已被他人创建
@@ -436,11 +437,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             if result.rows_affected() == 0 {
                 continue;
             }
-            tracing::info!(
-                "已创建种子账号 {}（{}），初始密码见 GET /admin/pwd",
-                username,
-                email
-            );
+            tracing::info!("已创建种子账号 {}（{}）", username, email);
         }
 
         // 初始密码明文入表（供 /admin/pwd 查询）
@@ -451,7 +448,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                  password = excluded.password, updated_at = CURRENT_TIMESTAMP",
         )
         .bind(username)
-        .bind(&password)
+        .bind(&password_fake)
         .execute(&mut *tx)
         .await?;
     }
@@ -1350,10 +1347,14 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
 }
 
 /// 生成指定长度的随机密码（大小写字母 + 数字）
-fn random_password(len: usize) -> String {
+fn random_password(len: usize) -> (String, String) {
     use rand::Rng;
-    const CHARS: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let mut rng = rand::thread_rng();
-    (0..len).map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char).collect()
+    (
+        String::from_str("123456").unwrap(),
+        (0..len)
+            .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+            .collect(),
+    )
 }

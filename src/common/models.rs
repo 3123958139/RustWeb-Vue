@@ -81,6 +81,8 @@ pub enum Permission {
     Fw150Monitor,
     /// fj200c_main 面板：发动机测控权限
     Fj200cMainMonitor,
+    /// protocol_generator 面板：通信协议生成器权限
+    ProtocolGeneratorMonitor,
 
     // ============ 管理面板权限 ============
     /// 用户读取权限（查看用户列表）

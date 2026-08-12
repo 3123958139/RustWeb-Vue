@@ -275,6 +275,28 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
         ],
         adminMenus: [],
     },
+    // ============ protocol_generator 角色（通信协议生成） ============
+    // 职责：通信协议表编辑、参数表维护、Markdown/Excel 导出、打印
+    // 应用：protocol_generator（端口 5180）
+    protocol_generator: {
+        userMenus: [
+            {
+                id: "protocol_generator-editor",
+                title: "协议编辑",
+                path: "/protocol_generator/editor",
+                icon: "EditPen",
+                permissions: [Permission.ProtocolGeneratorMonitor],
+            },
+            {
+                id: "protocol_generator-csv",
+                title: "CSV 参数表",
+                path: "/protocol_generator/csv",
+                icon: "Files",
+                permissions: [Permission.ProtocolGeneratorMonitor],
+            },
+        ],
+        adminMenus: [],
+    },
 };
 
 /**
@@ -456,6 +478,8 @@ export const ROLE_APP_URLS: Record<string, { dev: string; prod: string }> = {
     ftj1c: {dev: "http://localhost:5176", prod: "/ftj1c"},
     // 城市 3D 展示 → city3d（端口 5177，路径 /city3d）
     city3d: {dev: "http://localhost:5177", prod: "/city3d"},
+    // 通信协议生成 → protocol_generator（端口 5180，路径 /protocol_generator）
+    protocol_generator: {dev: "http://localhost:5180", prod: "/protocol_generator"},
 };
 
 /**

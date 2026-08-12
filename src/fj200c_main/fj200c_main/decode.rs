@@ -1,3 +1,4 @@
+use crate::common::utils::format_hex;
 use crate::fj200c_main::types::{AdamFields, DynoFields, EcuFields, FaultCodeFlags};
 use tracing::error;
 
@@ -65,6 +66,7 @@ pub fn cmd_exec_str(code: u8) -> &'static str {
 }
 
 pub fn decode_ecu(frame: &[u8]) -> EcuFields {
+    error!("{}", &format_hex(frame));
     let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
 
     let _count = frame[3];

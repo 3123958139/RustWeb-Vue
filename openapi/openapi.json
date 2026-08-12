@@ -1269,6 +1269,182 @@
         }
       }
     },
+    "/api/protocol_generator/csv/parse": {
+      "post": {
+        "tags": [
+          "protocol_generator"
+        ],
+        "summary": "解析 CSV 文本（前端上传文件内容，兼容 UTF-8 BOM）",
+        "operationId": "protocolGeneratorParseCsv",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CsvParseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "解析后的参数表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_ParameterDef"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/protocol_generator/csv/serialize": {
+      "post": {
+        "tags": [
+          "protocol_generator"
+        ],
+        "summary": "参数表序列化为 CSV 文本（UTF-8 BOM，前端下载）",
+        "operationId": "protocolGeneratorSerializeCsv",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ParameterDef"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "CSV 文本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TextContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/protocol_generator/default-csv": {
+      "get": {
+        "tags": [
+          "protocol_generator"
+        ],
+        "summary": "读取默认参数表（首次访问自动写入种子内容并返回）",
+        "operationId": "protocolGeneratorGetDefaultCsv",
+        "responses": {
+          "200": {
+            "description": "默认参数表列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_ParameterDef"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "protocol_generator"
+        ],
+        "summary": "保存默认参数表（写入服务器运行目录 parameters.csv，UTF-8 BOM）",
+        "operationId": "protocolGeneratorSaveDefaultCsv",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ParameterDef"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/protocol_generator/excel": {
+      "post": {
+        "tags": [
+          "protocol_generator"
+        ],
+        "summary": "导出协议表 Excel 二进制（xlsx，前端 Blob 下载）",
+        "operationId": "protocolGeneratorExportExcel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtocolExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "xlsx 文件二进制流",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/protocol_generator/markdown": {
+      "post": {
+        "tags": [
+          "protocol_generator"
+        ],
+        "summary": "导出协议表 Markdown 文本",
+        "operationId": "protocolGeneratorExportMarkdown",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtocolExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Markdown 文本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TextContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -2370,6 +2546,39 @@
           }
         }
       },
+      "ApiResponse_TextContent": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "文本内容响应（Markdown 导出 / CSV 序列化共用）",
+            "required": [
+              "content"
+            ],
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "生成的文本内容"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
       "ApiResponse_ThemeState": {
         "type": "object",
         "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
@@ -2631,6 +2840,62 @@
                 },
                 "status": {
                   "type": "string"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_ParameterDef": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "参数表条目（CSV 参数表一行）",
+              "required": [
+                "name",
+                "alias",
+                "unit",
+                "dataType",
+                "remark"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "description": "别名"
+                },
+                "dataType": {
+                  "type": "string",
+                  "description": "数据类型"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "参数名称"
+                },
+                "remark": {
+                  "type": "string",
+                  "description": "备注"
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "单位"
                 }
               }
             }
@@ -3210,6 +3475,19 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CsvParseRequest": {
+        "type": "object",
+        "description": "CSV 文本解析请求（前端上传 CSV 文件内容）",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "CSV 文件文本内容（可能含 UTF-8 BOM）"
           }
         }
       },
@@ -4021,6 +4299,39 @@
           }
         }
       },
+      "ParameterDef": {
+        "type": "object",
+        "description": "参数表条目（CSV 参数表一行）",
+        "required": [
+          "name",
+          "alias",
+          "unit",
+          "dataType",
+          "remark"
+        ],
+        "properties": {
+          "alias": {
+            "type": "string",
+            "description": "别名"
+          },
+          "dataType": {
+            "type": "string",
+            "description": "数据类型"
+          },
+          "name": {
+            "type": "string",
+            "description": "参数名称"
+          },
+          "remark": {
+            "type": "string",
+            "description": "备注"
+          },
+          "unit": {
+            "type": "string",
+            "description": "单位"
+          }
+        }
+      },
       "PerformanceRow": {
         "type": "object",
         "required": [
@@ -4062,11 +4373,82 @@
           "City3dView",
           "Fw150Monitor",
           "Fj200cMainMonitor",
+          "ProtocolGeneratorMonitor",
           "UsersRead",
           "UsersWrite",
           "UsersDelete",
           "SystemAdmin"
         ]
+      },
+      "ProtocolExportRequest": {
+        "type": "object",
+        "description": "协议导出请求（Markdown / Excel 共用）",
+        "required": [
+          "title",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProtocolField"
+            },
+            "description": "协议字段列表"
+          },
+          "title": {
+            "type": "string",
+            "description": "报表标题"
+          }
+        }
+      },
+      "ProtocolField": {
+        "type": "object",
+        "description": "协议字段（通信协议表一行）",
+        "required": [
+          "index",
+          "byteRange",
+          "name",
+          "unit",
+          "dataType",
+          "remark"
+        ],
+        "properties": {
+          "byteRange": {
+            "type": "string",
+            "description": "字节范围（如 \"0-3\" / \"4~N\"）"
+          },
+          "dataType": {
+            "type": "string",
+            "description": "数据类型（C# 内置类型）"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "description": "序号（按数据类型大小自动重排）",
+            "minimum": 0
+          },
+          "length": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "长度（仅可变类型 string/byte[] 使用）",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "description": "参数名称"
+          },
+          "remark": {
+            "type": "string",
+            "description": "备注"
+          },
+          "unit": {
+            "type": "string",
+            "description": "单位"
+          }
+        }
       },
       "PwdRouteStatus": {
         "type": "object",
@@ -4320,6 +4702,19 @@
           },
           "thrust": {
             "type": "string"
+          }
+        }
+      },
+      "TextContent": {
+        "type": "object",
+        "description": "文本内容响应（Markdown 导出 / CSV 序列化共用）",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "生成的文本内容"
           }
         }
       },
