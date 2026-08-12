@@ -63,138 +63,144 @@
     - 负责 64px ↔ 0 的折叠动画，隐藏后下方内容自动上移铺满视口
     - 不使用 sticky + 高度动画（sticky 元素的高度重算在部分运行环境失效）
   -->
-  <header class="app-navbar-slot" :class="{ 'navbar-hidden': !visible }">
+  <header :class="{ 'navbar-hidden': !visible }" class="app-navbar-slot">
     <!-- 导航栏本体：恒 64px，不做高度动画 -->
     <nav class="app-navbar">
       <!-- 内容容器：左右布局 -->
       <div class="nav-content">
         <!-- 左侧：品牌和菜单 -->
         <div class="nav-left">
-        <!-- 品牌区域：点击返回首页 -->
-        <div class="nav-brand" @click="goHome">
-          <el-icon size="24" class="brand-icon"><Monitor /></el-icon>
-          <!-- 品牌文字：显示当前角色名（注册表驱动） -->
-          <span class="brand-text">{{ brandText }}</span>
-        </div>
+          <!-- 品牌区域：点击返回首页 -->
+          <div class="nav-brand" @click="goHome">
+            <el-icon class="brand-icon" size="24">
+              <Monitor/>
+            </el-icon>
+            <!-- 品牌文字：显示当前角色名（注册表驱动） -->
+            <span class="brand-text">{{ brandText }}</span>
+          </div>
 
-        <!-- 菜单区域：动态生成菜单项 -->
-        <div class="nav-menu">
-          <!--
-            遍历菜单项
-            - `v-for="menu in menuItems"`: 遍历菜单数组
-            - `:key="menu.id"`: 为每个菜单项提供唯一 key（Vue 虚拟 DOM 优化需要）
-          -->
-          <template v-for="menu in menuItems" :key="menu.id">
+          <!-- 菜单区域：动态生成菜单项 -->
+          <div class="nav-menu">
             <!--
-              无子菜单的项目
-              - `v-if="!menu.children || menu.children.length === 0"`: 判断是否有子菜单
-              - `<router-link>`: Vue Router 组件，用于声明式导航
-              - `:to="menu.path"`: 目标路由路径
-              - `:class="{ active: isActive(menu.path) }"`: 动态类绑定，当前路径匹配时添加 active 类
+              遍历菜单项
+              - `v-for="menu in menuItems"`: 遍历菜单数组
+              - `:key="menu.id"`: 为每个菜单项提供唯一 key（Vue 虚拟 DOM 优化需要）
             -->
-            <router-link 
-              v-if="!menu.children || menu.children.length === 0"
-              :to="menu.path" 
-              class="nav-item" 
-              :class="{ active: isActive(menu.path) }"
-            >
+            <template v-for="menu in menuItems" :key="menu.id">
               <!--
-                动态图标组件
-                - `<component :is="getIcon(menu.icon)" />`: 动态渲染图标组件
-                - `getIcon()`: 根据图标名称返回对应的 Vue 组件
+                无子菜单的项目
+                - `v-if="!menu.children || menu.children.length === 0"`: 判断是否有子菜单
+                - `<router-link>`: Vue Router 组件，用于声明式导航
+                - `:to="menu.path"`: 目标路由路径
+                - `:class="{ active: isActive(menu.path) }"`: 动态类绑定，当前路径匹配时添加 active 类
               -->
-              <el-icon><component :is="getIcon(menu.icon)" /></el-icon>
-              <span>{{ menu.title }}</span>
-            </router-link>
-            
-            <!--
-              有子菜单的项目（下拉菜单）
-              - `<el-dropdown>`: Element Plus 下拉菜单组件
-              - `trigger="hover"`: 鼠标悬停触发
-              - `@command="handleMenuCommand"`: 菜单项点击事件处理
-            -->
-            <el-dropdown 
-              v-else 
-              :key="menu.id"
-              @command="handleMenuCommand"
-              trigger="hover"
-            >
-              <!-- 下拉触发器 -->
-              <span class="nav-item dropdown-item" :class="{ active: isActive(menu.path) }">
-                <el-icon><component :is="getIcon(menu.icon)" /></el-icon>
+              <router-link
+                  v-if="!menu.children || menu.children.length === 0"
+                  :class="{ active: isActive(menu.path) }"
+                  :to="menu.path"
+                  class="nav-item"
+              >
+                <!--
+                  动态图标组件
+                  - `<component :is="getIcon(menu.icon)" />`: 动态渲染图标组件
+                  - `getIcon()`: 根据图标名称返回对应的 Vue 组件
+                -->
+                <el-icon>
+                  <component :is="getIcon(menu.icon)"/>
+                </el-icon>
                 <span>{{ menu.title }}</span>
-                <el-icon><ArrowDown /></el-icon>
+              </router-link>
+
+              <!--
+                有子菜单的项目（下拉菜单）
+                - `<el-dropdown>`: Element Plus 下拉菜单组件
+                - `trigger="hover"`: 鼠标悬停触发
+                - `@command="handleMenuCommand"`: 菜单项点击事件处理
+              -->
+              <el-dropdown
+                  v-else
+                  :key="menu.id"
+                  trigger="hover"
+                  @command="handleMenuCommand"
+              >
+                <!-- 下拉触发器 -->
+                <span :class="{ active: isActive(menu.path) }" class="nav-item dropdown-item">
+                <el-icon><component :is="getIcon(menu.icon)"/></el-icon>
+                <span>{{ menu.title }}</span>
+                <el-icon><ArrowDown/></el-icon>
               </span>
-              <!-- 下拉菜单内容（具名插槽） -->
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <!--
-                    遍历子菜单
-                    - `command="child.path"`: 点击时传递路径作为命令
-                  -->
-                  <el-dropdown-item 
-                    v-for="child in menu.children" 
-                    :key="child.id"
-                    :command="child.path"
-                  >
-                    <el-icon><component :is="getIcon(child.icon)" /></el-icon>
-                    {{ child.title }}
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </template>
-        </div>
-      </div>
-
-      <!-- 右侧：自定义动作和用户信息 -->
-      <div class="nav-right">
-        <!--
-          应用自定义动作区域（插槽）
-          - 应用可以通过此插槽添加自定义按钮
-          - 例如：创建服务、导出数据等
-        -->
-        <div class="nav-actions">
-          <!-- 自动隐藏开关 -->
-          <el-checkbox
-            v-model="autoHideEnabled"
-            class="auto-hide-toggle"
-            size="small"
-          >
-            自动隐藏
-          </el-checkbox>
-          <slot name="actions"></slot>
+                <!-- 下拉菜单内容（具名插槽） -->
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <!--
+                      遍历子菜单
+                      - `command="child.path"`: 点击时传递路径作为命令
+                    -->
+                    <el-dropdown-item
+                        v-for="child in menu.children"
+                        :key="child.id"
+                        :command="child.path"
+                    >
+                      <el-icon>
+                        <component :is="getIcon(child.icon)"/>
+                      </el-icon>
+                      {{ child.title }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </template>
+          </div>
         </div>
 
-        <!-- 用户下拉菜单 -->
-        <el-dropdown @command="handleCommand">
-          <!-- 用户信息展示 -->
-          <span class="user-dropdown">
+        <!-- 右侧：自定义动作和用户信息 -->
+        <div class="nav-right">
+          <!--
+            应用自定义动作区域（插槽）
+            - 应用可以通过此插槽添加自定义按钮
+            - 例如：创建服务、导出数据等
+          -->
+          <div class="nav-actions">
+            <!-- 自动隐藏开关 -->
+            <el-checkbox
+                v-model="autoHideEnabled"
+                class="auto-hide-toggle"
+                size="small"
+            >
+              自动隐藏
+            </el-checkbox>
+            <slot name="actions"></slot>
+          </div>
+
+          <!-- 用户下拉菜单 -->
+          <el-dropdown @command="handleCommand">
+            <!-- 用户信息展示 -->
+            <span class="user-dropdown">
             <!-- 用户头像（首字母） -->
             <el-avatar :size="32">
               {{ user?.username?.charAt(0)?.toUpperCase() }}
             </el-avatar>
-            <!-- 用户名（桌面端显示） -->
+              <!-- 用户名（桌面端显示） -->
             <span class="username desktop-only">{{ user?.username }}</span>
-            <!-- 用户角色（桌面端显示） -->
+              <!-- 用户角色（桌面端显示） -->
             <span class="user-role desktop-only">({{ getUserRoleText(user?.role) }})</span>
-            <el-icon><ArrowDown /></el-icon>
+            <el-icon><ArrowDown/></el-icon>
           </span>
-          <!-- 下拉菜单内容 -->
-          <template #dropdown>
-            <el-dropdown-menu>
-              <!-- 退出登录选项 -->
-              <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+            <!-- 下拉菜单内容 -->
+            <template #dropdown>
+              <el-dropdown-menu>
+                <!-- 退出登录选项 -->
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </nav>
   </header>
 </template>
 
-<script setup lang="ts">
+<script lang="ts" setup>
 /**
  * 脚本部分
  *
@@ -208,17 +214,32 @@
  * - 共享包：getAppAuthStore, findRole, 类型定义
  */
 
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {useRouter} from 'vue-router'
+import {ElMessage} from 'element-plus'
 // 导入 Element Plus 图标组件
 // 注意：这里全量导入所有图标，确保新角色菜单图标直接可用
 import {
-  Monitor, DataBoard, Document, User as UserIcon, Setting, ArrowDown, List, Plus, UserFilled, Files, Lock, Tools, QuestionFilled,
-  DataLine, TrendCharts, Histogram, OfficeBuilding
+  ArrowDown,
+  DataBoard,
+  DataLine,
+  Document,
+  Files,
+  Histogram,
+  List,
+  Lock,
+  Monitor,
+  OfficeBuilding,
+  Plus,
+  QuestionFilled,
+  Setting,
+  Tools,
+  TrendCharts,
+  User as UserIcon,
+  UserFilled
 } from '@element-plus/icons-vue'
 // 从共享包导入工具函数和类型
-import { getAppAuthStore, findRole, type MenuItem, type User } from '..'
+import {findRole, getAppAuthStore, type MenuItem, type User} from '..'
 
 // ============ 类型定义 ============
 
@@ -252,10 +273,10 @@ interface AuthStoreShape {
  * - `autoHide`: 初始是否启用自动隐藏（默认 false，由导航栏内复选框控制）
  */
 const props = withDefaults(
-  defineProps<{
-    autoHide?: boolean
-  }>(),
-  { autoHide: false },
+    defineProps<{
+      autoHide?: boolean
+    }>(),
+    {autoHide: false},
 )
 
 /**
@@ -314,7 +335,7 @@ const applyAutoHide = () => {
   visible.value = true
   clearTimeout(hideTimer)
   if (autoHideEnabled.value) {
-    document.addEventListener('mousemove', onMouseMove, { passive: true })
+    document.addEventListener('mousemove', onMouseMove, {passive: true})
   } else {
     document.removeEventListener('mousemove', onMouseMove)
   }
@@ -428,8 +449,8 @@ const goHome = (): void => {
  * - 当前页面标识
  */
 const isActive = (path: string): boolean => {
-  return router.currentRoute.value.path === path || 
-         router.currentRoute.value.path.startsWith(path + '/')
+  return router.currentRoute.value.path === path ||
+      router.currentRoute.value.path.startsWith(path + '/')
 }
 
 /**
@@ -572,7 +593,7 @@ const handleCommand = (command: string): void => {
   align-items: center;
   height: 64px;
   padding: 0 24px;
-  max-width: 1400px;
+  max-width: 1920px;
   margin: 0 auto;
 }
 
@@ -689,23 +710,23 @@ const handleCommand = (command: string): void => {
   .nav-content {
     padding: 0 16px;
   }
-  
+
   .nav-left {
     gap: 16px;
   }
-  
+
   .nav-menu {
     display: none;
   }
-  
+
   .nav-item {
     font-size: 14px;
   }
-  
+
   .username {
     font-size: 14px;
   }
-  
+
   .user-role {
     font-size: 12px;
   }
@@ -716,7 +737,7 @@ const handleCommand = (command: string): void => {
   .nav-menu {
     gap: 4px;
   }
-  
+
   .nav-item {
     padding: 8px 12px;
   }
