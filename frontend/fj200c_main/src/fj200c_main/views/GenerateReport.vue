@@ -593,6 +593,11 @@ table {
 }
 
 @media print {
+  /* 隐藏共享导航栏（不能 scoped，需作用于 packages/shared 的 AppNavbar） */
+  .app-navbar-slot {
+    display: none !important;
+  }
+
   html,
   body {
     overflow: visible;
