@@ -150,7 +150,7 @@ deploy/
 - 依赖只在根目录执行一次 `npm install`（workspaces 统一安装），不要在子目录单独装，否则可能产生重复依赖实例（曾导致 pinia 双实例黑屏）
 - 新增角色后：只需改后端 `src/roles.rs` 注册表 + `npm run gen:api`（前端 key/name/permissions 运行时从 `/api/meta/roles` 拉取，无手写副本；若注册表未加载则前端权限为空，登录流程不受影响）
 - 改名/新增前端应用时，`main.rs` 静态托管、`src/embedded_assets.rs` 嵌入结构体与路由、`deploy.bat`、`package.json` workspaces、`vite.config.ts` base/port 都要同步改
-- `Cargo.lock` 被 `.gitignore` 忽略，`package-lock.json` 需提交
+- `Cargo.lock` 需提交（锁定后端依赖版本），`package-lock.json` 需提交
 - `config-fj200c_information.ini` 修改立即生效（热加载），`config-fj200c_main.ini` 与 `config-ftj1c.ini` 需重启服务
 - 7 个用户端 + admin 共享同一登录态（localStorage token），跨应用跳转 token 自动传递
 

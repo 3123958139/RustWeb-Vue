@@ -195,7 +195,7 @@ deploy/
 
 - 依赖只在根目录执行一次 `npm install`（workspaces 统一安装），子目录单独安装会产生重复依赖实例（曾导致 pinia 双实例黑屏）
 - 前端 `npm run build` 必须在各自 `frontend/*` 子目录执行
-- `Cargo.lock` 被 `.gitignore` 忽略，`package-lock.json` 需提交
+- `Cargo.lock` 与 `package-lock.json` 均需提交（锁定依赖版本）
 - 新增角色后两端 `key` 不一致会导致登录后权限为空（403）
 
 ## 许可证
