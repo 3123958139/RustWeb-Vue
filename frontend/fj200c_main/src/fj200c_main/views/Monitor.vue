@@ -18,46 +18,61 @@
               │   └── section-chart → ChartPanel + ControlPanel
               └── section-status → StatusBar
 -->
-<script setup lang="ts">
-import { useBackendPorts } from '@/fj200c_main/composables/useBackendPorts'
-import { useWindowScale } from '@/fj200c_main/composables/useWindowScale'
-import { useTheme } from '@/fj200c_main/composables/useTheme'
+<script lang="ts" setup>
+import {useBackendPorts} from '@/fj200c_main/composables/useBackendPorts'
+import {useWindowScale} from '@/fj200c_main/composables/useWindowScale'
+import {useTheme} from '@/fj200c_main/composables/useTheme'
 import DashboardStats from '@/fj200c_main/components/DashboardStats.vue'
 import ECUStatus from '@/fj200c_main/components/ECUStatus.vue'
 import FaultDisplay from '@/fj200c_main/components/FaultDisplay.vue'
 import ChartPanel from '@/fj200c_main/components/ChartPanel.vue'
 import ControlPanel from '@/fj200c_main/components/ControlPanel.vue'
 import StatusBar from '@/fj200c_main/components/StatusBar.vue'
+import {fj200cMainApi} from '@/api'
+import {onMounted} from "vue";
 
 // 主仪表盘页面建立 WebSocket 实时数据引用（应用级连接由 App.vue 持有）
 useBackendPorts()
 useTheme()
 
-const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale()
+const {scale, rootRef, DESIGN_W, DESIGN_H} = useWindowScale()
+
+onMounted(() => {
+  fj200cMainApi.startService().catch(() => {
+
+  });
+});
 </script>
 
 <template>
   <div ref="rootRef" class="screen-root">
     <div
-      class="scaled-stage"
-      :style="{
+        :style="{
         width: DESIGN_W + 'px',
         height: DESIGN_H + 'px',
         transform: `scale(${scale.x}, ${scale.y})`,
       }"
+        class="scaled-stage"
     >
       <div class="app-container">
         <main class="main-content">
-          <div class="section-dashboard"><DashboardStats /></div>
-          <div class="section-middle"><ECUStatus /><FaultDisplay /></div>
+          <div class="section-dashboard">
+            <DashboardStats/>
+          </div>
+          <div class="section-middle">
+            <ECUStatus/>
+            <FaultDisplay/>
+          </div>
           <div class="section-chart">
             <div class="chart-control-row">
-              <ChartPanel />
-              <ControlPanel />
+              <ChartPanel/>
+              <ControlPanel/>
             </div>
           </div>
         </main>
-        <div class="section-status"><StatusBar /></div>
+        <div class="section-status">
+          <StatusBar/>
+        </div>
       </div>
     </div>
   </div>
@@ -74,11 +89,13 @@ const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale()
   background: var(--bg-page);
   transition: background 0.3s;
 }
+
 .scaled-stage {
   transform-origin: center center;
   overflow: hidden;
   flex-shrink: 0;
 }
+
 .app-container {
   height: 100%;
   display: flex;
@@ -86,6 +103,7 @@ const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale()
   gap: 4px;
   overflow: hidden;
 }
+
 .main-content {
   flex: 1;
   display: flex;
@@ -95,12 +113,14 @@ const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale()
   overflow-x: hidden;
   min-height: 0;
 }
+
 .section-dashboard {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   padding: 0 12px;
 }
+
 .section-middle {
   flex: 0 0 auto;
   display: flex;
@@ -110,15 +130,18 @@ const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale()
   background: var(--bg-page);
   transition: background 0.3s;
 }
+
 .section-chart {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
+
 .section-status {
   padding: 0 12px;
 }
+
 .chart-control-row {
   display: flex;
   gap: 12px;
