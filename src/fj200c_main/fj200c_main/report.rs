@@ -81,9 +81,9 @@ fn build_col_idx(headers: &[String]) -> CsvColumnIdx {
         col_clzs: find("燃气发生器转速Ng"),
         col_pqwd: find("排气温度"),
         col_ryyl: find("燃油压力"),
-        col_dqwd: find("大气温度"),
-        col_dqyl: find("大气压力"),
-        col_dqsd: find("大气湿度"),
+        col_dqwd: find("大气温度(4015)"),
+        col_dqyl: find("大气压力(4015)"),
+        col_dqsd: find("大气湿度(4015)"),
     }
 }
 

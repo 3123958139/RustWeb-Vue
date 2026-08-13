@@ -118,7 +118,7 @@ if not exist config-fj200c_main.ini (
     echo version = 0.0.1>> config-fj200c_main.ini
     echo.>> config-fj200c_main.ini
     echo [COM]>> config-fj200c_main.ini
-    echo Count = 3>> config-fj200c_main.ini
+    echo Count = 5>> config-fj200c_main.ini
     echo.>> config-fj200c_main.ini
     echo [COM0]>> config-fj200c_main.ini
     echo PORTNAME = COM101>> config-fj200c_main.ini
@@ -138,6 +138,22 @@ if not exist config-fj200c_main.ini (
     echo.>> config-fj200c_main.ini
     echo [COM2]>> config-fj200c_main.ini
     echo PORTNAME = COM105>> config-fj200c_main.ini
+    echo BaudRate = 9600>> config-fj200c_main.ini
+    echo DataBits = 8>> config-fj200c_main.ini
+    echo Parity = 0>> config-fj200c_main.ini
+    echo StopBits = 1>> config-fj200c_main.ini
+    echo TimeoutMs = 100>> config-fj200c_main.ini
+    echo.>> config-fj200c_main.ini
+    echo [COM3]>> config-fj200c_main.ini
+    echo PORTNAME = COM107>> config-fj200c_main.ini
+    echo BaudRate = 115200>> config-fj200c_main.ini
+    echo DataBits = 8>> config-fj200c_main.ini
+    echo Parity = 0>> config-fj200c_main.ini
+    echo StopBits = 1>> config-fj200c_main.ini
+    echo TimeoutMs = 100>> config-fj200c_main.ini
+    echo.>> config-fj200c_main.ini
+    echo [COM4]>> config-fj200c_main.ini
+    echo PORTNAME = COM109>> config-fj200c_main.ini
     echo BaudRate = 115200>> config-fj200c_main.ini
     echo DataBits = 8>> config-fj200c_main.ini
     echo Parity = 0>> config-fj200c_main.ini

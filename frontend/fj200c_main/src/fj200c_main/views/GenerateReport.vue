@@ -124,8 +124,8 @@
                   <th>推力<br/>N</th>
                   <th>排气温度<br/>°C</th>
                   <th>燃油流量<br/>g/s</th>
-                  <th>大气温度<br/>°C</th>
-                  <th>大气压力<br/>KPa</th>
+                  <th>大气温度(4015)<br/>°C</th>
+                  <th>大气压力(4015)<br/>KPa</th>
                 </tr>
                 </thead>
                 <tbody>

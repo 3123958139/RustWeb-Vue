@@ -203,18 +203,18 @@ pub fn init_all_from_config(
     } else {
         None
     };
-    let adam4117 = if count > 1 {
-        init_adam4117(ADAM4117_SECTION, 1, stop.clone(), shared, tx.clone())
+    let adam4117 = if count > 2 {
+        init_adam4117(ADAM4117_SECTION, 2, stop.clone(), shared, tx.clone())
     } else {
         None
     };
-    let dyno = if count > 2 {
-        init_dyno(DYNO_SECTION, 2, stop.clone(), shared, tx.clone())
+    let dyno = if count > 3 {
+        init_dyno(DYNO_SECTION, 3, stop.clone(), shared, tx.clone())
     } else {
         None
     };
-    let flux = if count > 2 {
-        init_flux(FLUX_SECTION, 2, stop, shared, tx.clone())
+    let flux = if count > 4 {
+        init_flux(FLUX_SECTION, 4, stop, shared, tx.clone())
     } else {
         None
     };
@@ -413,7 +413,13 @@ pub fn start_mock_senders(
 ) -> Arc<AtomicBool> {
     let stop = Arc::new(AtomicBool::new(false));
 
-    let mock_configs: &[(&str, usize)] = &[("MOCK_COM0", 0), ("MOCK_COM1", 1), ("MOCK_COM2", 2)];
+    let mock_configs: &[(&str, usize)] = &[
+        ("MOCK_COM0", 0),
+        ("MOCK_COM1", 1),
+        ("MOCK_COM2", 2),
+        ("MOCK_COM3", 3),
+        ("MOCK_COM4", 4),
+    ];
 
     for &(mock_sec, conn_idx) in mock_configs {
         let mock = match MockControl::create(mock_sec) {
@@ -519,7 +525,7 @@ pub fn start_mock_senders(
 
                             let hex = crate::common::utils::format_hex_compact(&frame);
                             let event = Fj200cMainEvent::PortData {
-                                connection_index: 2,
+                                connection_index: 3,
                                 hex,
                                 fields: Arc::new(ChannelData::Dyno(fields)),
                             };
@@ -542,7 +548,7 @@ pub fn start_mock_senders(
 
                             let hex = crate::common::utils::format_hex_compact(&frame);
                             let event = Fj200cMainEvent::PortData {
-                                connection_index: 2,
+                                connection_index: 4,
                                 hex,
                                 fields: Arc::new(ChannelData::Flux(fields)),
                             };

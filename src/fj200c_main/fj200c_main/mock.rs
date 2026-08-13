@@ -8,18 +8,24 @@ pub enum MockProfile {
     Generic,
     Ecu,
     Adam,
+    Adam4117,
     Dyno,
+    Flux,
 }
 
 impl MockProfile {
     pub fn from_section(section: &str) -> Self {
         let upper = section.to_uppercase();
-        if upper.contains("ECU") || upper.contains("MOCK_COM0") {
+        if upper.contains("MOCK_COM0") || upper.contains("ECU") {
             MockProfile::Ecu
-        } else if upper.contains("ADAM") || upper.contains("MOCK_COM1") {
+        } else if upper.contains("MOCK_COM1") || upper.contains("4015") {
             MockProfile::Adam
-        } else if upper.contains("DYNO") || upper.contains("MOCK_COM2") {
+        } else if upper.contains("MOCK_COM2") || upper.contains("4117") || upper.contains("ADAM") {
+            MockProfile::Adam4117
+        } else if upper.contains("MOCK_COM3") || upper.contains("DYNO") {
             MockProfile::Dyno
+        } else if upper.contains("MOCK_COM4") || upper.contains("FLUX") {
+            MockProfile::Flux
         } else {
             MockProfile::Generic
         }
@@ -61,8 +67,9 @@ impl MockControl {
     pub fn generate_frame(&self) -> Vec<u8> {
         match self.profile {
             MockProfile::Ecu => self.generate_ecu_frame(),
-            MockProfile::Adam => self.generate_adam_ascii_frame(),
+            MockProfile::Adam | MockProfile::Adam4117 => self.generate_adam_ascii_frame(),
             MockProfile::Dyno => self.generate_dyno_frame(),
+            MockProfile::Flux => self.generate_flux_frame(),
             MockProfile::Generic => self.generate_ecu_frame(),
         }
     }
@@ -182,6 +189,23 @@ impl MockControl {
         f[2..4].copy_from_slice(&jkwd.to_le_bytes());
         f[8..10].copy_from_slice(&njzs.to_le_bytes());
         f[10..12].copy_from_slice(&nj_raw.to_le_bytes());
+
+        let sum: u16 = f[..16].iter().map(|&b| b as u16).sum();
+        f[16..18].copy_from_slice(&sum.to_le_bytes());
+        f
+    }
+
+    fn generate_flux_frame(&self) -> Vec<u8> {
+        let mut rng = rand::thread_rng();
+        let mut f = vec![0u8; 18];
+        f[0] = 0xFF;
+        f[1] = 0xFF;
+
+        let seq = self.seq.fetch_add(1, Ordering::Relaxed) as f32;
+        let t = seq * 0.1;
+
+        let ll = (3000.0 + 1500.0 * (0.5 + 0.5 * (t * 0.2).sin()) + rng.gen_range(-50.0..50.0)) as u16;
+        f[2..4].copy_from_slice(&ll.to_le_bytes());
 
         let sum: u16 = f[..16].iter().map(|&b| b as u16).sum();
         f[16..18].copy_from_slice(&sum.to_le_bytes());

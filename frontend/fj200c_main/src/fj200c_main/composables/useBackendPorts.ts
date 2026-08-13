@@ -8,7 +8,7 @@
 //! 特性：
 //! - 断开自动重连（1.5 秒间隔）
 //! - 未登录（无 token）时不发起连接，等待下次重连时机
-//! - 连接建立时先收到一个 JSON 数组（3 个 PortData 快照），之后为单个事件对象
+//! - 连接建立时先收到一个 JSON 数组（5 个 PortData 快照），之后为单个事件对象
 //! - 按 `type` 字段分发到 dashboard store / useTheme
 //! - 组件卸载时释放引用；引用归零时才真正断开连接
 //!
@@ -21,10 +21,11 @@ import {getSessionToken} from '@shared'
 import {useDashboardStore} from '../store/dashboard'
 import {fj200cMainApi} from '@/api'
 import type {Fj200cMainWsEvent, PortDataEvent} from '@/fj200c_main/api/fj200c_main'
-import type {AdamFields, DynoFields, EcuFields} from '@shared/api/generated'
+import type {Adam4015Fields, Adam4117Fields, DynoFields, EcuFields, FluxFields} from '@shared/api/generated'
 import {applyTheme} from './useTheme'
 
-const adamParamIndices = [0, 1, 2, 3]
+const adam4015ParamIndices = [0, 1, 2, 3]
+const adam4117ParamIndices = [0, 1, 2, 3]
 
 // ---- 模块级共享连接状态（引用计数） ----
 let sharedWs: WebSocket | null = null
@@ -42,10 +43,16 @@ export function useBackendPorts() {
                 if ('Ecu' in fields) handleEcu(store, fields.Ecu, hex)
                 break
             case 1:
-                if ('Adam' in fields) handleAdam(store, fields.Adam, hex)
+                if ('Adam4015' in fields) handleAdam4015(store, fields.Adam4015, hex)
                 break
             case 2:
+                if ('Adam4117' in fields) handleAdam4117(store, fields.Adam4117, hex)
+                break
+            case 3:
                 if ('Dyno' in fields) handleDyno(store, fields.Dyno, hex)
+                break
+            case 4:
+                if ('Flux' in fields) handleFlux(store, fields.Flux, hex)
                 break
         }
     }
@@ -68,7 +75,7 @@ export function useBackendPorts() {
     }
 
     function handleMessage(data: unknown) {
-        // 连接建立时先收到一个 JSON 数组（3 个 PortData 快照），之后为单个事件对象
+        // 连接建立时先收到一个 JSON 数组（5 个 PortData 快照），之后为单个事件对象
         if (Array.isArray(data)) {
             for (const item of data) handleEvent(item as Fj200cMainWsEvent)
         } else {
@@ -151,13 +158,22 @@ function handleEcu(store: ReturnType<typeof useDashboardStore>, f: EcuFields, he
     store.footerStats.ecuRxFrames++
 }
 
-function handleAdam(store: ReturnType<typeof useDashboardStore>, f: AdamFields, hex: string) {
+function handleAdam4015(store: ReturnType<typeof useDashboardStore>, f: Adam4015Fields, hex: string) {
     store.$patch((state) => {
-        for (const i of adamParamIndices) {
+        for (const i of adam4015ParamIndices) {
             state.envParams[i].value = f.channels[i] ?? 0
         }
     })
-    store.footerStats.adamRxBytes += hex.length / 2
+    store.footerStats.adam4015RxBytes += hex.length / 2
+}
+
+function handleAdam4117(store: ReturnType<typeof useDashboardStore>, f: Adam4117Fields, hex: string) {
+    store.$patch((state) => {
+        for (const i of adam4117ParamIndices) {
+            state.envParams[4 + i].value = f.channels[i] ?? 0
+        }
+    })
+    store.footerStats.adam4117RxBytes += hex.length / 2
 }
 
 function handleDyno(store: ReturnType<typeof useDashboardStore>, f: DynoFields, hex: string) {
@@ -166,9 +182,17 @@ function handleDyno(store: ReturnType<typeof useDashboardStore>, f: DynoFields, 
         state.dynoData.njzs = f.njzs ?? 0
         state.dynoData.nj = f.nj ?? 0
         state.dynoData.njgl = f.njgl ?? 0
-        state.envParams[4].value = f.njzs ?? 0
-        state.envParams[5].value = f.nj ?? 0
-        state.envParams[6].value = f.njgl ?? 0
+        state.envParams[9].value = f.njzs ?? 0
+        state.envParams[10].value = f.nj ?? 0
+        state.envParams[11].value = f.njgl ?? 0
     })
     store.footerStats.dynoRxBytes += hex.length / 2
+}
+
+function handleFlux(store: ReturnType<typeof useDashboardStore>, f: FluxFields, hex: string) {
+    store.$patch((state) => {
+        state.fluxData.ll = f.ll ?? 0
+        state.envParams[8].value = f.ll ?? 0
+    })
+    store.footerStats.fluxRxBytes += hex.length / 2
 }

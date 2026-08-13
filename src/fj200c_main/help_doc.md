@@ -2,14 +2,16 @@
 
 ## 一、软件概述
 
-FJ-200C 发动机测控软件是一套专用于航空发动机试车台的实时数据采集、监控与试验数据管理桌面应用程序。软件通过三路独立串口分别连接 **ECU 电控器**、**ADAM 环境采集模块**和 **测功机**，实现发动机全状态参数的实时监控、指令下发、数据记录与报表生成。
+FJ-200C 发动机测控软件是一套专用于航空发动机试车台的实时数据采集、监控与试验数据管理桌面应用程序。软件通过五路独立串口分别连接 **ECU 电控器**、**Adam4015/Adam4117 环境采集模块**、**测功机**和 **Flux 燃油流量计**，实现发动机全状态参数的实时监控、指令下发、数据记录与报表生成。
 
 ```mermaid
 graph TB
     subgraph 硬件层["硬件设备"]
         ECU["ECU 电控器<br/>(COM0)"]
-        ADAM["ADAM 采集模块<br/>(COM1)"]
-        DYNO["测功机<br/>(COM2)"]
+        ADAM4015["Adam4015 采集模块<br/>(COM1)"]
+        ADAM4117["Adam4117 采集模块<br/>(COM2)"]
+        DYNO["测功机<br/>(COM3)"]
+        FLUX["Flux 燃油流量计<br/>(COM4)"]
     end
 
     subgraph 软件层["FJ-200C 测控软件"]
@@ -22,8 +24,10 @@ graph TB
     end
 
     ECU -->|COM101 / 115200| MAIN
-    ADAM -->|COM103 / 9600| MAIN
-    DYNO -->|COM105 / 115200| MAIN
+    ADAM4015 -->|COM103 / 9600| MAIN
+    ADAM4117 -->|COM105 / 9600| MAIN
+    DYNO -->|COM107 / 115200| MAIN
+    FLUX -->|COM109 / 115200| MAIN
 
     MAIN --> SUB_INPUT
     MAIN --> SUB_VIEW
@@ -35,8 +39,10 @@ graph TB
 | 通道 | 配置节 | 物理端口 | 波特率 | 数据内容 |
 |---|---|---|---|---|
 | COM0 | `[COM0]` | COM101 | 115200 | 发动机 ECU 参数（转速/温度/压力/故障码等 ~60 字段） |
-| COM1 | `[COM1]` | COM103 | 9600 | 环境参数（大气温湿度/压力/进口温度等 8 通道） |
-| COM2 | `[COM2] | COM105 | 115200 | 测功机参数（机油温度/扭矩/转速/功率） |
+| COM1 | `[COM1]` | COM103 | 9600 | 环境参数 Adam4015（大气温湿度/压力/进口温度等 8 通道） |
+| COM2 | `[COM2]` | COM105 | 9600 | 环境参数 Adam4117（大气温湿度/压力/进口温度等 8 通道） |
+| COM3 | `[COM3]` | COM107 | 115200 | 测功机参数（机油温度/扭矩/转速/功率） |
+| COM4 | `[COM4]` | COM109 | 115200 | 燃油流量（Flux） |
 
 ---
 
@@ -49,12 +55,12 @@ sequenceDiagram
     participant User as 用户
     participant App as FJ-200C
     participant Config as config.ini
-    participant Ports as 三路串口
+    participant Ports as 五路串口
     participant Window as 主窗口
 
     User->>App: 双击运行
     App->>Config: 读取端口配置
-    App->>Ports: 初始化 COM0/COM1/COM2
+    App->>Ports: 初始化 COM0~COM4
     App->>Window: 打开主窗口（最大化）
 
     Note over App,Window: 自动弹出"试验信息录入"
@@ -65,7 +71,7 @@ sequenceDiagram
 ```
 
 1. 双击桌面图标启动程序
-2. 系统自动加载 `config.ini` 配置，初始化三路串口
+2. 系统自动加载 `config.ini` 配置，初始化五路串口
 3. 主窗口以最大化模式打开（设计尺寸 1920×1080，自动缩放适配当前屏幕）
 4. **试验信息录入**子窗口自动弹出（见第四章）
 5. 串口连接成功后，主界面仪表盘开始显示实时数据
@@ -344,11 +350,11 @@ flowchart TB
 flowchart LR
     A["菜单: 模拟运行"] --> B["弹出确认框"]
     B -->|取消| C["取消操作"]
-    B -->|确认| D["创建三路虚拟串口对"]
-    D --> E["MOCKCOM0: ECU 模拟帧<br/>MOCKCOM1: ADAM 模拟帧<br/>MOCKCOM2: DYNO 模拟帧"]
+    B -->|确认| D["创建五路模拟发送器"]
+    D --> E["MOCK_COM0: ECU 模拟帧<br/>MOCK_COM1: Adam4015 模拟帧<br/>MOCK_COM2: Adam4117 模拟帧<br/>MOCK_COM3: DYNO 模拟帧<br/>MOCK_COM4: FLUX 模拟帧"]
     E --> F["状态栏显示<br/>橙色脉冲徽标"]
     F --> G["菜单变为'停止模拟'"]
-    G -->|点击| H["销毁虚拟串口<br/>关闭模拟"]
+    G -->|点击| H["销毁模拟发送器<br/>关闭模拟"]
 ```
 
 ### 操作说明
@@ -360,7 +366,7 @@ flowchart LR
 | 3 | 主界面正常接收模拟数据 | 仪表盘、ECU 参数、曲线全部更新 |
 | 4 | 菜单 → **停止模拟** | 徽标消失，模拟结束 |
 
-> ⚠️ **注意**：模拟模式使用 `MOCKCOM0/1/2` 三路虚拟串口对。进入前需将物理串口线切换到对应的虚拟串口。若 `config.ini` 中 `[MOCK] SimulationMenu = false`，则菜单项隐藏。
+> ⚠️ **注意**：模拟模式使用 `MOCK_COM0/1/2/3/4` 五路模拟发送器（进程内直通，无需虚拟串口，也无需切换物理连线）。若 `config.ini` 中 `[MOCK] SimulationMenu = false`，则菜单项隐藏。
 
 ---
 
@@ -397,7 +403,7 @@ flowchart TB
 
 ```ini
 [COM]
-Count=3
+Count=5
 
 [COM0]
 PORTNAME=COM101
@@ -409,14 +415,21 @@ BAUD=9600
 
 [COM2]
 PORTNAME=COM105
+BAUD=9600
+
+[COM3]
+PORTNAME=COM107
+BAUD=115200
+
+[COM4]
+PORTNAME=COM109
 BAUD=115200
 
 [MOCK]
 SimulationMenu=true
-
-[MOCKCOM0]
-PAIR1=COM101
-PAIR2=MOCKCOM0_IN
+; MOCK_COM0~MOCK_COM4 可选节，仅用于调整模拟发送间隔
+[MOCK_COM0]
+IntervalMs=100
 ; ...
 ```
 
@@ -462,14 +475,14 @@ PAIR2=MOCKCOM0_IN
 ### Q1: 串口打开失败怎么办？
 
 - 确认设备管理器端口号与 `config.ini` 一致
-- 确认波特率设置正确（ECU: 115200, ADAM: 9600, 测功机: 115200）
+- 确认波特率设置正确（ECU: 115200, Adam4015/Adam4117: 9600, 测功机/流量计: 115200）
 - 确认串口未被其他程序占用
 
 ### Q2: 数据未在界面显示？
 
 - 检查状态栏的接收字节数是否增长
 - 若无增长 → 检查串口连接与配置
-- 若有增长 → 检查帧头匹配（ECU: `EB 90 2A`, ADAM: `>`, DYNO: `FF FF`）
+- 若有增长 → 检查帧头匹配（ECU: `EB 90 2A`, Adam4015/Adam4117: `>`, DYNO/Flux: `FF FF`）
 
 ### Q3: 记录文件在哪里？
 
@@ -507,31 +520,39 @@ PAIR2=MOCKCOM0_IN
 graph TB
     subgraph 硬件["硬件层"]
         ECU_hw["ECU 电控器"]
-        ADAM_hw["ADAM 采集模块"]
+        ADAM4015_hw["Adam4015 采集模块"]
+        ADAM4117_hw["Adam4117 采集模块"]
         DYNO_hw["测功机"]
+        FLUX_hw["Flux 燃油流量计"]
     end
 
     subgraph 后端["Rust 后端 100ms 循环"]
         COM0["COM0 串口<br/>帧提取 & 解码"]
         COM1["COM1 串口<br/>帧提取 & 解码"]
         COM2["COM2 串口<br/>帧提取 & 解码"]
-        SHARED["SharedPortData<br/>ArcSwap&lt;Fields&gt; ×3"]
+        COM3["COM3 串口<br/>帧提取 & 解码"]
+        COM4["COM4 串口<br/>帧提取 & 解码"]
+        SHARED["SharedPortData<br/>ArcSwap&lt;Fields&gt; ×5"]
         CSV["CSV 写入器"]
     end
 
     subgraph 前端["Vue 前端"]
-        EVENTS["Tauri Event<br/>portData"]
+        EVENTS["WebSocket Event<br/>portData"]
         STORE["Pinia Store<br/>dashboard.ts"]
         UI["主界面"]
     end
 
     ECU_hw -->|115200| COM0
-    ADAM_hw -->|9600| COM1
-    DYNO_hw -->|115200| COM2
+    ADAM4015_hw -->|9600| COM1
+    ADAM4117_hw -->|9600| COM2
+    DYNO_hw -->|115200| COM3
+    FLUX_hw -->|115200| COM4
 
     COM0 --> SHARED
     COM1 --> SHARED
     COM2 --> SHARED
+    COM3 --> SHARED
+    COM4 --> SHARED
 
     SHARED -->|emit port_data| EVENTS
     SHARED -->|if recording| CSV

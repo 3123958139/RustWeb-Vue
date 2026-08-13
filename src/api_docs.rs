@@ -69,7 +69,7 @@ use utoipa::OpenApi;
         crate::city3d::handlers::create_event,
         crate::city3d::handlers::delete_event,
         crate::city3d::handlers::overview,
-        // ============ fj200c_main（发动机测控 ECU/ADAM/DYNO） ============
+        // ============ fj200c_main（发动机测控 ECU/Adam4015/Adam4117/Dyno/Flux 五路串口） ============
         crate::fj200c_main::handlers::start_service_handler,
         crate::fj200c_main::handlers::stop_service_handler,
         crate::fj200c_main::handlers::service_status_handler,

@@ -32,7 +32,7 @@ struct AdminAssets;
 #[folder = "frontend/fj200c_information/dist/"]
 struct Fj200cInformationAssets;
 
-/// fj200c_main 发动机测控（ECU/ADAM/DYNO 三路串口）
+/// fj200c_main 发动机测控（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
 #[derive(RustEmbed)]
 #[folder = "frontend/fj200c_main/dist/"]
 struct Fj200cMainAssets;

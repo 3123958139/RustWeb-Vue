@@ -1,6 +1,6 @@
 import {defineStore} from 'pinia'
 import {computed, reactive, ref} from 'vue'
-import type {DynoFields, EcuFields} from '@shared/api/generated'
+import type {DynoFields, EcuFields, FluxFields} from '@shared/api/generated'
 
 interface EnvParameter {
     label: string
@@ -18,8 +18,10 @@ interface ControlPanelState {
 interface FooterStats {
     ecuRxBytes: number
     ecuRxFrames: number
-    adamRxBytes: number
+    adam4015RxBytes: number
+    adam4117RxBytes: number
     dynoRxBytes: number
+    fluxRxBytes: number
     lastSentHex: string
     lastSentName: string
 }
@@ -85,10 +87,15 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
     })
 
     const envParams = reactive<EnvParameter[]>([
-        {label: '大气温度', value: 0, unit: '℃'},
-        {label: '大气湿度', value: 0, unit: '%'},
-        {label: '大气压力', value: 0, unit: 'KPa'},
-        {label: '进口温度', value: 0, unit: '℃'},
+        {label: '大气温度(4015)', value: 0, unit: '℃'},
+        {label: '大气湿度(4015)', value: 0, unit: '%'},
+        {label: '大气压力(4015)', value: 0, unit: 'KPa'},
+        {label: '进口温度(4015)', value: 0, unit: '℃'},
+        {label: '大气温度(4117)', value: 0, unit: '℃'},
+        {label: '大气湿度(4117)', value: 0, unit: '%'},
+        {label: '大气压力(4117)', value: 0, unit: 'KPa'},
+        {label: '进口温度(4117)', value: 0, unit: '℃'},
+        {label: '燃油流量', value: 0, unit: 'L/h'},
         {label: '扭矩转速', value: 0, unit: 'r/min'},
         {label: '扭矩', value: 0, unit: 'N·m'},
         {label: '扭矩功率', value: 0, unit: 'kW'},
@@ -101,11 +108,15 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         njgl: 0,
     })
 
+    const fluxData = reactive<FluxFields>({
+        ll: 0,
+    })
+
     const dashboardState = computed(() => ({
         ngSpeed: ecuData.ngSpeed ?? 0,
         exhaustTemp: ecuData.exhaustTemp ?? 0,
         npSpeed: ecuData.npSpeed ?? 0,
-        fuelFlow: envParams[4]?.value ?? 0,
+        fuelFlow: fluxData.ll ?? 0,
         dynamometerPower: dynoData.njgl ?? 0,
     }))
 
@@ -119,8 +130,10 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
     const footerStats = reactive<FooterStats>({
         ecuRxBytes: 0,
         ecuRxFrames: 0,
-        adamRxBytes: 0,
+        adam4015RxBytes: 0,
+        adam4117RxBytes: 0,
         dynoRxBytes: 0,
+        fluxRxBytes: 0,
         lastSentHex: '',
         lastSentName: '',
     })
@@ -159,6 +172,7 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         ecuData,
         envParams,
         dynoData,
+        fluxData,
         dashboardState,
         faultCodes: computed(() => ecuData.faultCodes),
         controlPanel,

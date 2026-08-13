@@ -1017,7 +1017,7 @@
           "fj200c_main"
         ],
         "summary": "切换模拟运行状态（启动/停止）",
-        "description": "启动时通过进程内直通驱动三路解码与推送（无需虚拟串口）；\n停止时设置停止标志，模拟线程退出。",
+        "description": "启动时通过进程内直通驱动五路解码与推送（无需虚拟串口）；\n停止时设置停止标志，模拟线程退出。",
         "operationId": "fj200cMainToggleSimulation",
         "responses": {
           "200": {

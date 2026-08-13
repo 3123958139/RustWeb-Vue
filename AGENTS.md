@@ -119,7 +119,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 - **环境变量**：`.env` + dotenv：`PORT`（默认 3000）、`DATABASE_URL`（默认 `sqlite://rustweb.db`）、`JWT_SECRET`、`JWT_EXPIRATION`、`RUST_LOG`
 - **数据库**：SQLite 文件在运行目录自动创建（开发为根目录 `rustweb.db`，部署为 `deploy/rustweb.db`），无手动安装
 - **发动机模块**：`config-fj200c_information.ini`（`[Mock] InProcess = true` 开箱即用无需硬件；`[ConnectionN]` 串口；`[CSV]` 记录），**修改后立即生效**（服务运行时热加载）
-- **发动机测控模块**：`config-fj200c_main.ini`（`[COM] Count = 3` 三路串口 ECU/ADAM/DYNO；`[MOCK] SimulationMenu = true` 模拟运行；`[REPORT] StatePoints` 报表状态点；`[CSV] Dir = csv`），**修改后需重启**
+- **发动机测控模块**：`config-fj200c_main.ini`（`[COM] Count = 5` 五路串口 ECU/Adam4015/Adam4117/Dyno/Flux；`[MOCK] SimulationMenu = true` 模拟运行；`[REPORT] StatePoints` 报表状态点；`[CSV] Dir = csv`），**修改后需重启**
 - **通信模块**：`config-ftj1c.ini`（`[Udp] Mock = true`；`[IP]` 16 路组播地址），**修改后需重启**
 - **静态托管**（生产）：后端 `main.rs` 双模式——`embedded` feature 下 7 个前端已内嵌进 exe（`embedded_assets.rs` 内存服务，SPA 深链接回退 index.html）；默认 dev 模式仍读磁盘 `dist-*/` 目录；根路径 `/` 重定向到 `/admin`
 - **服务地址绑定**：`main.rs` 绑定 `127.0.0.1`，如需外网访问改为 `0.0.0.0`

@@ -2,7 +2,7 @@
   DashboardStats.vue — 仪表盘统计面板（fj200c_main 模块）
 
   显示发动机五大关键参数（Ng/Np 转速、排气温度、功率、燃油流量）的
-  ECharts 仪表盘组件，以及 7 项环境参数（温度、压力、湿度等）的 el-table。
+  ECharts 仪表盘组件，以及 12 项环境/测功/流量参数的 el-table。
 
   布局：
   - 左侧 el-card "仪表盘"：5 个 GaugeCard 横向排列
@@ -18,7 +18,7 @@ const gauges = [
   { key: 'ngSpeed' as const, label: 'Ng转速', unit: 'r/min', max: 15000 },
   { key: 'exhaustTemp' as const, label: '排气温度', unit: '℃', max: 1200 },
   { key: 'dynamometerPower' as const, label: '测功机功率', unit: 'W', max: 50 },
-  { key: 'fuelFlow' as const, label: '燃油流量', unit: 'r/min', max: 6000 },
+  { key: 'fuelFlow' as const, label: '燃油流量', unit: 'L/h', max: 6000 },
   { key: 'npSpeed' as const, label: 'Np转速', unit: 'r/min', max: 15000 },
 ]
 </script>

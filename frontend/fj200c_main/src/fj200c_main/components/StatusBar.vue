@@ -1,7 +1,7 @@
 <!--
   StatusBar.vue — 底部状态栏（fj200c_main 模块）
 
-  显示三路串口通信统计：ECU 接收字节数/帧数、ADAM/Dyno 接收字节数。
+  显示五路串口通信统计：ECU 接收字节数/帧数、Adam4015/Adam4117/Dyno/Flux 接收字节数。
   以及最后发送的十六进制指令。模拟运行时显示"模拟运行中"徽章。
 -->
 <script setup lang="ts">
@@ -15,8 +15,10 @@ const showHex = ref(false)
 const statItems = [
   { label: 'ECU接收字节数', key: 'ecuRxBytes' as const },
   { label: 'ECU接收帧数', key: 'ecuRxFrames' as const },
-  { label: 'ADAM接收字节数', key: 'adamRxBytes' as const },
+  { label: 'Adam4015接收字节数', key: 'adam4015RxBytes' as const },
+  { label: 'Adam4117接收字节数', key: 'adam4117RxBytes' as const },
   { label: 'Dyno接收字节数', key: 'dynoRxBytes' as const },
+  { label: 'Flux接收字节数', key: 'fluxRxBytes' as const },
 ]
 </script>
 

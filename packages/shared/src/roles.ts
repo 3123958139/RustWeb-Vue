@@ -149,8 +149,8 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
         ],
         adminMenus: [], // fj200c_information 角色不在管理后台显示
     },
-    // ============ fj200c_main 角色（发动机测控 ECU/ADAM/DYNO） ============
-    // 职责：三路串口实时测控、试验信息管理、报表生成、CSV 录制
+    // ============ fj200c_main 角色（发动机测控 ECU/Adam4015/Adam4117/Dyno/Flux 五路串口） ============
+    // 职责：五路串口实时测控、试验信息管理、报表生成、CSV 录制
     // 应用：fj200c_main（端口 5179）
     // 特殊：仪表盘维持 1920×1080 设计尺寸 + CSS scale 缩放；
     //       保存数据/模拟运行/主题切换通过 AppNavbar #actions 插槽按钮操作

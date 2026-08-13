@@ -76,7 +76,7 @@ pub fn create_router(db: DatabaseConnection) -> Router {
     let fj200c_information_routes = crate::fj200c_information::routes::fj200c_information_router(db.clone());
 
     // fj200c_main 角色路由（需要 Fj200cMainMonitor 权限）：
-    // - 发动机测控相关 API（ECU/ADAM/DYNO 三路串口）
+    // - 发动机测控相关 API（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
     // - WebSocket 推送（实时数据）
     let fj200c_main_routes = crate::fj200c_main::routes::fj200c_main_router(db.clone());
 
@@ -137,7 +137,7 @@ pub fn create_router(db: DatabaseConnection) -> Router {
         // fj200c_information 角色的发动机监控 API
         .nest("/api/fj200c_information", fj200c_information_routes)
         // 嵌套路由：/api/fj200c_main/*
-        // fj200c_main 角色的发动机测控 API（ECU/ADAM/DYNO 三路串口）
+        // fj200c_main 角色的发动机测控 API（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
         .nest("/api/fj200c_main", fj200c_main_routes)
         // 嵌套路由：/api/fw100/*
         // fw100 角色的设备台账 API

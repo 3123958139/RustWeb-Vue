@@ -45,7 +45,7 @@ mod common; // 公共模块：认证、中间件、数据模型、错误处理
 mod config; // 配置模块：从环境变量加载应用配置
 mod database; // 数据库模块：SQLite 连接、表创建、种子数据
 mod fj200c_information; // fj200c_information 角色模块：发动机监控
-mod fj200c_main; // fj200c_main 角色模块：发动机测控（ECU/ADAM/DYNO 三路串口）
+mod fj200c_main; // fj200c_main 角色模块：发动机测控（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
 mod ftj1c; // ftj1c 角色模块：UDP 组播通信监控
 mod fw100; // fw150 角色模块：设备台账管理
 mod fw150;

@@ -30,7 +30,7 @@
 //!
 //! ## WebSocket 初始快照
 //!
-//! 连接建立时先发送一次三端口（ECU/ADAM/DYNO）解码快照（JSON 数组），
+//! 连接建立时先发送一次五端口（ECU/Adam4015/Adam4117/Dyno/Flux）解码快照（JSON 数组），
 //! 模拟 Tauri `get_port_snapshot`，确保新客户端能看到最新数据。
 
 use crate::common::dto::{
@@ -325,7 +325,7 @@ pub async fn toggle_recording_handler() -> Json<ApiResponse<RecordingState>> {
 
 /// 切换模拟运行状态（启动/停止）
 ///
-/// 启动时通过进程内直通驱动三路解码与推送（无需虚拟串口）；
+/// 启动时通过进程内直通驱动五路解码与推送（无需虚拟串口）；
 /// 停止时设置停止标志，模拟线程退出。
 #[utoipa::path(
     tag = "fj200c_main",
@@ -478,7 +478,7 @@ pub async fn ws_handler(
 
 /// WebSocket 会话主循环
 ///
-/// 连接建立时先发送一次三端口解码快照（JSON 数组），确保新客户端能看到最新数据，
+/// 连接建立时先发送一次五端口解码快照（JSON 数组），确保新客户端能看到最新数据，
 /// 之后通过公共 `ws_bridge_with_initial` 转发广播事件。
 async fn ws_session(socket: WebSocket) {
     let initial = build_initial_snapshot();
@@ -486,9 +486,9 @@ async fn ws_session(socket: WebSocket) {
         .await;
 }
 
-/// 构建连接建立时的初始快照（ECU/ADAM/DYNO 三端口当前解码值）
+/// 构建连接建立时的初始快照（ECU/Adam4015/Adam4117/Dyno/Flux 五端口当前解码值）
 ///
-/// 返回一个包含 3 个 `PortData` 事件的 JSON 数组字符串。
+/// 返回一个包含 5 个 `PortData` 事件的 JSON 数组字符串。
 /// 若服务未启动（SharedPortData 未初始化），返回 `None`。
 fn build_initial_snapshot() -> Option<String> {
     let shared = state::shared_port_data()?;
