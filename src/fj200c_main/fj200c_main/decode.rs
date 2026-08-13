@@ -222,17 +222,11 @@ pub fn validate_dyno(frame: &[u8]) -> bool {
 pub fn decode_dyno(frame: &[u8]) -> DynoFields {
     let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
 
-    let jkwd = u16_le(2) as f64;
     let njzs = u16_le(8) as f64;
     let nj = u16_le(10) as f64 / 10.0;
     let njgl = if njzs > 0.0 { nj * njzs / 9550.0 } else { 0.0 };
 
-    DynoFields {
-        jkwd,
-        njzs,
-        nj,
-        njgl,
-    }
+    DynoFields { njzs, nj, njgl }
 }
 
 const FLUX_FRAME_LEN: usize = 18;

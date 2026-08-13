@@ -78,7 +78,6 @@ pub struct Adam4117Fields {
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct DynoFields {
-    pub jkwd: f64,
     pub njzs: f64,
     pub nj: f64,
     pub njgl: f64,
@@ -284,17 +283,11 @@ impl Adam4117Fields {
 
 impl DynoFields {
     pub fn csv_entries() -> &'static [(&'static str, &'static str)] {
-        &[
-            ("jkwd", "进口温度"),
-            ("njzs", "扭矩转速"),
-            ("nj", "扭矩"),
-            ("njgl", "扭矩功率"),
-        ]
+        &[("njzs", "扭矩转速"), ("nj", "扭矩"), ("njgl", "扭矩功率")]
     }
 
     pub fn to_row_values(&self) -> Vec<String> {
         vec![
-            format!("{:.1}", self.jkwd),
             format!("{:.0}", self.njzs),
             format!("{:.1}", self.nj),
             format!("{:.2}", self.njgl),

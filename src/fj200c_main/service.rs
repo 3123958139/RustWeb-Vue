@@ -26,8 +26,7 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
     }
     RUNTIME.wait_stopping(Duration::from_secs(3));
 
-    let cfg = Config::load(state::CONFIG_PATH)
-        .map_err(|e| format!("加载配置文件失败: {}", e))?;
+    let cfg = Config::load(state::CONFIG_PATH).map_err(|e| format!("加载配置文件失败: {}", e))?;
     let _ = config::set_global(cfg);
 
     GlobalVar::init();
@@ -41,10 +40,14 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
         .ok_or("共享端口数据初始化失败")?;
 
     let ports = init_all_from_config(&shared, tx.clone());
-    *state::ALL_COM_PORTS.lock().unwrap_or_else(|e| e.into_inner()) = Some(ports);
+    *state::ALL_COM_PORTS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(ports);
 
     let proc_stop = start_processing_thread(shared.clone(), tx.clone());
-    *state::PROCESSING_STOP.lock().unwrap_or_else(|e| e.into_inner()) = Some(proc_stop);
+    *state::PROCESSING_STOP
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(proc_stop);
 
     state::SERVICE_RUNNING.store(true, Ordering::Relaxed);
     info!("fj200c_main 服务已启动");
@@ -97,7 +100,8 @@ pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPaylo
                     let _ = writer.write_row(vec!["燃气发生器编号".into(), info.gas_generator_no]);
                     let _ = writer.write_row(vec!["电控器编号".into(), info.controller_no]);
                     let _ = writer.write_row(vec!["转速传感器编号".into(), info.speed_sensor_no]);
-                    let _ = writer.write_row(vec!["滑油温压一体传感器编号".into(), info.oil_sensor_no]);
+                    let _ =
+                        writer.write_row(vec!["滑油温压一体传感器编号".into(), info.oil_sensor_no]);
                     let _ = writer.write_row(vec!["试验项目".into(), info.test_item]);
                     let _ = writer.write_row(vec!["试验时间".into(), info.test_time]);
                     let _ = writer.flush();
@@ -150,7 +154,9 @@ pub fn toggle_simulation(tx: &broadcast::Sender<crate::common::ws::EventPayload>
 
     if new_sim {
         // shared_port_data 惰性创建，未启动服务时模拟运行也能正常推送数据
-        let mut guard = state::MOCK_SENDERS_STOP.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = state::MOCK_SENDERS_STOP
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if guard.is_none() {
             let shared = match state::shared_port_data().cloned() {
                 Some(shared) => shared,
@@ -163,13 +169,19 @@ pub fn toggle_simulation(tx: &broadcast::Sender<crate::common::ws::EventPayload>
             *guard = Some(stop);
         }
     } else {
-        if let Some(stop) = state::MOCK_SENDERS_STOP.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        if let Some(stop) = state::MOCK_SENDERS_STOP
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        {
             stop_mock_senders(&stop);
         }
     }
     state::SIMULATION_MODE.store(new_sim, Ordering::Relaxed);
     info!("模拟运行状态: {}", if new_sim { "启动" } else { "停止" });
-    let event = Fj200cMainEvent::SimulationState { simulating: new_sim };
+    let event = Fj200cMainEvent::SimulationState {
+        simulating: new_sim,
+    };
     if let Ok(json) = crate::common::ws::serialize(&event) {
         let _ = tx.send(json);
     }
@@ -200,7 +212,13 @@ pub fn get_experiment_info() -> ExperimentInfo {
 }
 
 pub fn save_experiment_info(info: &ExperimentInfo) -> Result<(), String> {
-    let gv = GlobalVar::global().ok_or("GlobalVar 未初始化")?;
+    let gv = match GlobalVar::global() {
+        Some(g) => g,
+        _ => {
+            GlobalVar::init();
+            GlobalVar::global().ok_or("GlobalVar 未初始化")?
+        }
+    };
     gv.set("engine_no", &info.engine_no);
     gv.set("gas_generator_no", &info.gas_generator_no);
     gv.set("controller_no", &info.controller_no);
