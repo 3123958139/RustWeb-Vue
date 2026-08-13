@@ -10,6 +10,7 @@
   - 按钮点击后构造完整帧并调用 fj200cMainApi.sendCommand()
 -->
 <script lang="ts" setup>
+import { ref, onBeforeUnmount } from 'vue'
 import { useDashboardStore } from '../store/dashboard'
 import { fj200cMainApi } from '@/api'
 import { ElMessage } from 'element-plus'
@@ -133,6 +134,45 @@ const controlButtons = [
   { label: '恒定油门设定', row: 1, col: 2 },
   { label: '电控器自检', row: 1, col: 3 },
 ]
+
+const autoRunning = ref(false)
+let autoAborted = false
+let autoTimers: number[] = []
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    autoTimers.push(window.setTimeout(resolve, ms))
+  })
+}
+
+async function startAuto() {
+  if (autoRunning.value) return
+  autoRunning.value = true
+  autoAborted = false
+  autoTimers = []
+  try {
+    const seq = controlButtons.filter((b) => b.label !== '停车').map((b) => b.label)
+    // 先点击起动，然后每隔 3s 依次点击其余按钮（不含停车）
+    for (const label of seq) {
+      if (autoAborted) break
+      await sendCommand(label)
+      await sleep(3000)
+    }
+    // 最后等待 1 分钟点击停车
+    if (autoAborted) return
+    await sleep(60000)
+    if (!autoAborted) await sendCommand('停车')
+  } finally {
+    autoRunning.value = false
+    autoTimers.forEach((t) => window.clearTimeout(t))
+    autoTimers = []
+  }
+}
+
+onBeforeUnmount(() => {
+  autoAborted = true
+  autoTimers.forEach((t) => window.clearTimeout(t))
+})
 </script>
 
 <template>
@@ -143,17 +183,17 @@ const controlButtons = [
         <div class="config-row">
           <span class="config-label">飞行马赫数</span>
           <el-input v-model.number="store.controlPanel.machNumber" class="config-input" size="small" />
-          <el-button size="small" @click="sendMachNumber()">确定</el-button>
+          <el-button size="small" :disabled="autoRunning" @click="sendMachNumber()">确定</el-button>
         </div>
         <div class="config-row">
           <span class="config-label">海拔高度</span>
           <el-input v-model.number="store.controlPanel.altitude" class="config-input" size="small" />
-          <el-button size="small" @click="sendAltitude()">确定</el-button>
+          <el-button size="small" :disabled="autoRunning" @click="sendAltitude()">确定</el-button>
         </div>
         <div class="config-row">
           <span class="config-label">恒定油门占空比</span>
           <el-input v-model.number="store.controlPanel.throttleDuty" class="config-input" size="small" />
-          <el-button size="small" @click="sendThrottleDuty()">确定</el-button>
+          <el-button size="small" :disabled="autoRunning" @click="sendThrottleDuty()">确定</el-button>
         </div>
         <div class="config-row">
           <span class="config-label">轮载</span>
@@ -161,7 +201,7 @@ const controlButtons = [
             <el-option label="地面" value="0" />
             <el-option label="空中" value="1" />
           </el-select>
-          <el-button size="small" @click="sendWheelLoad()">确定</el-button>
+          <el-button size="small" :disabled="autoRunning" @click="sendWheelLoad()">确定</el-button>
         </div>
       </div>
       <div class="control-divider" />
@@ -170,9 +210,13 @@ const controlButtons = [
           v-for="btn in controlButtons"
           :key="btn.label"
           class="ctrl-btn"
+          :disabled="autoRunning"
           @click="sendCommand(btn.label)"
         >
           {{ btn.label }}
+        </button>
+        <button class="ctrl-btn ctrl-btn-auto" :disabled="autoRunning" @click="startAuto">
+          {{ autoRunning ? '自动中…' : '自动' }}
         </button>
       </div>
     </el-card>
@@ -290,5 +334,23 @@ const controlButtons = [
 .ctrl-btn:active {
   background: var(--btn-active-bg);
   border-color: var(--btn-active-border);
+}
+
+.ctrl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ctrl-btn-auto {
+  background: var(--fm-accent);
+  border-color: var(--fm-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.ctrl-btn-auto:hover {
+  background: var(--fm-accent);
+  border-color: var(--fm-accent);
+  color: #fff;
 }
 </style>
