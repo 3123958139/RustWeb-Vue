@@ -2,7 +2,9 @@
   DashboardStats.vue — 仪表盘统计面板（fj200c_main 模块）
 
   显示发动机五大关键参数（Ng/Np 转速、排气温度、功率、燃油流量）的
-  ECharts 仪表盘组件，以及 12 项环境/测功/流量参数的 el-table。
+  ECharts 仪表盘组件，以及 8 项环境/测功/流量参数的 el-table。
+
+  注：大气温度/湿度/压力取 Adam4117 通道，进口温度取 Adam4015 通道。
 
   布局：
   - 左侧 el-card "仪表盘"：5 个 GaugeCard 横向排列

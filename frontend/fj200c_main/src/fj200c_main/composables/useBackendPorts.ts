@@ -24,8 +24,7 @@ import type {Fj200cMainWsEvent, PortDataEvent} from '@/fj200c_main/api/fj200c_ma
 import type {Adam4015Fields, Adam4117Fields, DynoFields, EcuFields, FluxFields} from '@shared/api/generated'
 import {applyTheme} from './useTheme'
 
-const adam4015ParamIndices = [0, 1, 2, 3]
-const adam4117ParamIndices = [0, 1, 2, 3]
+const adam4117ParamIndices = [0, 1, 2]
 
 // ---- 模块级共享连接状态（引用计数） ----
 let sharedWs: WebSocket | null = null
@@ -160,9 +159,7 @@ function handleEcu(store: ReturnType<typeof useDashboardStore>, f: EcuFields, he
 
 function handleAdam4015(store: ReturnType<typeof useDashboardStore>, f: Adam4015Fields, hex: string) {
     store.$patch((state) => {
-        for (const i of adam4015ParamIndices) {
-            state.envParams[i].value = f.channels[i] ?? 0
-        }
+        state.envParams[3].value = f.channels[3] ?? 0
     })
     store.footerStats.adam4015RxBytes += hex.length / 2
 }
@@ -170,7 +167,7 @@ function handleAdam4015(store: ReturnType<typeof useDashboardStore>, f: Adam4015
 function handleAdam4117(store: ReturnType<typeof useDashboardStore>, f: Adam4117Fields, hex: string) {
     store.$patch((state) => {
         for (const i of adam4117ParamIndices) {
-            state.envParams[4 + i].value = f.channels[i] ?? 0
+            state.envParams[i].value = f.channels[i] ?? 0
         }
     })
     store.footerStats.adam4117RxBytes += hex.length / 2
@@ -182,9 +179,9 @@ function handleDyno(store: ReturnType<typeof useDashboardStore>, f: DynoFields, 
         state.dynoData.njzs = f.njzs ?? 0
         state.dynoData.nj = f.nj ?? 0
         state.dynoData.njgl = f.njgl ?? 0
-        state.envParams[9].value = f.njzs ?? 0
-        state.envParams[10].value = f.nj ?? 0
-        state.envParams[11].value = f.njgl ?? 0
+        state.envParams[5].value = f.njzs ?? 0
+        state.envParams[6].value = f.nj ?? 0
+        state.envParams[7].value = f.njgl ?? 0
     })
     store.footerStats.dynoRxBytes += hex.length / 2
 }
@@ -192,7 +189,7 @@ function handleDyno(store: ReturnType<typeof useDashboardStore>, f: DynoFields, 
 function handleFlux(store: ReturnType<typeof useDashboardStore>, f: FluxFields, hex: string) {
     store.$patch((state) => {
         state.fluxData.ll = f.ll ?? 0
-        state.envParams[8].value = f.ll ?? 0
+        state.envParams[4].value = f.ll ?? 0
     })
     store.footerStats.fluxRxBytes += hex.length / 2
 }

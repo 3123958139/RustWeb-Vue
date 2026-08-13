@@ -87,14 +87,10 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
     })
 
     const envParams = reactive<EnvParameter[]>([
-        {label: '大气温度(4015)', value: 0, unit: '℃'},
-        {label: '大气湿度(4015)', value: 0, unit: '%'},
-        {label: '大气压力(4015)', value: 0, unit: 'KPa'},
-        {label: '进口温度(4015)', value: 0, unit: '℃'},
-        {label: '大气温度(4117)', value: 0, unit: '℃'},
-        {label: '大气湿度(4117)', value: 0, unit: '%'},
-        {label: '大气压力(4117)', value: 0, unit: 'KPa'},
-        {label: '进口温度(4117)', value: 0, unit: '℃'},
+        {label: '大气温度', value: 0, unit: '℃'},
+        {label: '大气湿度', value: 0, unit: '%'},
+        {label: '大气压力', value: 0, unit: 'KPa'},
+        {label: '进口温度', value: 0, unit: '℃'},
         {label: '燃油流量', value: 0, unit: 'L/h'},
         {label: '扭矩转速', value: 0, unit: 'r/min'},
         {label: '扭矩', value: 0, unit: 'N·m'},
