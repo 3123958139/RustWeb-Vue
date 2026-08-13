@@ -398,7 +398,26 @@ const user = computed(() => authStore?.user ?? null)
  */
 const brandText = computed(() => {
   const role = authStore?.user?.role
-  return role ? (findRole(role)?.name ?? role) : 'RustWeb'
+  const name = role ? (findRole(role)?.name ?? role) : 'RustWeb';
+  switch (name) {
+    case 'admin':
+      return '管理员';
+    case 'fj200c_information':
+      return '涡桨FJ200C信息化';
+    case 'fj200c_main':
+      return '涡桨FJ200C测控';
+    case 'fw100':
+      return '涡喷FW100';
+    case 'fw150':
+      return '涡喷FW150';
+    case 'ftj1c':
+      return '协议转发FTJ1C';
+    case 'city3d':
+      return '城市3D';
+    case 'protocol_generator':
+      return '协议生成器';
+  }
+  return name;
 })
 
 /**
