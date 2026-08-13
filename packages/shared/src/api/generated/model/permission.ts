@@ -41,6 +41,7 @@ export const Permission = {
   Fj200cInformationMonitor: 'Fj200cInformationMonitor',
   Fw100Monitor: 'Fw100Monitor',
   Ftj1cMonitor: 'Ftj1cMonitor',
+  Ftj1cHelp: 'Ftj1cHelp',
   City3dView: 'City3dView',
   Fw150Monitor: 'Fw150Monitor',
   Fj200cMainMonitor: 'Fj200cMainMonitor',

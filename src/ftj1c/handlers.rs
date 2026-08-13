@@ -224,3 +224,19 @@ pub async fn ws_handler(
 async fn ws_session(socket: WebSocket) {
     crate::common::ws::ws_bridge(ftj1c_tx(), socket, "[ftj1c]").await;
 }
+
+#[utoipa::path(
+tag = "ftj1c",
+get,
+path = "/api/ftj1c/help",
+operation_id = "ftj1cGetHelp",
+responses(
+(status=200,description="帮助文档内容", body = ApiResponse<ConfigContent>),
+)
+)]
+pub async fn get_help_handler() -> Json<ApiResponse<ConfigContent>> {
+    const HELP_TEXT: &str = include_str!("help_doc.md");
+    Json(ApiResponse::success(ConfigContent {
+        content: HELP_TEXT.to_string(),
+    }))
+}

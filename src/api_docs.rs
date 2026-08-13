@@ -52,6 +52,7 @@ use utoipa::OpenApi;
         crate::ftj1c::handlers::ip_config_handler,
         crate::ftj1c::handlers::read_config_handler,
         crate::ftj1c::handlers::save_config_handler,
+        crate::ftj1c::handlers::get_help_handler,
         // ============ fw100 / fw150（设备台账） ============
         crate::fw100::handlers::list_fw100_items,
         crate::fw150::handlers::list_fw150_items,
@@ -217,6 +218,7 @@ mod tests {
             "/api/ftj1c/service/status",
             "/api/ftj1c/ip-config",
             "/api/ftj1c/config",
+            "/api/ftj1c/help",
             "/api/fw100/items",
             "/api/fw150/items",
             "/api/city3d/buildings",
@@ -252,7 +254,7 @@ mod tests {
 
         // 唯一路径数：auth 2 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
         //           + city3d 7 + fj200c_main 13 + protocol_generator 5 = 47
-        assert_eq!(paths.len(), 47, "路径数量与预期不符");
+        assert_eq!(paths.len(), 48, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -270,6 +272,6 @@ mod tests {
             }
         }
         // 59 个 HTTP 操作（不含 WebSocket）：原 53 + protocol_generator 6
-        assert_eq!(operations, 59, "操作数量与预期不符");
+        assert_eq!(operations, 60, "操作数量与预期不符");
     }
 }

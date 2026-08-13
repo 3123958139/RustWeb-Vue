@@ -62,6 +62,14 @@ const ftj1cSaveConfig = (
     },
       options);
     }
+  const ftj1cGetHelp = (
+
+ options?: SecondParameter<typeof customInstance<ApiResponseConfigContent>>,) => {
+      return customInstance<ApiResponseConfigContent>(
+      {url: `/api/ftj1c/help`, method: 'GET'
+    },
+      options);
+    }
   /**
  * # HTTP 端点
  * `GET /api/ftj1c/ip-config`
@@ -127,7 +135,7 @@ const ftj1cStopService = (
     },
       options);
     }
-  return {ftj1cGetConfig,ftj1cSaveConfig,ftj1cGetIpConfig,ftj1cStartService,ftj1cGetServiceStatus,ftj1cStopService}};
+  return {ftj1cGetConfig,ftj1cSaveConfig,ftj1cGetHelp,ftj1cGetIpConfig,ftj1cStartService,ftj1cGetServiceStatus,ftj1cStopService}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -135,6 +143,7 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 
 export type Ftj1cGetConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cGetConfig']>>>
 export type Ftj1cSaveConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cSaveConfig']>>>
+export type Ftj1cGetHelpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cGetHelp']>>>
 export type Ftj1cGetIpConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cGetIpConfig']>>>
 export type Ftj1cStartServiceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cStartService']>>>
 export type Ftj1cGetServiceStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cGetServiceStatus']>>>

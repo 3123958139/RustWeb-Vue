@@ -75,6 +75,7 @@ pub enum Permission {
     Fw100Monitor,
     /// ftj1c 面板：UDP 组播通信监控权限
     Ftj1cMonitor,
+    Ftj1cHelp,
     /// city3d 面板：城市 3D 展示权限
     City3dView,
     /// fw150 面板：设备台账权限

@@ -1,0 +1,198 @@
+/* fj200c_main 模块页面布局样式
+ * 作用域限定在 .fj200c_main-root 内，默认亮色，`.theme-dark` 全局主题下切换为暗色。
+ * 仅用于非仪表盘页面（数据/配置/帮助/试验/报表）的工具栏与面板布局。
+ */
+.fj200c_main-root {
+  --fm-bg: #f5f7fa;
+  --fm-panel: #ffffff;
+  --fm-panel-alt: #f0f2f5;
+  --fm-border: #dcdfe6;
+  --fm-text: #303133;
+  --fm-text-secondary: #909399;
+  --fm-accent: #409eff;
+  --fm-accent-soft: rgba(64, 158, 255, 0.12);
+  --fm-success: #67c23a;
+  --fm-warning: #e6a23c;
+  --fm-danger: #f56c6c;
+  --fm-code-bg: #f5f7fa;
+}
+
+.theme-dark .fj200c_main-root {
+  --fm-bg: #070d1a;
+  --fm-panel: #0d1b2e;
+  --fm-panel-alt: #12233c;
+  --fm-border: #1e3a5f;
+  --fm-text: #c8d6e5;
+  --fm-text-secondary: #5f7d9c;
+  --fm-accent: #409eff;
+  --fm-accent-soft: rgba(64, 158, 255, 0.15);
+  --fm-success: #67c23a;
+  --fm-warning: #e6a23c;
+  --fm-danger: #f56c6c;
+  --fm-code-bg: #0a1526;
+}
+
+.fj200c_main-root {
+  height: 100%;
+  background: var(--fm-bg);
+  color: var(--fm-text);
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 页面容器：填满 1920×1080 缩放舞台（与主仪表盘同尺寸），超高时内部滚动 */
+.fj200c_main-root .fm-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* 顶部工具栏 */
+.fj200c_main-root .fm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--fm-panel);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.fj200c_main-root .fm-toolbar .toolbar-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fj200c_main-root .fm-toolbar .spacer {
+  flex: 1;
+}
+
+/* 面板卡片 */
+.fj200c_main-root .fm-panel {
+  background: var(--fm-panel);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.fj200c_main-root .fm-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--fm-border);
+  font-weight: 600;
+}
+
+.fj200c_main-root .fm-panel-body {
+  padding: 12px 16px;
+}
+
+/* 文件列表 */
+.fj200c_main-root .fm-file-list {
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.fj200c_main-root .file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fm-text);
+}
+
+.fj200c_main-root .file-item:hover {
+  background: var(--fm-accent-soft);
+}
+
+.fj200c_main-root .file-item.active {
+  background: var(--fm-accent-soft);
+  color: var(--fm-accent);
+}
+
+.fj200c_main-root .file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fj200c_main-root .file-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--fm-text-secondary);
+}
+
+.fj200c_main-root .row-count {
+  color: var(--fm-text-secondary);
+  font-size: 13px;
+}
+
+/* 配置编辑器 */
+.fj200c_main-root .fm-config-editor textarea {
+  font-family: "Consolas", "Courier New", monospace;
+  background: var(--fm-code-bg);
+  color: var(--fm-text);
+  border: 1px solid var(--fm-border);
+}
+
+.fj200c_main-root .config-empty {
+  color: var(--fm-text-secondary);
+  padding: 12px 0;
+}
+
+.fj200c_main-root .help-content {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 数据页两栏布局（左侧文件列表 + 右侧内容），填满舞台高度 */
+.fj200c_main-root .fm-data-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 1000px) {
+  .fj200c_main-root .fm-data-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 打印时解除 ScaledPage 的 1920×1080 缩放舞台：
+ * transform scale / overflow hidden / 固定高度会把报表内容裁剪成只打印一屏
+ * （报表不完整），打印时应恢复文档流让浏览器天然分页 */
+@media print {
+  .screen-root,
+  .scaled-stage {
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .fj200c_main-root,
+  .fj200c_main-root .fm-page {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

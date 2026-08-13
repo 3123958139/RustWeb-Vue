@@ -127,7 +127,7 @@ pub static ROLE_REGISTRY: &[RoleDef] = &[
     RoleDef {
         key: "ftj1c",
         name: "ftj1c",
-        permissions: &[Permission::Ftj1cMonitor], // 通信监控权限
+        permissions: &[Permission::Ftj1cMonitor, Permission::Ftj1cHelp], // 通信监控权限
     },
     // city3d 角色：城市 3D 展示面板
     RoleDef {

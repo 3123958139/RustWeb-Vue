@@ -50,7 +50,8 @@ use axum::{
 /// - HTTP 端点：需要 JWT 认证 + `ftj1c:monitor` 权限
 /// - WebSocket 端点：handler 内部通过查询参数 `?token=` 鉴权
 pub fn ftj1c_router(db: DatabaseConnection) -> Router<DatabaseConnection> {
-    let auth = middleware::from_fn_with_state(db.clone(), crate::common::middleware::auth_middleware);
+    let auth =
+        middleware::from_fn_with_state(db.clone(), crate::common::middleware::auth_middleware);
 
     // 受 Bearer 认证保护的端点
     let protected = Router::<DatabaseConnection>::new()
@@ -60,6 +61,7 @@ pub fn ftj1c_router(db: DatabaseConnection) -> Router<DatabaseConnection> {
         .route("/ip-config", get(handlers::ip_config_handler))
         .route("/config", get(handlers::read_config_handler))
         .route("/config", put(handlers::save_config_handler))
+        .route("/help", get(handlers::get_help_handler))
         .route_layer(middleware::from_fn_with_state(
             db.clone(),
             ftj1c_permission_middleware,

@@ -1117,6 +1117,26 @@
         }
       }
     },
+    "/api/ftj1c/help": {
+      "get": {
+        "tags": [
+          "ftj1c"
+        ],
+        "operationId": "ftj1cGetHelp",
+        "responses": {
+          "200": {
+            "description": "帮助文档内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ftj1c/ip-config": {
       "get": {
         "tags": [
@@ -4370,6 +4390,7 @@
           "Fj200cInformationMonitor",
           "Fw100Monitor",
           "Ftj1cMonitor",
+          "Ftj1cHelp",
           "City3dView",
           "Fw150Monitor",
           "Fj200cMainMonitor",

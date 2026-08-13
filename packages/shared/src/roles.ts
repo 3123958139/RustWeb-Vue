@@ -31,7 +31,7 @@
  * 3. 根据应用类型（user/admin）选择对应的菜单源
  */
 
-import {Permission, type MenuItem} from "./types";
+import {type MenuItem, Permission} from "./types";
 import {getMeta} from "./api/generated";
 import type {RoleInfo} from "./api/generated/model";
 
@@ -244,12 +244,27 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
     ftj1c: {
         userMenus: [
             {
-                id: "ftj1c",
+                id: "ftj1c-monitor",
                 title: "通信监控",
-                path: "/ftj1c",
+                path: "/ftj1c/monitor",
                 icon: "Monitor",
                 permissions: [Permission.Ftj1cMonitor],
+                children: [
+                    {
+                        id: "ftj1c-udpmonitor",
+                        title: "UDP通信监控",
+                        path: "/ftj1c/monitor",
+                        icon: "Monitor",
+                        permissions: [Permission.Ftj1cMonitor],
+                    }],
             },
+            {
+                id: "ftj1c-help",
+                title: "帮助",
+                path: "/ftj1c/help",
+                icon: "QuestionFilled",
+                permissions: [Permission.Ftj1cHelp],
+            }
         ],
         adminMenus: [],
     },
