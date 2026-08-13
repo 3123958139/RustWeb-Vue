@@ -342,15 +342,15 @@ onBeforeUnmount(() => {
 }
 
 .ctrl-btn-auto {
-  background: var(--fm-accent);
-  border-color: var(--fm-accent);
+  background: var(--text-accent);
+  border-color: var(--text-accent);
   color: #fff;
   font-weight: 600;
 }
 
 .ctrl-btn-auto:hover {
-  background: var(--fm-accent);
-  border-color: var(--fm-accent);
+  background: var(--text-accent);
+  border-color: var(--text-accent);
   color: #fff;
 }
 </style>
