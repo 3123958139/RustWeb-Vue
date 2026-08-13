@@ -285,7 +285,7 @@ impl Adam4117Fields {
 impl DynoFields {
     pub fn csv_entries() -> &'static [(&'static str, &'static str)] {
         &[
-            ("jkwd", "机油温度"),
+            ("jkwd", "进口温度"),
             ("njzs", "扭矩转速"),
             ("nj", "扭矩"),
             ("njgl", "扭矩功率"),
