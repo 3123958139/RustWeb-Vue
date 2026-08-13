@@ -29,7 +29,17 @@ impl ComSpec {
         }
     }
 
-    pub fn adam_protocol(section: &str, conn_idx: usize) -> Self {
+    pub fn adam4015_protocol(section: &str, conn_idx: usize) -> Self {
+        ComSpec {
+            section: section.to_string(),
+            conn_idx,
+            frame_header: vec![b'>'],
+            frame_data_len: 57,
+            frame_tail_len: 0,
+        }
+    }
+
+    pub fn adam4117_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
             conn_idx,
@@ -40,6 +50,16 @@ impl ComSpec {
     }
 
     pub fn dyno_protocol(section: &str, conn_idx: usize) -> Self {
+        ComSpec {
+            section: section.to_string(),
+            conn_idx,
+            frame_header: vec![0xFF, 0xFF],
+            frame_data_len: 14,
+            frame_tail_len: 2,
+        }
+    }
+
+    pub fn flux_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
             conn_idx,
@@ -83,9 +103,18 @@ impl AbstractCom {
             .get_or(&section, "BaudRate", "115200")
             .parse::<u32>()
             .unwrap_or(115200);
-        let data_bits = cfg.get_or(&section, "DataBits", "8").parse::<u8>().unwrap_or(8);
-        let stop_bits = cfg.get_or(&section, "StopBits", "1").parse::<u8>().unwrap_or(1);
-        let parity = cfg.get_or(&section, "Parity", "0").parse::<u8>().unwrap_or(0);
+        let data_bits = cfg
+            .get_or(&section, "DataBits", "8")
+            .parse::<u8>()
+            .unwrap_or(8);
+        let stop_bits = cfg
+            .get_or(&section, "StopBits", "1")
+            .parse::<u8>()
+            .unwrap_or(1);
+        let parity = cfg
+            .get_or(&section, "Parity", "0")
+            .parse::<u8>()
+            .unwrap_or(0);
         let flow_control = cfg
             .get_or(&section, "FlowControl", "false")
             .eq_ignore_ascii_case("true");

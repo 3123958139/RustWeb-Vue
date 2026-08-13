@@ -6,7 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export * from './adamFields';
+export * from './adam4015Fields';
+export * from './adam4117Fields';
 export * from './apiResponseBuildingPage';
 export * from './apiResponseBuildingPageData';
 export * from './apiResponseConfigContent';
@@ -84,6 +85,7 @@ export * from './ecuFields';
 export * from './eventPage';
 export * from './experimentInfo';
 export * from './faultCodeFlags';
+export * from './fluxFields';
 export * from './ftj1cSaveConfigRequest';
 export * from './fw150LedgerItem';
 export * from './generateReportRequest';

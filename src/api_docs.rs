@@ -142,8 +142,10 @@ use utoipa::OpenApi;
             // fj200c_main 数据模型
             crate::fj200c_main::types::EcuFields,
             crate::fj200c_main::types::FaultCodeFlags,
-            crate::fj200c_main::types::AdamFields,
+            crate::fj200c_main::types::Adam4015Fields,
+            crate::fj200c_main::types::Adam4117Fields,
             crate::fj200c_main::types::DynoFields,
+            crate::fj200c_main::types::FluxFields,
             crate::fj200c_main::types::ChannelData,
             crate::fj200c_main::types::ExperimentInfo,
             crate::fj200c_main::types::ReportOutput,

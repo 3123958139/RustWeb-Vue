@@ -358,12 +358,12 @@ pub async fn toggle_simulation_handler() -> Json<ApiResponse<SimulationState>> {
         (status = 200, description = "主题状态", body = ApiResponse<ThemeState>),
     ),
 )]
-pub async fn set_theme_handler(
-    Json(req): Json<ThemeRequest>,
-) -> Json<ApiResponse<ThemeState>> {
+pub async fn set_theme_handler(Json(req): Json<ThemeRequest>) -> Json<ApiResponse<ThemeState>> {
     let tx = fj200c_main_tx();
     service::set_theme(req.is_dark, &tx);
-    Json(ApiResponse::success(ThemeState { is_dark: req.is_dark }))
+    Json(ApiResponse::success(ThemeState {
+        is_dark: req.is_dark,
+    }))
 }
 
 // ============ 试验信息 ============
@@ -482,13 +482,8 @@ pub async fn ws_handler(
 /// 之后通过公共 `ws_bridge_with_initial` 转发广播事件。
 async fn ws_session(socket: WebSocket) {
     let initial = build_initial_snapshot();
-    crate::common::ws::ws_bridge_with_initial(
-        fj200c_main_tx(),
-        socket,
-        "[fj200c_main]",
-        initial,
-    )
-    .await;
+    crate::common::ws::ws_bridge_with_initial(fj200c_main_tx(), socket, "[fj200c_main]", initial)
+        .await;
 }
 
 /// 构建连接建立时的初始快照（ECU/ADAM/DYNO 三端口当前解码值）
@@ -499,8 +494,10 @@ fn build_initial_snapshot() -> Option<String> {
     let shared = state::shared_port_data()?;
 
     let ecu = shared.ecu_decoded.load();
-    let adam = shared.adam_decoded.load();
+    let adam4015 = shared.adam4015_decoded.load();
+    let adam4117 = shared.adam4117_decoded.load();
     let dyno = shared.dyno_decoded.load();
+    let flux = shared.flux_decoded.load();
 
     let events = vec![
         Fj200cMainEvent::PortData {
@@ -510,13 +507,23 @@ fn build_initial_snapshot() -> Option<String> {
         },
         Fj200cMainEvent::PortData {
             connection_index: 1,
-            hex: hex_string(&shared.adam_raw.read()),
-            fields: std::sync::Arc::new(ChannelData::Adam((**adam).clone())),
+            hex: hex_string(&shared.adam4015_raw.read()),
+            fields: std::sync::Arc::new(ChannelData::Adam4015((**adam4015).clone())),
         },
         Fj200cMainEvent::PortData {
             connection_index: 2,
+            hex: hex_string(&shared.adam4117_raw.read()),
+            fields: std::sync::Arc::new(ChannelData::Adam4117((**adam4117).clone())),
+        },
+        Fj200cMainEvent::PortData {
+            connection_index: 3,
             hex: hex_string(&shared.dyno_raw.read()),
             fields: std::sync::Arc::new(ChannelData::Dyno((**dyno).clone())),
+        },
+        Fj200cMainEvent::PortData {
+            connection_index: 4,
+            hex: hex_string(&shared.flux_raw.read()),
+            fields: std::sync::Arc::new(ChannelData::Flux((**flux).clone())),
         },
     ];
 

@@ -1,5 +1,7 @@
 use crate::common::utils::format_hex;
-use crate::fj200c_main::types::{AdamFields, DynoFields, EcuFields, FaultCodeFlags};
+use crate::fj200c_main::types::{
+    Adam4015Fields, Adam4117Fields, DynoFields, EcuFields, FaultCodeFlags, FluxFields,
+};
 use tracing::error;
 
 const ECU_HEADER: [u8; 3] = [0xEB, 0x90, 0x2A];
@@ -153,7 +155,7 @@ pub fn decode_ecu(frame: &[u8]) -> EcuFields {
     }
 }
 
-pub fn validate_adam(frame: &[u8]) -> bool {
+pub fn validate_adam4015(frame: &[u8]) -> bool {
     if frame.len() < 3 {
         return false;
     }
@@ -163,7 +165,7 @@ pub fn validate_adam(frame: &[u8]) -> bool {
     frame[frame.len() - 1] == b'\r'
 }
 
-pub fn decode_adam(frame: &[u8]) -> AdamFields {
+pub fn decode_adam4015(frame: &[u8]) -> Adam4015Fields {
     let s = std::str::from_utf8(frame).unwrap_or("");
     let mut channels = [0.0f64; 8];
 
@@ -176,7 +178,33 @@ pub fn decode_adam(frame: &[u8]) -> AdamFields {
         }
     }
 
-    AdamFields { channels }
+    Adam4015Fields { channels }
+}
+
+pub fn validate_adam4117(frame: &[u8]) -> bool {
+    if frame.len() < 3 {
+        return false;
+    }
+    if frame[0] != b'>' {
+        return false;
+    }
+    frame[frame.len() - 1] == b'\r'
+}
+
+pub fn decode_adam4117(frame: &[u8]) -> Adam4117Fields {
+    let s = std::str::from_utf8(frame).unwrap_or("");
+    let mut channels = [0.0f64; 8];
+
+    if s.starts_with('>') && s.ends_with('\r') {
+        let inner = s.trim_start_matches('>').trim_end_matches('\r');
+        let parts: Vec<&str> = inner.split('+').filter(|p| !p.is_empty()).collect();
+        for (i, part) in parts.iter().enumerate().take(8) {
+            let raw: f64 = part.parse().unwrap_or(0.0);
+            channels[i] = raw / 1000.0;
+        }
+    }
+
+    Adam4117Fields { channels }
 }
 
 const DYNO_FRAME_LEN: usize = 18;
@@ -205,4 +233,24 @@ pub fn decode_dyno(frame: &[u8]) -> DynoFields {
         nj,
         njgl,
     }
+}
+
+const FLUX_FRAME_LEN: usize = 18;
+
+pub fn validate_flux(frame: &[u8]) -> bool {
+    if frame.len() < FLUX_FRAME_LEN {
+        return false;
+    }
+    if frame[0] != 0xFF || frame[1] != 0xFF {
+        return false;
+    }
+    true
+}
+
+pub fn decode_flux(frame: &[u8]) -> FluxFields {
+    let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
+
+    let ll = u16_le(2) as f64;
+
+    FluxFields { ll }
 }

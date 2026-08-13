@@ -1650,7 +1650,22 @@
   },
   "components": {
     "schemas": {
-      "AdamFields": {
+      "Adam4015Fields": {
+        "type": "object",
+        "required": [
+          "channels"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        }
+      },
+      "Adam4117Fields": {
         "type": "object",
         "required": [
           "channels"
@@ -3234,11 +3249,22 @@
           {
             "type": "object",
             "required": [
-              "Adam"
+              "Adam4015"
             ],
             "properties": {
-              "Adam": {
-                "$ref": "#/components/schemas/AdamFields"
+              "Adam4015": {
+                "$ref": "#/components/schemas/Adam4015Fields"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Adam4117"
+            ],
+            "properties": {
+              "Adam4117": {
+                "$ref": "#/components/schemas/Adam4117Fields"
               }
             }
           },
@@ -3250,6 +3276,17 @@
             "properties": {
               "Dyno": {
                 "$ref": "#/components/schemas/DynoFields"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Flux"
+            ],
+            "properties": {
+              "Flux": {
+                "$ref": "#/components/schemas/FluxFields"
               }
             }
           }
@@ -3921,6 +3958,18 @@
           },
           "fc2VoltageAbnormal": {
             "type": "boolean"
+          }
+        }
+      },
+      "FluxFields": {
+        "type": "object",
+        "required": [
+          "ll"
+        ],
+        "properties": {
+          "ll": {
+            "type": "number",
+            "format": "double"
           }
         }
       },

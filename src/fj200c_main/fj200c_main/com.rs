@@ -1,7 +1,10 @@
 use crate::common::latest_frame::LatestFrame;
 use crate::fj200c_main::abstract_com::*;
 use crate::fj200c_main::config;
-use crate::fj200c_main::decode::{decode_adam, decode_dyno, decode_ecu, validate_adam, validate_dyno, validate_ecu};
+use crate::fj200c_main::decode::{
+    decode_adam4015, decode_adam4117, decode_dyno, decode_ecu, decode_flux, validate_adam4015,
+    validate_adam4117, validate_dyno, validate_ecu, validate_flux,
+};
 use crate::fj200c_main::mock::MockControl;
 use crate::fj200c_main::state::{CSV_RECORDING, CSV_WRITER, ECU_SEND_COUNTER};
 use crate::fj200c_main::types::*;
@@ -16,26 +19,36 @@ use tokio::sync::broadcast;
 use tracing::error;
 
 pub const ECU_SECTION: &str = "COM0";
-pub const ADAM_SECTION: &str = "COM1";
-pub const DYNO_SECTION: &str = "COM2";
+pub const ADAM4015_SECTION: &str = "COM1";
+pub const ADAM4117_SECTION: &str = "COM2";
+pub const DYNO_SECTION: &str = "COM3";
+pub const FLUX_SECTION: &str = "COM4";
 
 pub struct SharedPortData {
     pub ecu_raw: LatestFrame<256>,
-    pub adam_raw: LatestFrame<256>,
+    pub adam4015_raw: LatestFrame<256>,
+    pub adam4117_raw: LatestFrame<256>,
     pub dyno_raw: LatestFrame<256>,
+    pub flux_raw: LatestFrame<256>,
     pub ecu_decoded: ArcSwap<EcuFields>,
-    pub adam_decoded: ArcSwap<AdamFields>,
+    pub adam4015_decoded: ArcSwap<Adam4015Fields>,
+    pub adam4117_decoded: ArcSwap<Adam4117Fields>,
     pub dyno_decoded: ArcSwap<DynoFields>,
+    pub flux_decoded: ArcSwap<FluxFields>,
 }
 
 pub fn create_shared_port_data() -> Arc<SharedPortData> {
     Arc::new(SharedPortData {
         ecu_raw: LatestFrame::new(),
-        adam_raw: LatestFrame::new(),
+        adam4015_raw: LatestFrame::new(),
+        adam4117_raw: LatestFrame::new(),
         dyno_raw: LatestFrame::new(),
+        flux_raw: LatestFrame::new(),
         ecu_decoded: ArcSwap::new(Arc::new(EcuFields::default())),
-        adam_decoded: ArcSwap::new(Arc::new(AdamFields::default())),
+        adam4015_decoded: ArcSwap::new(Arc::new(Adam4015Fields::default())),
+        adam4117_decoded: ArcSwap::new(Arc::new(Adam4117Fields::default())),
         dyno_decoded: ArcSwap::new(Arc::new(DynoFields::default())),
+        flux_decoded: ArcSwap::new(Arc::new(FluxFields::default())),
     })
 }
 
@@ -63,7 +76,11 @@ macro_rules! define_com_port {
                 }
             }
 
-            pub fn run(&self, shared: &Arc<SharedPortData>, tx: broadcast::Sender<crate::common::ws::EventPayload>) {
+            pub fn run(
+                &self,
+                shared: &Arc<SharedPortData>,
+                tx: broadcast::Sender<crate::common::ws::EventPayload>,
+            ) {
                 if let Ok(base) = self.base.as_ref() {
                     let slot = shared.clone();
                     let conn_idx = base.conn_idx();
@@ -100,14 +117,58 @@ macro_rules! define_com_port {
     };
 }
 
-define_com_port!(ECUCom, ecu_raw, ecu_decoded, validate_ecu, decode_ecu, EcuFields, Ecu);
-define_com_port!(AdamCom, adam_raw, adam_decoded, validate_adam, decode_adam, AdamFields, Adam);
-define_com_port!(DynoCom, dyno_raw, dyno_decoded, validate_dyno, decode_dyno, DynoFields, Dyno);
+define_com_port!(
+    ECUCom,
+    ecu_raw,
+    ecu_decoded,
+    validate_ecu,
+    decode_ecu,
+    EcuFields,
+    Ecu
+);
+define_com_port!(
+    Adam4015Com,
+    adam4015_raw,
+    adam4015_decoded,
+    validate_adam4015,
+    decode_adam4015,
+    Adam4015Fields,
+    Adam4015
+);
+define_com_port!(
+    Adam4117Com,
+    adam4117_raw,
+    adam4117_decoded,
+    validate_adam4117,
+    decode_adam4117,
+    Adam4117Fields,
+    Adam4117
+);
+define_com_port!(
+    DynoCom,
+    dyno_raw,
+    dyno_decoded,
+    validate_dyno,
+    decode_dyno,
+    DynoFields,
+    Dyno
+);
+define_com_port!(
+    FluxCom,
+    flux_raw,
+    flux_decoded,
+    validate_flux,
+    decode_flux,
+    FluxFields,
+    Flux
+);
 
 pub struct AllComPorts {
     pub ecu: Option<Arc<ECUCom>>,
-    pub adam: Option<Arc<AdamCom>>,
+    pub adam4015: Option<Arc<Adam4015Com>>,
+    pub adam4117: Option<Arc<Adam4117Com>>,
     pub dyno: Option<Arc<DynoCom>>,
+    pub flux: Option<Arc<FluxCom>>,
 }
 
 pub fn init_all_from_config(
@@ -120,8 +181,10 @@ pub fn init_all_from_config(
             tracing::warn!("配置未加载，跳过所有 COM 构造");
             return AllComPorts {
                 ecu: None,
-                adam: None,
+                adam4015: None,
+                adam4117: None,
                 dyno: None,
+                flux: None,
             };
         }
     };
@@ -135,18 +198,33 @@ pub fn init_all_from_config(
         tracing::info!("COM Count={}，跳过 {}", count, ECU_SECTION);
         None
     };
-    let adam = if count > 1 {
-        init_adam(ADAM_SECTION, 1, stop.clone(), shared, tx.clone())
+    let adam4015 = if count > 1 {
+        init_adam4015(ADAM4015_SECTION, 1, stop.clone(), shared, tx.clone())
+    } else {
+        None
+    };
+    let adam4117 = if count > 1 {
+        init_adam4117(ADAM4117_SECTION, 1, stop.clone(), shared, tx.clone())
     } else {
         None
     };
     let dyno = if count > 2 {
-        init_dyno(DYNO_SECTION, 2, stop, shared, tx.clone())
+        init_dyno(DYNO_SECTION, 2, stop.clone(), shared, tx.clone())
     } else {
         None
     };
-
-    AllComPorts { ecu, adam, dyno }
+    let flux = if count > 2 {
+        init_flux(FLUX_SECTION, 2, stop, shared, tx.clone())
+    } else {
+        None
+    };
+    AllComPorts {
+        ecu,
+        adam4015,
+        adam4117,
+        dyno,
+        flux,
+    }
 }
 
 pub fn start_processing_thread(
@@ -174,15 +252,19 @@ pub fn start_processing_thread(
                             (csv_last_write.elapsed().as_millis() as f32) / 1000.0f32;
                         if let Ok(guard) = CSV_WRITER.lock() {
                             if let Some(writer) = guard.as_ref() {
-                                let dict =
-                                    crate::fj200c_main::state::csv_header_dict().read().unwrap_or_else(|e| e.into_inner());
+                                let dict = crate::fj200c_main::state::csv_header_dict()
+                                    .read()
+                                    .unwrap_or_else(|e| e.into_inner());
                                 let mut row = Vec::with_capacity(dict.len() + 1);
                                 row.push(time_elapsed.to_string());
 
                                 let ecu = shared.ecu_decoded.load();
-                                let adam = shared.adam_decoded.load();
+                                let adam4015 = shared.adam4015_decoded.load();
+                                let adam4117 = shared.adam4117_decoded.load();
                                 let dyno = shared.dyno_decoded.load();
-                                let values = csv_row_values(&ecu, &adam, &dyno);
+                                let flux = shared.flux_decoded.load();
+                                let values =
+                                    csv_row_values(&ecu, &adam4015, &adam4117, &dyno, &flux);
                                 row.extend(values);
 
                                 let _ = writer.write_row(row);
@@ -237,15 +319,45 @@ fn init_ecu(
     Some(com)
 }
 
-fn init_adam(
+fn init_adam4015(
     section: &str,
     idx: usize,
     stop: Arc<AtomicBool>,
     shared: &Arc<SharedPortData>,
     tx: broadcast::Sender<crate::common::ws::EventPayload>,
-) -> Option<Arc<AdamCom>> {
-    let com_spec = ComSpec::adam_protocol(section, idx);
-    let com = AdamCom::new(com_spec, stop.clone(), tx.clone());
+) -> Option<Arc<Adam4015Com>> {
+    let com_spec = ComSpec::adam4015_protocol(section, idx);
+    let com = Adam4015Com::new(com_spec, stop.clone(), tx.clone());
+    com.run(shared, tx);
+
+    let sender = com.clone();
+    thread::spawn(move || {
+        let cmd = b"#010\r";
+        while !stop.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_secs(1));
+            if stop.load(Ordering::Relaxed) {
+                break;
+            }
+            if let Err(e) = sender.send(cmd) {
+                tracing::warn!("AdamCom 发送 #010 失败: {:?}", e);
+                break;
+            }
+        }
+    });
+
+    tracing::info!("AdamCom({}) 构造完成", section);
+    Some(com)
+}
+
+fn init_adam4117(
+    section: &str,
+    idx: usize,
+    stop: Arc<AtomicBool>,
+    shared: &Arc<SharedPortData>,
+    tx: broadcast::Sender<crate::common::ws::EventPayload>,
+) -> Option<Arc<Adam4117Com>> {
+    let com_spec = ComSpec::adam4117_protocol(section, idx);
+    let com = Adam4117Com::new(com_spec, stop.clone(), tx.clone());
     com.run(shared, tx);
 
     let sender = com.clone();
@@ -278,6 +390,20 @@ fn init_dyno(
     let com = DynoCom::new(com_spec, stop, tx.clone());
     com.run(shared, tx);
     tracing::info!("DynoCom({}) 构造完成", section);
+    Some(com)
+}
+
+fn init_flux(
+    section: &str,
+    idx: usize,
+    stop: Arc<AtomicBool>,
+    shared: &Arc<SharedPortData>,
+    tx: broadcast::Sender<crate::common::ws::EventPayload>,
+) -> Option<Arc<FluxCom>> {
+    let com_spec = ComSpec::flux_protocol(section, idx);
+    let com = FluxCom::new(com_spec, stop, tx.clone());
+    com.run(shared, tx);
+    tracing::info!("FluxCom({}) 构造完成", section);
     Some(com)
 }
 
@@ -334,22 +460,22 @@ pub fn start_mock_senders(
                         }
                     }
                     1 => {
-                        if validate_adam(&frame) {
-                            let fields = decode_adam(&frame);
+                        if validate_adam4015(&frame) {
+                            let fields = decode_adam4015(&frame);
                             let arc_fields = Arc::new(fields.clone());
-                            shared_clone.adam_decoded.store(Arc::clone(&arc_fields));
+                            shared_clone.adam4015_decoded.store(Arc::clone(&arc_fields));
 
                             let mut buf = [0u8; 256];
                             let n = frame.len().min(256);
                             buf[..n].copy_from_slice(&frame[..n]);
                             let sn = seq.fetch_add(1, Ordering::Relaxed);
-                            shared_clone.adam_raw.update(sn, &buf);
+                            shared_clone.adam4015_raw.update(sn, &buf);
 
                             let hex = crate::common::utils::format_hex_compact(&frame);
                             let event = Fj200cMainEvent::PortData {
                                 connection_index: 1,
                                 hex,
-                                fields: Arc::new(ChannelData::Adam(fields)),
+                                fields: Arc::new(ChannelData::Adam4015(fields)),
                             };
                             if let Ok(json) = crate::common::ws::serialize(&event) {
                                 let _ = tx_clone.send(json);
@@ -357,6 +483,29 @@ pub fn start_mock_senders(
                         }
                     }
                     2 => {
+                        if validate_adam4117(&frame) {
+                            let fields = decode_adam4117(&frame);
+                            let arc_fields = Arc::new(fields.clone());
+                            shared_clone.adam4117_decoded.store(Arc::clone(&arc_fields));
+
+                            let mut buf = [0u8; 256];
+                            let n = frame.len().min(256);
+                            buf[..n].copy_from_slice(&frame[..n]);
+                            let sn = seq.fetch_add(1, Ordering::Relaxed);
+                            shared_clone.adam4117_raw.update(sn, &buf);
+
+                            let hex = crate::common::utils::format_hex_compact(&frame);
+                            let event = Fj200cMainEvent::PortData {
+                                connection_index: 2,
+                                hex,
+                                fields: Arc::new(ChannelData::Adam4117(fields)),
+                            };
+                            if let Ok(json) = crate::common::ws::serialize(&event) {
+                                let _ = tx_clone.send(json);
+                            }
+                        }
+                    }
+                    3 => {
                         if validate_dyno(&frame) {
                             let fields = decode_dyno(&frame);
                             let arc_fields = Arc::new(fields.clone());
@@ -373,6 +522,29 @@ pub fn start_mock_senders(
                                 connection_index: 2,
                                 hex,
                                 fields: Arc::new(ChannelData::Dyno(fields)),
+                            };
+                            if let Ok(json) = crate::common::ws::serialize(&event) {
+                                let _ = tx_clone.send(json);
+                            }
+                        }
+                    }
+                    4 => {
+                        if validate_flux(&frame) {
+                            let fields = decode_flux(&frame);
+                            let arc_fields = Arc::new(fields.clone());
+                            shared_clone.flux_decoded.store(Arc::clone(&arc_fields));
+
+                            let mut buf = [0u8; 256];
+                            let n = frame.len().min(256);
+                            buf[..n].copy_from_slice(&frame[..n]);
+                            let sn = seq.fetch_add(1, Ordering::Relaxed);
+                            shared_clone.flux_raw.update(sn, &buf);
+
+                            let hex = crate::common::utils::format_hex_compact(&frame);
+                            let event = Fj200cMainEvent::PortData {
+                                connection_index: 2,
+                                hex,
+                                fields: Arc::new(ChannelData::Flux(fields)),
                             };
                             if let Ok(json) = crate::common::ws::serialize(&event) {
                                 let _ = tx_clone.send(json);

@@ -66,7 +66,12 @@ pub struct FaultCodeFlags {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, Default)]
-pub struct AdamFields {
+pub struct Adam4015Fields {
+    pub channels: [f64; 8],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, Default)]
+pub struct Adam4117Fields {
     pub channels: [f64; 8],
 }
 
@@ -79,11 +84,19 @@ pub struct DynoFields {
     pub njgl: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FluxFields {
+    pub ll: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub enum ChannelData {
     Ecu(EcuFields),
-    Adam(AdamFields),
+    Adam4015(Adam4015Fields),
+    Adam4117(Adam4117Fields),
     Dyno(DynoFields),
+    Flux(FluxFields),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, Default)]
@@ -99,7 +112,11 @@ pub struct ExperimentInfo {
 }
 
 fn fmt_bool(v: bool) -> String {
-    if v { "true".into() } else { "false".into() }
+    if v {
+        "true".into()
+    } else {
+        "false".into()
+    }
 }
 
 impl EcuFields {
@@ -162,7 +179,10 @@ impl EcuFields {
 
     pub fn to_row_values(&self) -> Vec<String> {
         let fc = &self.fault_codes;
-        Self::csv_entries().iter().map(|(key, _)| self.fmt_field(key, fc)).collect()
+        Self::csv_entries()
+            .iter()
+            .map(|(key, _)| self.fmt_field(key, fc))
+            .collect()
     }
 
     fn fmt_field(&self, key: &str, fc: &FaultCodeFlags) -> String {
@@ -224,7 +244,26 @@ impl EcuFields {
     }
 }
 
-impl AdamFields {
+impl Adam4015Fields {
+    pub fn csv_entries() -> &'static [(&'static str, &'static str)] {
+        &[
+            ("env_ch0", "大气温度"),
+            ("env_ch1", "大气湿度"),
+            ("env_ch2", "大气压力"),
+            ("env_ch3", "进口温度"),
+            ("env_ch4", "扩展通道4"),
+            ("env_ch5", "扩展通道5"),
+            ("env_ch6", "扩展通道6"),
+            ("env_ch7", "扩展通道7"),
+        ]
+    }
+
+    pub fn to_row_values(&self) -> Vec<String> {
+        self.channels.iter().map(|v| format!("{:.3}", v)).collect()
+    }
+}
+
+impl Adam4117Fields {
     pub fn csv_entries() -> &'static [(&'static str, &'static str)] {
         &[
             ("env_ch0", "大气温度"),
@@ -263,19 +302,44 @@ impl DynoFields {
     }
 }
 
+impl FluxFields {
+    pub fn csv_entries() -> &'static [(&'static str, &'static str)] {
+        &[
+            ("jkwd", "机油温度"),
+            ("njzs", "扭矩转速"),
+            ("nj", "扭矩"),
+            ("njgl", "扭矩功率"),
+        ]
+    }
+
+    pub fn to_row_values(&self) -> Vec<String> {
+        vec![format!("{:.1}", self.ll)]
+    }
+}
+
 pub fn all_csv_entries() -> Vec<(&'static str, &'static str)> {
     let mut v = Vec::with_capacity(64);
     v.extend_from_slice(EcuFields::csv_entries());
-    v.extend_from_slice(AdamFields::csv_entries());
+    v.extend_from_slice(Adam4015Fields::csv_entries());
+    v.extend_from_slice(Adam4117Fields::csv_entries());
     v.extend_from_slice(DynoFields::csv_entries());
+    v.extend_from_slice(FluxFields::csv_entries());
     v
 }
 
-pub fn csv_row_values(ecu: &EcuFields, adam: &AdamFields, dyno: &DynoFields) -> Vec<String> {
+pub fn csv_row_values(
+    ecu: &EcuFields,
+    adam4015: &Adam4015Fields,
+    adam4117: &Adam4117Fields,
+    dyno: &DynoFields,
+    flux: &FluxFields,
+) -> Vec<String> {
     let mut v = Vec::with_capacity(64);
     v.extend(ecu.to_row_values());
-    v.extend(adam.to_row_values());
+    v.extend(adam4015.to_row_values());
+    v.extend(adam4117.to_row_values());
     v.extend(dyno.to_row_values());
+    v.extend(flux.to_row_values());
     v
 }
 

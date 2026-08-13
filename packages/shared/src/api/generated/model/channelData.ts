@@ -5,14 +5,20 @@
  * RustWeb-Vue 全栈管理系统 API 文档
  * OpenAPI spec version: 1.0.0
  */
-import type { AdamFields } from './adamFields';
+import type { Adam4015Fields } from './adam4015Fields';
+import type { Adam4117Fields } from './adam4117Fields';
 import type { DynoFields } from './dynoFields';
 import type { EcuFields } from './ecuFields';
+import type { FluxFields } from './fluxFields';
 
 export type ChannelData = {
   Ecu: EcuFields;
 } | {
-  Adam: AdamFields;
+  Adam4015: Adam4015Fields;
+} | {
+  Adam4117: Adam4117Fields;
 } | {
   Dyno: DynoFields;
+} | {
+  Flux: FluxFields;
 };
