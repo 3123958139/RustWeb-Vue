@@ -42,7 +42,7 @@ pub struct MockControl {
 impl MockControl {
     pub fn create(section: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let interval_ms: u64 = config::global()
-            .map(|c| c.get_or(section, "IntervalMs", "100"))
+            .and_then(|guard| guard.as_ref().map(|c| c.get_or(section, "IntervalMs", "100")))
             .and_then(|v| v.parse().ok())
             .unwrap_or(100);
 

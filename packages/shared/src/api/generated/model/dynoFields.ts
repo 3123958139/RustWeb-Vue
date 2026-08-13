@@ -7,7 +7,6 @@
  */
 
 export interface DynoFields {
-  jkwd: number;
   nj: number;
   njgl: number;
   njzs: number;

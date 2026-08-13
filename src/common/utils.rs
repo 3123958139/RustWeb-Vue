@@ -128,16 +128,16 @@ pub fn extract_number(s: &str) -> Option<usize> {
 }
 
 /// 将文件名追加后缀并拼接 GlobalVar 中 PathCSV 指定的目录
+///
+/// GlobalVar 未初始化或 PathCSV 未设置时回落默认目录 `csv`，不 panic。
 pub fn rename_file_name(path: &str, new: &str) -> String {
-    let gv = crate::common::global_var::GlobalVar::global().unwrap();
+    let gv = crate::common::global_var::GlobalVar::global();
+    let dir = gv
+        .and_then(|g| g.get("PathCSV"))
+        .filter(|d| !d.is_empty())
+        .unwrap_or_else(|| "csv".to_string());
     let (name, ext) = path.split_once('.').unwrap_or((path, ""));
-    format!(
-        "{}/{}_{}.{}",
-        gv.get("PathCSV").unwrap(),
-        name,
-        new,
-        ext
-    )
+    format!("{}/{}_{}.{}", dir, name, new, ext)
 }
 
 /// 读取无表头 CSV 为 HashMap（第一列为 key，第二列为 value）

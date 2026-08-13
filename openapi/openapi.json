@@ -3620,16 +3620,11 @@
       "DynoFields": {
         "type": "object",
         "required": [
-          "jkwd",
           "njzs",
           "nj",
           "njgl"
         ],
         "properties": {
-          "jkwd": {
-            "type": "number",
-            "format": "double"
-          },
           "nj": {
             "type": "number",
             "format": "double"

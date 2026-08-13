@@ -27,7 +27,7 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
     RUNTIME.wait_stopping(Duration::from_secs(3));
 
     let cfg = Config::load(state::CONFIG_PATH).map_err(|e| format!("加载配置文件失败: {}", e))?;
-    let _ = config::set_global(cfg);
+    config::set_global(cfg);
 
     GlobalVar::init();
     if let Some(gv) = GlobalVar::global() {
@@ -68,9 +68,20 @@ pub fn stop_service() {
             stop.store(true, Ordering::Relaxed);
         }
     }
+    let mut mock_stopped = false;
     if let Ok(mut guard) = state::MOCK_SENDERS_STOP.lock() {
         if let Some(stop) = guard.take() {
             stop_mock_senders(&stop);
+            mock_stopped = true;
+        }
+    }
+
+    // 模拟发送线程被停止时同步复位模拟状态并广播，避免前端"模拟运行中"徽章与真实状态不一致
+    if mock_stopped {
+        state::SIMULATION_MODE.store(false, Ordering::Relaxed);
+        let event = Fj200cMainEvent::SimulationState { simulating: false };
+        if let Ok(json) = crate::common::ws::serialize(&event) {
+            let _ = crate::fj200c_main::fj200c_main_tx().send(json);
         }
     }
 
@@ -83,14 +94,22 @@ pub fn send_command(hex: &str) -> Result<(), String> {
     if !is_running() {
         return Err("服务未运行".to_string());
     }
+    let frame = crate::common::utils::parse_hex(hex).ok_or("无效的十六进制指令")?;
+    if frame.len() < 16 {
+        return Err(format!("指令帧长度不足（当前 {} 字节，至少 16）", frame.len()));
+    }
     state::ecu_send_data().store(Arc::new(hex.to_string()));
     Ok(())
 }
 
-pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPayload>) {
+pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPayload>) -> Result<(), String> {
     let is_recording = state::CSV_RECORDING.load(Ordering::Relaxed);
     match is_recording {
         0 => {
+            // 写行循环位于服务处理线程内，服务未运行时录制只会产生空文件
+            if !is_running() {
+                return Err("服务未运行，无法开始录制".to_string());
+            }
             let now = chrono::Local::now().format("%Y%m%d%H%M%S");
             let file_name = format!("recording_{}_information.csv", now);
             match CsvWriter::create("csv", &file_name, vec!["字段".into(), "值".into()]) {
@@ -107,7 +126,7 @@ pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPaylo
                     let _ = writer.flush();
                 }
                 Err(e) => {
-                    error!("创建 CSV 文件失败: {}", e);
+                    return Err(format!("创建试验信息文件失败: {}", e));
                 }
             }
             let mut headers: Vec<String> = vec!["时间戳".to_string()];
@@ -127,7 +146,7 @@ pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPaylo
                     info!("数据记录已开始: {}", filename);
                 }
                 Err(e) => {
-                    error!("创建 CSV 文件失败: {}", e);
+                    return Err(format!("创建 CSV 文件失败: {}", e));
                 }
             }
         }
@@ -146,6 +165,7 @@ pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPaylo
     if let Ok(json) = crate::common::ws::serialize(&event) {
         let _ = tx.send(json);
     }
+    Ok(())
 }
 
 pub fn toggle_simulation(tx: &broadcast::Sender<crate::common::ws::EventPayload>) {

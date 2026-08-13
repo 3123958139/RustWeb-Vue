@@ -97,7 +97,11 @@ impl AbstractCom {
 
         let com_spec = Arc::new(com_spec);
 
-        let cfg = config::global().ok_or("配置未加载")?;
+        let cfg = config::global()
+            .ok_or("配置未加载")?
+            .as_ref()
+            .ok_or("配置未加载")?
+            .clone();
         let port_name = cfg.get_or(&section, "PORTNAME", "COM1");
         let baud_rate = cfg
             .get_or(&section, "BaudRate", "115200")

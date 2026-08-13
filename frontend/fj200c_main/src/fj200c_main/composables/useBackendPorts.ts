@@ -175,7 +175,6 @@ function handleAdam4117(store: ReturnType<typeof useDashboardStore>, f: Adam4117
 
 function handleDyno(store: ReturnType<typeof useDashboardStore>, f: DynoFields, hex: string) {
     store.$patch((state) => {
-        state.dynoData.jkwd = f.jkwd ?? 0
         state.dynoData.njzs = f.njzs ?? 0
         state.dynoData.nj = f.nj ?? 0
         state.dynoData.njgl = f.njgl ?? 0

@@ -69,10 +69,10 @@ fn fill_backward(data: &[f64]) -> Vec<f64> {
 struct CsvColumnIdx {
     col_clzs: Option<usize>,
     col_pqwd: Option<usize>,
-    col_ryyl: Option<usize>,
+    col_tl: Option<usize>,
+    col_ryll: Option<usize>,
     col_dqwd: Option<usize>,
     col_dqyl: Option<usize>,
-    col_dqsd: Option<usize>,
 }
 
 fn build_col_idx(headers: &[String]) -> CsvColumnIdx {
@@ -80,10 +80,12 @@ fn build_col_idx(headers: &[String]) -> CsvColumnIdx {
     CsvColumnIdx {
         col_clzs: find("燃气发生器转速Ng"),
         col_pqwd: find("排气温度"),
-        col_ryyl: find("燃油压力"),
+        // 推力来源：测功机扭矩（试车台无独立推力传感器时以扭矩列代理）
+        col_tl: find("扭矩"),
+        // 燃油流量来源：Flux 燃油流量计
+        col_ryll: find("燃油流量"),
         col_dqwd: find("大气温度(4015)"),
         col_dqyl: find("大气压力(4015)"),
-        col_dqsd: find("大气湿度(4015)"),
     }
 }
 
@@ -125,10 +127,10 @@ pub fn process_report_csv(
         r[0] = ts;
         r[1] = get(idx.col_clzs);
         r[2] = get(idx.col_pqwd);
-        r[4] = get(idx.col_ryyl);
+        r[7] = get(idx.col_tl);
+        r[8] = get(idx.col_ryll);
         r[9] = get(idx.col_dqyl);
         r[10] = get(idx.col_dqwd);
-        r[11] = get(idx.col_dqsd);
         rows_16.push(r);
     }
 

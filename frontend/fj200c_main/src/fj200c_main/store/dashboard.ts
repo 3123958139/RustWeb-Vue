@@ -98,7 +98,6 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
     ])
 
     const dynoData = reactive<DynoFields>({
-        jkwd: 0,
         njzs: 0,
         nj: 0,
         njgl: 0,

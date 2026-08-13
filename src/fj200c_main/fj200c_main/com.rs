@@ -176,7 +176,19 @@ pub fn init_all_from_config(
     tx: broadcast::Sender<crate::common::ws::EventPayload>,
 ) -> AllComPorts {
     let cfg = match config::global() {
-        Some(c) => c,
+        Some(guard) => match guard.as_ref() {
+            Some(c) => c.clone(),
+            None => {
+                tracing::warn!("配置未加载，跳过所有 COM 构造");
+                return AllComPorts {
+                    ecu: None,
+                    adam4015: None,
+                    adam4117: None,
+                    dyno: None,
+                    flux: None,
+                };
+            }
+        },
         None => {
             tracing::warn!("配置未加载，跳过所有 COM 构造");
             return AllComPorts {
@@ -289,6 +301,14 @@ fn init_ecu(
     let s = Arc::clone(&stop);
     let com_spec = ComSpec::ecu_protocol(section, idx);
     let com = ECUCom::new(com_spec, stop, tx.clone());
+
+    // 串口打开失败（base 为 Err）时读取线程不会启动，发送线程也没有意义，
+    // 跳过以杜绝每 100ms 一次的 "ECU send error" 日志刷屏
+    if com.base.is_err() {
+        tracing::warn!("ECUCom({}) 串口打开失败，跳过发送线程", section);
+        return Some(com);
+    }
+
     com.run(shared, tx);
     tracing::info!("ECUCom({}) 构造完成", section);
 

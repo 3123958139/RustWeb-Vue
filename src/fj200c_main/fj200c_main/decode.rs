@@ -2,7 +2,6 @@ use crate::common::utils::format_hex;
 use crate::fj200c_main::types::{
     Adam4015Fields, Adam4117Fields, DynoFields, EcuFields, FaultCodeFlags, FluxFields,
 };
-use tracing::error;
 
 const ECU_HEADER: [u8; 3] = [0xEB, 0x90, 0x2A];
 const ECU_FRAME_LEN: usize = 42;
@@ -21,7 +20,7 @@ pub fn validate_ecu(frame: &[u8]) -> bool {
         % 256u16;
     let b = (sum as u8) == frame[ECU_FRAME_LEN - 1];
     if !b {
-        error!(
+        tracing::debug!(
             "ECU frame checksum: {}, expected: {}",
             sum,
             frame[ECU_FRAME_LEN - 1]
@@ -68,7 +67,7 @@ pub fn cmd_exec_str(code: u8) -> &'static str {
 }
 
 pub fn decode_ecu(frame: &[u8]) -> EcuFields {
-    error!("{}", &format_hex(frame));
+    tracing::trace!("{}", &format_hex(frame));
     let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
 
     let _count = frame[3];

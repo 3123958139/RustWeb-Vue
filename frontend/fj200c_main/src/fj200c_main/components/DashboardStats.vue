@@ -19,7 +19,7 @@ const store = useDashboardStore()
 const gauges = [
   { key: 'ngSpeed' as const, label: 'Ng转速', unit: 'r/min', max: 15000 },
   { key: 'exhaustTemp' as const, label: '排气温度', unit: '℃', max: 1200 },
-  { key: 'dynamometerPower' as const, label: '测功机功率', unit: 'W', max: 50 },
+  { key: 'dynamometerPower' as const, label: '测功机功率', unit: 'kW', max: 50 },
   { key: 'fuelFlow' as const, label: '燃油流量', unit: 'L/h', max: 6000 },
   { key: 'npSpeed' as const, label: 'Np转速', unit: 'r/min', max: 15000 },
 ]

@@ -234,7 +234,7 @@ pub async fn save_config_handler(
 /// 获取 CSV 目录（从配置 `[CSV] Dir` 读取，默认 `csv`）
 fn csv_dir() -> String {
     crate::fj200c_main::config::global()
-        .map(|c| c.get_or("CSV", "Dir", "csv"))
+        .and_then(|guard| guard.as_ref().map(|c| c.get_or("CSV", "Dir", "csv")))
         .unwrap_or_else(|| "csv".to_string())
 }
 
@@ -316,9 +316,13 @@ pub async fn get_csv_file_handler(
 )]
 pub async fn toggle_recording_handler() -> Json<ApiResponse<RecordingState>> {
     let tx = fj200c_main_tx();
-    service::toggle_csv_recording(&tx);
-    let recording = state::CSV_RECORDING.load(std::sync::atomic::Ordering::Relaxed) != 0;
-    Json(ApiResponse::success(RecordingState { recording }))
+    match service::toggle_csv_recording(&tx) {
+        Ok(()) => {
+            let recording = state::CSV_RECORDING.load(std::sync::atomic::Ordering::Relaxed) != 0;
+            Json(ApiResponse::success(RecordingState { recording }))
+        }
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
 // ============ 模拟运行切换 ============
