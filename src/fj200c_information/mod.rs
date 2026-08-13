@@ -7,7 +7,7 @@
 //! - **数据采集**：通过串口（`com`）或进程内模拟（`mock`）获取原始字节流
 //! - **帧提取**：`frame_extractor` 从字节流中定位帧头、校验帧完整性
 //! - **协议解码**：`decode` 将 100 字节帧解码为 28 个工程字段
-//! - **数据存储**：`frame_bundle` 缓存最新帧，`csv_writer` 持久化记录
+//! - **数据存储**：`frame_bundle` 缓存最新帧，`common::csv_writer` + `csv_sink` 持久化记录
 //! - **实时推送**：通过 `tokio::sync::broadcast` 广播事件，WebSocket 推送到前端
 //!
 //! ## 架构映射（Tauri → Web）
@@ -32,8 +32,7 @@
 //! | `state` | 二级 | 全局状态（SharedData、运行标志、配置路径） |
 //! | `config` | 二级 | config-fj200c_information.ini 解析（复用公共 INI 封装） |
 //! | `decode` | 二级 | 100 字节帧协议校验与 28 字段解码 |
-//! | `csv_writer` | 二级 | CSV 写入（500ms 批量刷新） |
-//! | `csv_sink` | 二级 | CSV 异步写入线程（磁盘 IO 移出采集线程） |
+//! | `csv_sink` | 二级 | CSV 异步写入线程（复用公共 `common::csv_writer`，磁盘 IO 移出采集线程） |
 //! | `frame_bundle` | 二级 | 帧数据复合存储（ArcSwap + RwLock） |
 //! | `com` | 二级 | 串口控制（serialport 4，实现 IoControl） |
 //! | `mock` | 二级 | 进程内模拟数据控制器（实现 IoControl） |
@@ -58,31 +57,13 @@ pub mod routes;
 pub mod service;
 
 // 再导出二级目录子模块，保持既有 `crate::fj200c_information::x` 路径不变
-pub use fj200c_information::{com, config, csv_sink, csv_writer, decode, frame_bundle, mock, mock_feeder, session, state};
+pub use fj200c_information::{com, config, csv_sink, decode, frame_bundle, mock, mock_feeder, session, state};
 
 use serde::Serialize;
-use tokio::sync::broadcast;
 
-/// 全局广播通道：服务线程（`std::thread`）写入，WebSocket 任务（`tokio`）读取。
-///
-/// 通道容量 1024，满时丢弃最旧事件（`Lagged` 错误）。
-/// 载荷为**预序列化的 `Arc<str>`**（见 `common::ws::serialize`），
-/// 生产端序列化一次，广播只克隆 Arc 指针，避免每个客户端重复序列化。
-static FJ200C_TX: std::sync::OnceLock<broadcast::Sender<crate::common::ws::EventPayload>> =
-    std::sync::OnceLock::new();
-
-/// 获取全局事件广播发送端（惰性初始化）
-///
-/// 首次调用时创建容量 1024 的广播通道，后续调用直接克隆 Sender。
-/// `Sender::clone()` 仅增加引用计数，不会创建新通道。
-pub fn fj200c_information_tx() -> broadcast::Sender<crate::common::ws::EventPayload> {
-    FJ200C_TX
-        .get_or_init(|| {
-            let (tx, _rx) = broadcast::channel(1024);
-            tx
-        })
-        .clone()
-}
+// 全局广播通道：服务线程（`std::thread`）写入，WebSocket 任务（`tokio`）读取。
+// 由公共宏 `event_broadcast!` 生成（容量 1024，载荷为预序列化的 `Arc<str>`）。
+crate::event_broadcast!(FJ200C_TX, fj200c_information_tx);
 
 /// 推送给前端的引擎事件（WebSocket JSON，`type` 字段区分事件类型）
 ///

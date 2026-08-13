@@ -3,12 +3,15 @@
  * @description 共享包入口文件 - 为所有 Vue 前端应用提供公共代码
  *
  * ## 架构说明
- * 本包是 RustWeb-Vue 项目的共享代码包，被 5 个 Vue 前端应用引用：
- * - frontend/fj200c_information（发动机监控）
+ * 本包是 RustWeb-Vue 项目的共享代码包，被全部 8 个 Vue 前端应用引用：
  * - frontend/admin（管理后台）
+ * - frontend/fj200c_information（发动机监控）
+ * - frontend/fj200c_main（发动机测控）
+ * - frontend/fw100（设备台账）
  * - frontend/fw150（设备台账）
- * - frontend/ftj1c（UDP通信监控）
+ * - frontend/ftj1c（UDP 通信监控）
  * - frontend/city3d（城市 3D 展示）
+ * - frontend/protocol_generator（通信协议生成）
  *
  * ## 设计原则
  * 1. **跨角色公共代码**：只包含所有角色共享的逻辑（会话管理、类型定义、角色注册表、工厂函数）
@@ -75,3 +78,8 @@ export {default as RoleTemplatePanel} from "./template/TemplatePanel.vue";
 export {default as AppNavbar} from "./template/AppNavbar.vue";
 // LoginPage - 通用登录页组件，各应用通过 props 复用统一模板
 export {default as LoginPage} from "./template/LoginPage.vue";
+// AppShell - 通用应用外壳（导航条 + 路由出口 + 认证初始化），admin / fj200c_information / ftj1c / fw100 / fw150 / protocol_generator 复用
+export {default as AppShell} from "./template/AppShell.vue";
+// LedgerPanel - 设备台账面板（fw100 / fw150 共享，角色差异经 props 注入）
+export {default as LedgerPanel} from "./template/LedgerPanel.vue";
+export type {LedgerRow, LedgerPanelApi} from "./template/LedgerPanel.vue";

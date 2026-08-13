@@ -9,16 +9,10 @@ pub use fj200c_main::{abstract_com, com, config, decode, mock, report, state, ty
 use crate::fj200c_main::types::ChannelData;
 use serde::Serialize;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 
-static FJ200C_MAIN_TX: std::sync::OnceLock<broadcast::Sender<crate::common::ws::EventPayload>> =
-    std::sync::OnceLock::new();
-
-pub fn fj200c_main_tx() -> broadcast::Sender<crate::common::ws::EventPayload> {
-    FJ200C_MAIN_TX
-        .get_or_init(|| broadcast::channel(1024).0)
-        .clone()
-}
+// 全局广播通道：服务线程写入，WebSocket 任务（tokio）读取。
+// 由公共宏 `event_broadcast!` 生成（容量 1024，载荷为预序列化的 `Arc<str>`）。
+crate::event_broadcast!(FJ200C_MAIN_TX, fj200c_main_tx);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]

@@ -19,7 +19,6 @@ use crate::ftj1c::config::{self, Config};
 use crate::ftj1c::process;
 use crate::ftj1c::state::{reset_stop_signal, stop_signal, CONFIG_PATH, SERVICE_RUNNING, quad_frame};
 use std::sync::atomic::Ordering;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{info, warn};
@@ -75,19 +74,13 @@ pub fn stop_service() {
     if !SERVICE_RUNNING.load(Ordering::Relaxed) {
         return;
     }
-
-    RUNTIME.set_stopping(true);
-    stop_signal().store(true, Ordering::Relaxed);
-
-    // 在独立线程中 join，避免阻塞 HTTP 请求处理
-    thread::spawn(|| {
-        for handle in RUNTIME.drain() {
-            let _ = handle.join();
-        }
-        SERVICE_RUNNING.store(false, Ordering::Relaxed);
-        RUNTIME.set_stopping(false);
-        info!("[ftj1c] 通信监控服务已停止");
-    });
+    // 置停止信号后在独立线程 join，避免阻塞 HTTP 请求处理
+    crate::common::service::stop_in_background(
+        &RUNTIME,
+        &SERVICE_RUNNING,
+        || stop_signal().store(true, Ordering::Relaxed),
+        "[ftj1c] 通信监控服务已停止",
+    );
 }
 
 /// 获取 IP 配置

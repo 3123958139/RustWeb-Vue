@@ -139,19 +139,13 @@ pub fn stop_service() {
     if !SERVICE_RUNNING.load(Ordering::Relaxed) {
         return;
     }
-
-    RUNTIME.set_stopping(true);
-    STOP_SIGNAL.store(true, Ordering::Relaxed);
-
-    // 在独立线程中 join，避免阻塞 HTTP 请求处理
-    thread::spawn(|| {
-        for handle in RUNTIME.drain() {
-            let _ = handle.join();
-        }
-        SERVICE_RUNNING.store(false, Ordering::Relaxed);
-        RUNTIME.set_stopping(false);
-        info!("发动机监控服务已停止");
-    });
+    // 置停止信号后在独立线程 join，避免阻塞 HTTP 请求处理
+    crate::common::service::stop_in_background(
+        &RUNTIME,
+        &SERVICE_RUNNING,
+        || STOP_SIGNAL.store(true, Ordering::Relaxed),
+        "发动机监控服务已停止",
+    );
 }
 
 /// 发送十六进制命令到所有会话线程

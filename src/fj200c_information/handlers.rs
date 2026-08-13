@@ -27,7 +27,6 @@
 use crate::common::dto::{
     ConfigContent, CsvFileContent, CsvFileList, SavedResult, SentResult, ServiceStatus,
 };
-use crate::common::jwt;
 use crate::common::models::ApiResponse;
 use crate::database::DatabaseConnection;
 use crate::fj200c_information::service;
@@ -257,11 +256,7 @@ pub async fn ws_handler(
     Query(params): Query<HashMap<String, String>>,
     State(_db): State<DatabaseConnection>,
 ) -> Result<Response, axum::http::StatusCode> {
-    let token = params
-        .get("token")
-        .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
-
-    jwt::verify_token(token).map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
+    crate::common::ws::verify_query_token(&params)?;
 
     Ok(ws.on_upgrade(|socket| ws_session(socket)))
 }

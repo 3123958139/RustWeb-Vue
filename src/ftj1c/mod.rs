@@ -69,32 +69,10 @@ pub mod service;
 pub use ftj1c::{com, config, models, process, quad_frame, state, udp};
 
 use serde::Serialize;
-use tokio::sync::broadcast;
 
-/// 全局广播通道：服务线程（std::thread）写入，WebSocket 任务（tokio）读取。
-/// 载荷为**预序列化的 `Arc<str>`**（见 `common::ws::serialize`），
-/// 生产端序列化一次，广播只克隆 Arc 指针，避免每个客户端重复序列化。
-/// 使用 `OnceLock` 保证线程安全的单次初始化。
-static FTJ1C_TX: std::sync::OnceLock<broadcast::Sender<crate::common::ws::EventPayload>> =
-    std::sync::OnceLock::new();
-
-/// 获取全局事件广播发送端
-///
-/// # 返回值
-/// `broadcast::Sender<EventPayload>` 的克隆实例，可安全跨线程传递。
-///
-/// # 实现细节
-/// - 首次调用时通过 `get_or_init` 创建通道（容量 1024，满则丢弃最旧事件）
-/// - 返回 `Sender` 的克隆，允许多个生产者并发发送
-/// - `Receiver` 由 WebSocket 任务自行订阅（`subscribe()`）
-pub fn ftj1c_tx() -> broadcast::Sender<crate::common::ws::EventPayload> {
-    FTJ1C_TX
-        .get_or_init(|| {
-            let (tx, _rx) = broadcast::channel(1024);
-            tx
-        })
-        .clone()
-}
+// 全局广播通道：服务线程（std::thread）写入，WebSocket 任务（tokio）读取。
+// 由公共宏 `event_broadcast!` 生成（容量 1024，载荷为预序列化的 `Arc<str>`）。
+crate::event_broadcast!(FTJ1C_TX, ftj1c_tx);
 
 /// 推送给前端的通信监控事件（WebSocket JSON，`type` 字段区分事件类型）
 ///

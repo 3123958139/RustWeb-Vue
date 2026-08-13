@@ -1,11 +1,11 @@
 /**
- * 通信协议生成应用（protocol_generator）入口文件
+ * 閫氫俊鍗忚鐢熸垚搴旂敤锛坧rotocol_generator锛夊叆鍙ｆ枃浠?
  *
- * 创建 Vue 3 应用实例并注册插件：
- * - Pinia（状态管理）
- * - Vue Router（路由）
- * - Element Plus（UI 组件库，中文语言环境）
- * - vue-plugin-hiprint（协议报表打印，挂载到 window.hiprint）
+ * 鍒涘缓 Vue 3 搴旂敤瀹炰緥骞舵敞鍐屾彃浠讹細
+ * - Pinia锛堢姸鎬佺鐞嗭級
+ * - Vue Router锛堣矾鐢憋級
+ * - Element Plus锛圲I 缁勪欢搴擄紝涓枃璇█鐜锛?
+ * - vue-plugin-hiprint锛堝崗璁姤琛ㄦ墦鍗帮紝鎸傝浇鍒?window.hiprint锛?
  */
 import {createApp} from "vue";
 import {createPinia} from "pinia";
@@ -17,7 +17,7 @@ import "vue-plugin-hiprint/dist/print-lock.css";
 import App from "./App.vue";
 import router from "./router";
 
-import "./style.css";
+import "@shared/style.css";
 
 const app = createApp(App);
 

@@ -3,6 +3,7 @@
 //! 各角色服务（fj200c_information / ftj1c）共用的启动/停止编排基础设施：
 //! - 工作线程句柄的存储与 join
 //! - 「停止进行中」标志（防启动/停止竞态）
+//! - 异步停止骨架 `stop_in_background`（置停止信号 → 后台 join → 复位标志）
 //!
 //! 各角色仍各自维护运行状态（`SERVICE_RUNNING`）与停止信号，
 //! 因为停止信号的具体形态不同（fj200c_information 用 `AtomicBool` 全局量，
@@ -62,4 +63,33 @@ impl ServiceRuntime {
             thread::sleep(Duration::from_millis(20));
         }
     }
+}
+
+/// 异步停止骨架：置停止标志后，在独立线程中 join 所有工作线程并复位状态
+///
+/// 停止流程（不阻塞调用方，HTTP 请求立即返回）：
+/// 1. 置「停止进行中」标志 + 调用 `set_stop` 触发工作线程退出
+/// 2. 独立线程中依次 `join` 所有句柄，确保线程干净退出
+/// 3. 复位 `running`（`false`）与「停止进行中」标志
+///
+/// # 参数
+/// - `runtime` / `running`：`static` 生命周期（角色模块的 `static RUNTIME` / `SERVICE_RUNNING`）
+/// - `set_stop`：置停止信号的闭包（各角色停止信号形态不同，如 `STOP_SIGNAL.store(true)`）
+/// - `log_msg`：停止完成后的日志消息
+pub fn stop_in_background(
+    runtime: &'static ServiceRuntime,
+    running: &'static AtomicBool,
+    set_stop: impl FnOnce() + Send + 'static,
+    log_msg: &'static str,
+) {
+    runtime.set_stopping(true);
+    set_stop();
+    thread::spawn(move || {
+        for handle in runtime.drain() {
+            let _ = handle.join();
+        }
+        running.store(false, Ordering::Relaxed);
+        runtime.set_stopping(false);
+        tracing::info!("{}", log_msg);
+    });
 }

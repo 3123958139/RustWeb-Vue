@@ -21,9 +21,49 @@ use tracing::{info, trace};
 /// 广播通道中传输的事件载荷（预序列化的 JSON 文本）
 pub type EventPayload = Arc<str>;
 
+/// 生成角色的全局事件广播通道单例（`static XXX_TX` + `xxx_tx()` getter）
+///
+/// 各角色事件类型不同，但通道形态一致（容量 1024，满则丢弃最旧事件），
+/// 载荷为预序列化的 `Arc<str>`（见 `serialize`），广播只克隆指针。
+/// 重复展开时需使用不同标识符。
+#[macro_export]
+macro_rules! event_broadcast {
+    ($tx_ident:ident, $getter:ident) => {
+        /// 全局广播通道：服务线程（`std::thread`）写入，WebSocket 任务（`tokio`）读取。
+        /// 通道容量 1024，满时丢弃最旧事件（`Lagged` 错误）。
+        static $tx_ident: std::sync::OnceLock<
+            tokio::sync::broadcast::Sender<crate::common::ws::EventPayload>,
+        > = std::sync::OnceLock::new();
+
+        /// 获取全局事件广播发送端（惰性初始化，容量 1024）
+        ///
+        /// 首次调用创建通道，后续直接克隆 `Sender`（仅增加引用计数）。
+        pub fn $getter() -> tokio::sync::broadcast::Sender<crate::common::ws::EventPayload> {
+            $tx_ident
+                .get_or_init(|| tokio::sync::broadcast::channel(1024).0)
+                .clone()
+        }
+    };
+}
+
 /// 序列化事件为广播载荷（生产端调用，只序列化一次）
 pub fn serialize<E: Serialize>(event: &E) -> Result<EventPayload, serde_json::Error> {
     serde_json::to_string(event).map(Into::into)
+}
+
+/// WebSocket 升级前的 JWT 鉴权
+///
+/// 浏览器 WebSocket API 不支持自定义头，token 经 `?token=` 查询参数传递；
+/// 缺失或无效一律返回 `401 Unauthorized`。
+pub fn verify_query_token(
+    params: &std::collections::HashMap<String, String>,
+) -> Result<(), axum::http::StatusCode> {
+    let token = params
+        .get("token")
+        .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
+    crate::common::jwt::verify_token(token)
+        .map(|_| ())
+        .map_err(|_| axum::http::StatusCode::UNAUTHORIZED)
 }
 
 /// WebSocket 会话主循环：将广播事件转发为 JSON 文本帧

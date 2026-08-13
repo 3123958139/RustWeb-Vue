@@ -1,10 +1,10 @@
 /**
- * 发动机监控应用（fj200c_information）入口文件
+ * 鍙戝姩鏈虹洃鎺у簲鐢紙fj200c_information锛夊叆鍙ｆ枃浠?
  *
- * 职责：
- * 1. 创建 Vue 3 应用实例并挂载到 #app
- * 2. 注册全局插件：Pinia（状态管理）、Vue Router（路由）、Element Plus（UI 组件库）
- * 3. 设置 Element Plus 为中文语言环境
+ * 鑱岃矗锛?
+ * 1. 鍒涘缓 Vue 3 搴旂敤瀹炰緥骞舵寕杞藉埌 #app
+ * 2. 娉ㄥ唽鍏ㄥ眬鎻掍欢锛歅inia锛堢姸鎬佺鐞嗭級銆乂ue Router锛堣矾鐢憋級銆丒lement Plus锛圲I 缁勪欢搴擄級
+ * 3. 璁剧疆 Element Plus 涓轰腑鏂囪瑷€鐜
  */
 import { createApp } from "vue";
 import { createPinia } from "pinia";
@@ -14,14 +14,14 @@ import "element-plus/es/components/message/style/css";
 import App from "./App.vue";
 import router from "./router";
 
-import "./style.css";
+import "@shared/style.css";
 
-/** 创建 Vue 应用实例 */
+/** 鍒涘缓 Vue 搴旂敤瀹炰緥 */
 const app = createApp(App);
 
-/** 注册插件 */
+/** 娉ㄥ唽鎻掍欢 */
 app.use(createPinia());
 app.use(router);
 
-/** 挂载到 DOM */
+/** 鎸傝浇鍒?DOM */
 app.mount("#app");

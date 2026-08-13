@@ -1,10 +1,10 @@
 /**
- * 管理后台入口文件
+ * 绠＄悊鍚庡彴鍏ュ彛鏂囦欢
  *
- * 职责：
- * 1. 创建 Vue 3 应用实例并挂载到 #app
- * 2. 注册全局插件：Pinia（状态管理）、Vue Router（路由）、Element Plus（UI 组件库）
- * 3. 设置 Element Plus 为中文语言环境
+ * 鑱岃矗锛?
+ * 1. 鍒涘缓 Vue 3 搴旂敤瀹炰緥骞舵寕杞藉埌 #app
+ * 2. 娉ㄥ唽鍏ㄥ眬鎻掍欢锛歅inia锛堢姸鎬佺鐞嗭級銆乂ue Router锛堣矾鐢憋級銆丒lement Plus锛圲I 缁勪欢搴擄級
+ * 3. 璁剧疆 Element Plus 涓轰腑鏂囪瑷€鐜
  */
 import { createApp } from "vue";
 import { createPinia } from "pinia";
@@ -15,14 +15,14 @@ import "element-plus/es/components/message-box/style/css";
 import App from "./App.vue";
 import router from "./router";
 
-import "./style.css";
+import "@shared/style.css";
 
-/** 创建 Vue 应用实例，传入根组件 */
+/** 鍒涘缓 Vue 搴旂敤瀹炰緥锛屼紶鍏ユ牴缁勪欢 */
 const app = createApp(App);
 
-/** 注册插件：Pinia 提供响应式状态管理，Router 提供路由导航，Element Plus 提供 UI 组件 */
+/** 娉ㄥ唽鎻掍欢锛歅inia 鎻愪緵鍝嶅簲寮忕姸鎬佺鐞嗭紝Router 鎻愪緵璺敱瀵艰埅锛孍lement Plus 鎻愪緵 UI 缁勪欢 */
 app.use(createPinia());
 app.use(router);
 
-/** 将应用挂载到 DOM 中 id 为 app 的元素上 */
+/** 灏嗗簲鐢ㄦ寕杞藉埌 DOM 涓?id 涓?app 鐨勫厓绱犱笂 */
 app.mount("#app");

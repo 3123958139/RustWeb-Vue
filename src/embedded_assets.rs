@@ -22,45 +22,30 @@ use rust_embed::RustEmbed;
 // `#[folder]` 路径相对于 crate 根目录（Cargo.toml 所在位置），
 // 编译期要求目录存在（deploy.bat 先构建前端再编译后端可保证）
 
-/// admin 管理后台
-#[derive(RustEmbed)]
-#[folder = "frontend/admin/dist/"]
-struct AdminAssets;
+/// 批量生成各应用的 rust-embed 资源结构体
+///
+/// 每个应用一个 `#[derive(RustEmbed)]` 结构体，folder 指向 `frontend/<app>/dist/`。
+/// 新增前端应用时只需在此追加一项（同时需在 `embedded_router` 注册路由前缀）。
+macro_rules! embed_assets {
+    ($($struct_name:ident => $folder:literal),+ $(,)?) => {
+        $(
+            #[derive(RustEmbed)]
+            #[folder = $folder]
+            struct $struct_name;
+        )+
+    };
+}
 
-/// fj200c_information 发动机监控
-#[derive(RustEmbed)]
-#[folder = "frontend/fj200c_information/dist/"]
-struct Fj200cInformationAssets;
-
-/// fj200c_main 发动机测控（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
-#[derive(RustEmbed)]
-#[folder = "frontend/fj200c_main/dist/"]
-struct Fj200cMainAssets;
-
-/// fw100 设备台账
-#[derive(RustEmbed)]
-#[folder = "frontend/fw100/dist/"]
-struct Fw100Assets;
-
-/// fw150 设备台账
-#[derive(RustEmbed)]
-#[folder = "frontend/fw150/dist/"]
-struct Fw150Assets;
-
-/// ftj1c UDP 通信监控
-#[derive(RustEmbed)]
-#[folder = "frontend/ftj1c/dist/"]
-struct Ftj1cAssets;
-
-/// city3d 城市 3D 展示
-#[derive(RustEmbed)]
-#[folder = "frontend/city3d/dist/"]
-struct City3dAssets;
-
-/// protocol_generator 通信协议生成
-#[derive(RustEmbed)]
-#[folder = "frontend/protocol_generator/dist/"]
-struct ProtocolGeneratorAssets;
+embed_assets!(
+    AdminAssets => "frontend/admin/dist/",
+    Fj200cInformationAssets => "frontend/fj200c_information/dist/",
+    Fj200cMainAssets => "frontend/fj200c_main/dist/",
+    Fw100Assets => "frontend/fw100/dist/",
+    Fw150Assets => "frontend/fw150/dist/",
+    Ftj1cAssets => "frontend/ftj1c/dist/",
+    City3dAssets => "frontend/city3d/dist/",
+    ProtocolGeneratorAssets => "frontend/protocol_generator/dist/",
+);
 
 // ============ 处理函数 ============
 
@@ -103,37 +88,37 @@ async fn serve_embedded<A: RustEmbed>(path: Option<Path<String>>) -> Response {
 
 // ============ 路由组装 ============
 
-/// 嵌入式静态资源路由：按应用前缀挂载
+/// 批量注册嵌入式静态资源路由
 ///
 /// 每个应用注册三条路由（axum 0.7 通配符语法 `/*path`）：
-/// - `/admin`（精确，无斜杠）→ `Option<Path>` 为 `None`，返回 index.html
-/// - `/admin/`（精确，带尾斜杠）→ 同上；缺少它时 matchit 会对 `/admin/`
+/// - `/x`（精确，无斜杠）→ `Option<Path>` 为 `None`，返回 index.html
+/// - `/x/`（精确，带尾斜杠）→ 同上；缺少它时 matchit 会对 `/x/`
 ///   触发 ExtraTrailingSlash 检查返回 404（已有实测验证）
-/// - `/admin/*path`（通配，含任意深层路径）→ 资源命中或 SPA 回退
+/// - `/x/*path`（通配，含任意深层路径）→ 资源命中或 SPA 回退
+macro_rules! embed_app_routes {
+    ($router:expr, $($prefix:literal => $assets:ty),+ $(,)?) => {{
+        let mut router = $router;
+        $(
+            router = router
+                .route(concat!("/", $prefix), get(serve_embedded::<$assets>))
+                .route(concat!("/", $prefix, "/"), get(serve_embedded::<$assets>))
+                .route(concat!("/", $prefix, "/*path"), get(serve_embedded::<$assets>));
+        )+
+        router
+    }};
+}
+
+/// 嵌入式静态资源路由：按应用前缀挂载
 pub fn embedded_router() -> Router {
-    Router::new()
-        .route("/admin", get(serve_embedded::<AdminAssets>))
-        .route("/admin/", get(serve_embedded::<AdminAssets>))
-        .route("/admin/*path", get(serve_embedded::<AdminAssets>))
-        .route("/fj200c_information", get(serve_embedded::<Fj200cInformationAssets>))
-        .route("/fj200c_information/", get(serve_embedded::<Fj200cInformationAssets>))
-        .route("/fj200c_information/*path", get(serve_embedded::<Fj200cInformationAssets>))
-        .route("/fj200c_main", get(serve_embedded::<Fj200cMainAssets>))
-        .route("/fj200c_main/", get(serve_embedded::<Fj200cMainAssets>))
-        .route("/fj200c_main/*path", get(serve_embedded::<Fj200cMainAssets>))
-        .route("/fw100", get(serve_embedded::<Fw100Assets>))
-        .route("/fw100/", get(serve_embedded::<Fw100Assets>))
-        .route("/fw100/*path", get(serve_embedded::<Fw100Assets>))
-        .route("/fw150", get(serve_embedded::<Fw150Assets>))
-        .route("/fw150/", get(serve_embedded::<Fw150Assets>))
-        .route("/fw150/*path", get(serve_embedded::<Fw150Assets>))
-        .route("/ftj1c", get(serve_embedded::<Ftj1cAssets>))
-        .route("/ftj1c/", get(serve_embedded::<Ftj1cAssets>))
-        .route("/ftj1c/*path", get(serve_embedded::<Ftj1cAssets>))
-        .route("/city3d", get(serve_embedded::<City3dAssets>))
-        .route("/city3d/", get(serve_embedded::<City3dAssets>))
-        .route("/city3d/*path", get(serve_embedded::<City3dAssets>))
-        .route("/protocol_generator", get(serve_embedded::<ProtocolGeneratorAssets>))
-        .route("/protocol_generator/", get(serve_embedded::<ProtocolGeneratorAssets>))
-        .route("/protocol_generator/*path", get(serve_embedded::<ProtocolGeneratorAssets>))
+    embed_app_routes!(
+        Router::new(),
+        "admin" => AdminAssets,
+        "fj200c_information" => Fj200cInformationAssets,
+        "fj200c_main" => Fj200cMainAssets,
+        "fw100" => Fw100Assets,
+        "fw150" => Fw150Assets,
+        "ftj1c" => Ftj1cAssets,
+        "city3d" => City3dAssets,
+        "protocol_generator" => ProtocolGeneratorAssets,
+    )
 }

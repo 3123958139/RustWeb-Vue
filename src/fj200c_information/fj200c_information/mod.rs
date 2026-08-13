@@ -7,7 +7,6 @@
 pub mod com;
 pub mod config;
 pub mod csv_sink;
-pub mod csv_writer;
 pub mod decode;
 pub mod frame_bundle;
 pub mod mock;

@@ -305,7 +305,7 @@ fn handle_frame(
             connection_index,
             rows,
         };
-        info!("{:?}", event.clone());
+        trace!("{:?}", event);
         if let Ok(json) = crate::common::ws::serialize(&event) {
             let _ = tx.send(json);
         }

@@ -13,7 +13,7 @@
 //! - 写入线程串行处理所有命令，`Shutdown` 时 flush 尾帧并退出（线程 join）
 //! - `CsvWriter` 内部为 `Mutex<CsvWriterInner>`，本就线程安全，可整体搬入写入线程
 
-use crate::fj200c_information::csv_writer::CsvWriter;
+use crate::common::csv_writer::CsvWriter;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use tracing::{error, info};

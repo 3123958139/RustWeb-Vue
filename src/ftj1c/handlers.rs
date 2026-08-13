@@ -24,7 +24,6 @@
 //! - `WebSocketUpgrade`: 处理 WebSocket 升级请求
 
 use crate::common::dto::{ConfigContent, SavedResult, ServiceStatus};
-use crate::common::jwt;
 use crate::common::models::ApiResponse;
 use crate::database::DatabaseConnection;
 use crate::ftj1c::ftj1c_tx;
@@ -208,11 +207,7 @@ pub async fn ws_handler(
     Query(params): Query<HashMap<String, String>>,
     State(_db): State<DatabaseConnection>,
 ) -> Result<Response, axum::http::StatusCode> {
-    let token = params
-        .get("token")
-        .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
-
-    jwt::verify_token(token).map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
+    crate::common::ws::verify_query_token(&params)?;
 
     Ok(ws.on_upgrade(|socket| ws_session(socket)))
 }
