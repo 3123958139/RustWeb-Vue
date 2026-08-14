@@ -2,7 +2,7 @@ use crate::common::frame_extractor::FrameExtractor;
 use crate::common::io::IoControl;
 use crate::fj200c_main::config;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -74,17 +74,17 @@ impl ComSpec {
     }
 }
 
-/// 读写分离串口控制器
+/// 串口控制器（serial2 实现，支持并发读写）
 ///
-/// 打开串口后用 `try_clone()` 复制句柄（Windows 下为 `DuplicateHandle`，
-/// 得到两个独立句柄），读/写各持一把互斥锁互不阻塞。避免原先
-/// 读写共用一把 Mutex 时，读线程阻塞在 100ms 读超时期间，
-/// 写线程（100ms 周期发送）排队等锁造成卡顿延时。
+/// 串口库换用 serial2：其在 Windows 上用 overlapped IO（读/写请求各自
+/// 独立挂起，互不串行化），`read()/write()` 均只取 `&self`，收发两个线程
+/// 可无锁并发调用。serialport 4.x 是同步 IO，阻塞读会串行化写请求，
+/// 导致 100ms 周期发送被读超时周期卡成 100~700ms 抖动（serialport-rs
+/// issue #29/#124 的已知行为）。
 ///
 /// 流控固定关闭（`FlowControl::None`），防止 XOFF/XON 挂起写入。
 pub struct DualCom {
-    reader: Mutex<Box<dyn serialport::SerialPort>>,
-    writer: Mutex<Box<dyn serialport::SerialPort>>,
+    port: serial2::SerialPort,
     section: String,
 }
 
@@ -97,37 +97,39 @@ impl DualCom {
         parity: u8,
         section: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let writer = serialport::new(port_name, baud_rate)
-            .data_bits(match data_bits {
-                5 => serialport::DataBits::Five,
-                6 => serialport::DataBits::Six,
-                7 => serialport::DataBits::Seven,
-                _ => serialport::DataBits::Eight,
-            })
-            .parity(match parity {
-                1 => serialport::Parity::Odd,
-                2 => serialport::Parity::Even,
-                _ => serialport::Parity::None,
-            })
-            .stop_bits(match stop_bits {
-                2 => serialport::StopBits::Two,
-                _ => serialport::StopBits::One,
-            })
-            .timeout(Duration::from_millis(100))
-            .flow_control(serialport::FlowControl::None)
-            .open()
-            .map_err(|e| {
-                let msg = format!("[{}] 打开串口 {} 失败: {}", section, port_name, e);
-                error!("{}", msg);
-                msg
-            })?;
-        let reader = writer.try_clone().map_err(|e| {
-            let msg = format!("[{}] 复制串口句柄 {} 失败: {}", section, port_name, e);
+        let mut port = serial2::SerialPort::open(port_name, |mut settings: serial2::Settings| {
+            settings.set_raw();
+            settings.set_baud_rate(baud_rate)?;
+            settings.set_char_size(match data_bits {
+                5 => serial2::CharSize::Bits5,
+                6 => serial2::CharSize::Bits6,
+                7 => serial2::CharSize::Bits7,
+                _ => serial2::CharSize::Bits8,
+            });
+            settings.set_stop_bits(match stop_bits {
+                2 => serial2::StopBits::Two,
+                _ => serial2::StopBits::One,
+            });
+            settings.set_parity(match parity {
+                1 => serial2::Parity::Odd,
+                2 => serial2::Parity::Even,
+                _ => serial2::Parity::None,
+            });
+            settings.set_flow_control(serial2::FlowControl::None);
+            Ok(settings)
+        })
+        .map_err(|e| {
+            let msg = format!("[{}] 打开串口 {} 失败: {}", section, port_name, e);
+            error!("{}", msg);
+            msg
+        })?;
+        port.set_read_timeout(Duration::from_millis(100)).map_err(|e| {
+            let msg = format!("[{}] 设置读超时失败: {}", section, e);
             error!("{}", msg);
             msg
         })?;
         info!(
-            "[{}] 串口 {} 已打开(读写分离, 无流控): {} baud, {}{}{}",
+            "[{}] 串口 {} 已打开(overlapped 并发读写, 无流控): {} baud, {}{}{}",
             section,
             port_name,
             baud_rate,
@@ -143,8 +145,7 @@ impl DualCom {
             },
         );
         Ok(Self {
-            reader: Mutex::new(reader),
-            writer: Mutex::new(writer),
+            port,
             section: section.to_string(),
         })
     }
@@ -152,8 +153,7 @@ impl DualCom {
 
 impl IoControl for DualCom {
     fn send(&self, buf: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
-        let mut writer = self.writer.lock().unwrap_or_else(|e| e.into_inner());
-        let n = writer.write(buf).map_err(|e| {
+        let n = self.port.write(buf).map_err(|e| {
             let msg = format!("[{}] 串口发送失败: {}", self.section, e);
             error!("{}", msg);
             msg
@@ -162,19 +162,11 @@ impl IoControl for DualCom {
     }
 
     fn recv(&self, buf: &mut [u8]) -> Result<usize, Box<dyn std::error::Error>> {
-        let mut reader = self.reader.lock().unwrap_or_else(|e| e.into_inner());
-        let n = reader.read(buf).map_err(|e| {
+        let n = self.port.read(buf).map_err(|e| {
             debug!("[{}] 串口接收超时: {}", self.section, e);
             Box::new(e) as Box<dyn std::error::Error>
         })?;
         Ok(n)
-    }
-
-    fn set_timeout(&self, timeout_ms: u64) -> Result<(), Box<dyn std::error::Error>> {
-        let mut reader = self.reader.lock().unwrap_or_else(|e| e.into_inner());
-        reader
-            .set_timeout(Duration::from_millis(timeout_ms))
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 }
 
