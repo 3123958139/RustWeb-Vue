@@ -96,13 +96,18 @@ pub fn send_command(hex: &str) -> Result<(), String> {
     }
     let frame = crate::common::utils::parse_hex(hex).ok_or("无效的十六进制指令")?;
     if frame.len() < 16 {
-        return Err(format!("指令帧长度不足（当前 {} 字节，至少 16）", frame.len()));
+        return Err(format!(
+            "指令帧长度不足（当前 {} 字节，至少 16）",
+            frame.len()
+        ));
     }
     state::ecu_send_data().store(Arc::new(hex.to_string()));
     Ok(())
 }
 
-pub fn toggle_csv_recording(tx: &broadcast::Sender<crate::common::ws::EventPayload>) -> Result<(), String> {
+pub fn toggle_csv_recording(
+    tx: &broadcast::Sender<crate::common::ws::EventPayload>,
+) -> Result<(), String> {
     let is_recording = state::CSV_RECORDING.load(Ordering::Relaxed);
     match is_recording {
         0 => {
