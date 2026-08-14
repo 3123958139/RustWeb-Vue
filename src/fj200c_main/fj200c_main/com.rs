@@ -314,8 +314,11 @@ fn init_ecu(
 
     let sender = com.clone();
     thread::spawn(move || {
+        let interval = Duration::from_millis(100);
+        let mut deadline = Instant::now();
         while !s.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_millis(100));
+            deadline += interval;
+            thread::sleep(deadline.saturating_duration_since(Instant::now()));
             let data = crate::fj200c_main::state::ecu_send_data().load();
             let mut frame = match crate::common::utils::parse_hex(&data) {
                 Some(f) => f,
@@ -353,8 +356,11 @@ fn init_adam4015(
     let sender = com.clone();
     thread::spawn(move || {
         let cmd = b"#010\r";
+        let interval = Duration::from_secs(1);
+        let mut deadline = Instant::now();
         while !stop.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_secs(1));
+            deadline += interval;
+            thread::sleep(deadline.saturating_duration_since(Instant::now()));
             if stop.load(Ordering::Relaxed) {
                 break;
             }
@@ -383,8 +389,11 @@ fn init_adam4117(
     let sender = com.clone();
     thread::spawn(move || {
         let cmd = b"#010\r";
+        let interval = Duration::from_secs(1);
+        let mut deadline = Instant::now();
         while !stop.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_secs(1));
+            deadline += interval;
+            thread::sleep(deadline.saturating_duration_since(Instant::now()));
             if stop.load(Ordering::Relaxed) {
                 break;
             }
