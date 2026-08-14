@@ -1,6 +1,6 @@
 //! # 串口控制
 //!
-//! 对 `serial2` 库的封装，实现 `IoControl` trait。
+//! 对 `serial2` 库的封装（打开/超时复用 `common::serial`），实现 `IoControl` trait。
 //! 从 dch crate（fj200c_information.informatization control/com.rs）移植，
 //! 构造参数适配 Web 版 config-fj200c_information.ini 的 `[ConnectionN]` 节。
 //!
@@ -18,7 +18,6 @@
 
 use crate::fj200c_information::IoControl;
 use std::error::Error;
-use std::time::Duration;
 use tracing::{debug, error, info};
 
 /// 串口控制器
@@ -35,7 +34,7 @@ pub struct ComControl {
 impl ComControl {
     /// 从 Web 版配置参数创建串口控制器
     ///
-    /// 将配置文件中的数字参数映射为枚举类型，然后打开串口。
+    /// 将配置文件中的数字参数映射后打开串口（公共封装 `common::serial`）。
     /// - `parity`: 0=None, 1=Odd, 2=Even
     /// - `stop_bits`: 1=One, 2=Two
     /// - `flow_control`: 兼容旧配置项，固定忽略（始终无流控）
@@ -48,55 +47,15 @@ impl ComControl {
         _flow_control: bool,
         section: &str,
     ) -> Result<Self, Box<dyn Error>> {
-        let mut port =
-            serial2::SerialPort::open(port_name, |mut settings: serial2::Settings| {
-                settings.set_raw();
-                settings.set_baud_rate(baud_rate)?;
-                settings.set_char_size(match data_bits {
-                    5 => serial2::CharSize::Bits5,
-                    6 => serial2::CharSize::Bits6,
-                    7 => serial2::CharSize::Bits7,
-                    _ => serial2::CharSize::Bits8,
-                });
-                settings.set_stop_bits(match stop_bits {
-                    2 => serial2::StopBits::Two,
-                    _ => serial2::StopBits::One,
-                });
-                settings.set_parity(match parity {
-                    1 => serial2::Parity::Odd,
-                    2 => serial2::Parity::Even,
-                    _ => serial2::Parity::None,
-                });
-                settings.set_flow_control(serial2::FlowControl::None);
-                Ok(settings)
-            })
-            .map_err(|e| {
-                let msg = format!("[{}] 打开串口 {} 失败: {}", section, port_name, e);
-                error!("{}", msg);
-                msg
-            })?;
-        port.set_read_timeout(Duration::from_millis(100))
-            .map_err(|e| {
-                let msg = format!("[{}] 设置读超时失败: {}", section, e);
-                error!("{}", msg);
-                msg
-            })?;
-        info!(
-            "[{}] 串口 {} 已打开(overlapped 并发读写, 无流控): {} baud, {}{}{}",
-            section,
+        let port = crate::common::serial::open_port(
             port_name,
             baud_rate,
             data_bits,
-            match parity {
-                1 => "O",
-                2 => "E",
-                _ => "N",
-            },
-            match stop_bits {
-                2 => "2",
-                _ => "1",
-            },
-        );
+            stop_bits,
+            parity,
+            100,
+            section,
+        )?;
         Ok(Self {
             port,
             section: section.to_string(),
@@ -133,27 +92,10 @@ impl ComControl {
 
     /// 设置串口接收超时（毫秒）
     ///
-    /// serial2 的 `set_windows_timeouts` 只取 `&self`，运行期无锁调整。
+    /// 走公共封装 `common::serial::set_read_timeout_shared`，
+    /// 只取 `&self`，运行期无锁调整（Windows 下改 COMMTIMEOUTS）。
     pub fn set_timeout(&self, timeout_ms: u64) -> Result<(), Box<dyn Error>> {
-        #[cfg(windows)]
-        {
-            let timeout = timeout_ms.min(u32::MAX as u64 - 1) as u32;
-            let timeouts = serial2::os::windows::CommTimeouts {
-                read_interval_timeout: u32::MAX,
-                read_total_timeout_multiplier: u32::MAX,
-                read_total_timeout_constant: timeout,
-                write_total_timeout_multiplier: 0,
-                write_total_timeout_constant: timeout,
-            };
-            self.port
-                .set_windows_timeouts(&timeouts)
-                .map_err(|e| Box::new(e) as Box<dyn Error>)?;
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = timeout_ms;
-        }
-        Ok(())
+        crate::common::serial::set_read_timeout_shared(&self.port, timeout_ms)
     }
 }
 

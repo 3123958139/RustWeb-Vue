@@ -4,9 +4,8 @@ use crate::fj200c_main::config;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 use tokio::sync::broadcast;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 pub const FRAME_LEN: usize = 256;
 
@@ -97,53 +96,15 @@ impl DualCom {
         parity: u8,
         section: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut port = serial2::SerialPort::open(port_name, |mut settings: serial2::Settings| {
-            settings.set_raw();
-            settings.set_baud_rate(baud_rate)?;
-            settings.set_char_size(match data_bits {
-                5 => serial2::CharSize::Bits5,
-                6 => serial2::CharSize::Bits6,
-                7 => serial2::CharSize::Bits7,
-                _ => serial2::CharSize::Bits8,
-            });
-            settings.set_stop_bits(match stop_bits {
-                2 => serial2::StopBits::Two,
-                _ => serial2::StopBits::One,
-            });
-            settings.set_parity(match parity {
-                1 => serial2::Parity::Odd,
-                2 => serial2::Parity::Even,
-                _ => serial2::Parity::None,
-            });
-            settings.set_flow_control(serial2::FlowControl::None);
-            Ok(settings)
-        })
-        .map_err(|e| {
-            let msg = format!("[{}] 打开串口 {} 失败: {}", section, port_name, e);
-            error!("{}", msg);
-            msg
-        })?;
-        port.set_read_timeout(Duration::from_millis(100)).map_err(|e| {
-            let msg = format!("[{}] 设置读超时失败: {}", section, e);
-            error!("{}", msg);
-            msg
-        })?;
-        info!(
-            "[{}] 串口 {} 已打开(overlapped 并发读写, 无流控): {} baud, {}{}{}",
-            section,
+        let port = crate::common::serial::open_port(
             port_name,
             baud_rate,
             data_bits,
-            match parity {
-                1 => "O",
-                2 => "E",
-                _ => "N",
-            },
-            match stop_bits {
-                2 => "2",
-                _ => "1",
-            },
-        );
+            stop_bits,
+            parity,
+            100,
+            section,
+        )?;
         Ok(Self {
             port,
             section: section.to_string(),

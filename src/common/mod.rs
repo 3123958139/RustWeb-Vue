@@ -37,6 +37,7 @@ pub mod middleware;     // 中间件：认证、权限检查
 pub mod models;         // 数据模型：用户、权限、请求/响应
 pub mod quad_frame;     // 四槽帧缓冲（主备切换，泛型帧长）
 pub mod rate_limit;     // 登录速率限制（内存滑动窗口）
+pub mod serial;         // serial2 串口公共封装（数字参数映射 / 超时 / 日志）
 pub mod service;        // 服务运行时（线程句柄 / 停止标志）
 pub mod utils;          // 公共工具函数（hex/ASCII/时间戳/CSV/数字提取）
 pub mod ws;             // 公共 WebSocket 事件桥

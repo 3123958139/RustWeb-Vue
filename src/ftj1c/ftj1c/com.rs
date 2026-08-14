@@ -38,7 +38,6 @@ use crate::common::utils::format_hex;
 use chrono::{Local, Timelike};
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{error, info};
 
 // ════════════════════════════════════════════════════════════
@@ -585,56 +584,24 @@ impl ComControl {
             timeout_ms,
         };
 
-        let mut port =
-            serial2::SerialPort::open(&port_name, |mut settings: serial2::Settings| {
-                settings.set_raw();
-                settings.set_baud_rate(baud_rate)?;
-                settings.set_char_size(match data_bits {
-                    5 => serial2::CharSize::Bits5,
-                    6 => serial2::CharSize::Bits6,
-                    7 => serial2::CharSize::Bits7,
-                    _ => serial2::CharSize::Bits8,
-                });
-                settings.set_stop_bits(match stop_bits {
-                    ComStopBits::Two => serial2::StopBits::Two,
-                    ComStopBits::One => serial2::StopBits::One,
-                });
-                settings.set_parity(match parity {
-                    ComParity::Even => serial2::Parity::Even,
-                    ComParity::Odd => serial2::Parity::Odd,
-                    ComParity::None => serial2::Parity::None,
-                });
-                settings.set_flow_control(serial2::FlowControl::None);
-                Ok(settings)
-            })
-            .map_err(|e| {
-                let msg = format!("[{}] 打开串口 {} 失败: {}", section, port_name, e);
-                error!("{}", msg);
-                msg
-            })?;
-        port.set_read_timeout(Duration::from_millis(timeout_ms))
-            .map_err(|e| {
-                let msg = format!("[{}] 设置读超时失败: {}", section, e);
-                error!("{}", msg);
-                msg
-            })?;
-
-        info!(
-            "[{}] 串口 {} 已打开(overlapped 并发读写, 无流控): {} baud, {}{}{}",
-            section,
-            port_name,
+        let parity_code = match parity {
+            ComParity::None => 0,
+            ComParity::Odd => 1,
+            ComParity::Even => 2,
+        };
+        let stop_bits_code = match stop_bits {
+            ComStopBits::One => 1,
+            ComStopBits::Two => 2,
+        };
+        let port = crate::common::serial::open_port(
+            &port_name,
             baud_rate,
             data_bits,
-            match parity {
-                ComParity::None => "N",
-                ComParity::Even => "E",
-                ComParity::Odd => "O",
-            },
-            match stop_bits {
-                ComStopBits::One => "1",
-                ComStopBits::Two => "2",
-            },
-        );
+            stop_bits_code,
+            parity_code,
+            timeout_ms,
+            section,
+        )?;
 
         Ok(ComControl {
             port,
