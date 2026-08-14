@@ -78,6 +78,9 @@ export function createApiClient(loginPath: string): AxiosInstance {
   // ============ 请求拦截器 ============
   // 在每个请求发送前执行
   // 用途：自动添加 JWT Token 到请求头
+  // synchronous: true —— 拦截器在调用栈内同步执行，确保 token 在发起调用的同一同步块内被读取
+  // （登出流程会先清会话，若拦截器在微任务中异步读取 localStorage，登出请求将丢失 token 而 401，
+  //   导致后端收不到停止服务的指令，后台线程继续运行）
   api.interceptors.request.use(
     // 成功回调：处理请求配置
     (config) => {
@@ -91,7 +94,8 @@ export function createApiClient(loginPath: string): AxiosInstance {
       return config;
     },
     // 错误回调：处理请求配置错误
-    (error) => Promise.reject(error)
+    (error) => Promise.reject(error),
+    {synchronous: true}
   );
 
   // ============ 响应拦截器 ============

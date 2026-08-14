@@ -195,17 +195,23 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
         // 有且只有 keepRole 角色保持运行；keepRole 缺省 = 停止所有角色（退出登录场景）。
         // 调用时机：退出登录 / 切换账号 / 切换角色 / 跨标签页会话变更 / 启动服务排他。
         // 后端 POST /api/auth/logout 统一按角色停止 fj200c_information / fj200c_main / ftj1c 的服务线程。
+        // token 显式传入：登出/切换时会话即将被清除或覆盖，请求拦截器可能读不到旧 token。
         const stopServices = (keepRole?: string) => {
+            const token = getSessionToken();
             // 无会话 token 时请求必然 401 并触发登录页跳转，直接跳过
-            if (!getSessionToken()) return;
-            authApi.logout(keepRole).catch(() => {});
+            if (!token) return;
+            authApi.logout(keepRole, token).catch(() => {});
         };
 
         // 登出（统一会话键，所有应用同步退出）
         const logout = () => {
-            // 先通知后端停止所有角色的后台线程与资源（登出后无当前角色，全部退出）
-            // （axios 请求拦截器同步读取 localStorage token，随后才清会话）
-            authApi.logout().catch(() => {});
+            // 先通知后端停止所有角色的后台线程与资源（登出后无当前角色，全部退出）。
+            // 必须在清会话前捕获 token 并显式传给请求：axios 请求拦截器虽有同步配置兜底，
+            // 显式携带 token 保证即便时序变化也不丢失凭证。
+            const token = getSessionToken();
+            if (token) {
+                authApi.logout(undefined, token).catch(() => {});
+            }
             user.value = null;
             token.value = null;
             permissions.value = [];
