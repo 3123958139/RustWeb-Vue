@@ -208,9 +208,9 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
             // 先通知后端停止所有角色的后台线程与资源（登出后无当前角色，全部退出）。
             // 必须在清会话前捕获 token 并显式传给请求：axios 请求拦截器虽有同步配置兜底，
             // 显式携带 token 保证即便时序变化也不丢失凭证。
-            const token = getSessionToken();
-            if (token) {
-                authApi.logout(undefined, token).catch(() => {});
+            const sessionToken = getSessionToken();
+            if (sessionToken) {
+                authApi.logout(undefined, sessionToken).catch(() => {});
             }
             user.value = null;
             token.value = null;
