@@ -28,9 +28,4 @@ const fw150ListItems = (
       options);
     }
   return {fw150ListItems}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type Fw150ListItemsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFw150>['fw150ListItems']>>>

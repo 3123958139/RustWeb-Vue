@@ -136,11 +136,6 @@ const ftj1cStopService = (
       options);
     }
   return {ftj1cGetConfig,ftj1cSaveConfig,ftj1cGetHelp,ftj1cGetIpConfig,ftj1cStartService,ftj1cGetServiceStatus,ftj1cStopService}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type Ftj1cGetConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cGetConfig']>>>
 export type Ftj1cSaveConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cSaveConfig']>>>
 export type Ftj1cGetHelpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFtj1c>['ftj1cGetHelp']>>>

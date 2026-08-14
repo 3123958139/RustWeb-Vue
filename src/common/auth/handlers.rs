@@ -6,6 +6,7 @@
 //! |------|------|------|------|
 //! | `/api/auth/login` | POST | 用户登录 | 无 |
 //! | `/api/auth/profile` | GET | 获取当前用户信息 | 已登录 |
+//! | `/api/auth/logout` | POST | 退出登录（停止所有角色后台线程与资源） | 已登录 |
 //!
 //! # 响应格式
 //!
@@ -20,7 +21,7 @@
 
 use crate::common::error::AppError;                     // 统一错误类型
 use crate::common::jwt;                                 // JWT 工具
-use crate::common::models::{ApiResponse, LoginRequest, LoginResponse, User};  // 数据模型
+use crate::common::models::{ApiResponse, LoginRequest, LoginResponse, LogoutRequest, User};  // 数据模型
 use crate::common::rate_limit;                          // 登录速率限制
 use crate::common::auth::services::AuthService;         // 认证服务
 use axum::{extract::{ConnectInfo, Extension, State}, Json};                   // Axum 提取器
@@ -167,4 +168,52 @@ pub async fn get_profile(
     Extension(user): Extension<User>,
 ) -> Result<Json<ApiResponse<User>>, AppError> {
     Ok(Json(ApiResponse::success(user)))
+}
+
+/// 退出登录处理器（公共清理组件：所有角色共用）
+///
+/// # 端点
+/// `POST /api/auth/logout`
+///
+/// # 权限
+/// 需要登录（`auth_middleware` 保护）
+///
+/// # 功能
+///
+/// JWT 无状态，服务端无会话可销毁；本端点用于**按角色隔离停止后台线程与资源**，
+/// 保证**有且只有当前角色保持线程与资源**：
+///
+/// - `keep_role` 缺省 / 为空：停止全部三个角色服务（退出登录场景，无当前角色）
+/// - `keep_role = "fj200c_information" / "fj200c_main" / "ftj1c"`：
+///   仅停止**其他角色**自有的服务线程与资源，当前角色服务保持运行
+///   （切换角色 / 切换账号 / 跨标签页角色变更场景）
+///
+/// 前端公共层（`packages/shared`）在退出登录、切换角色、切换账号、
+/// 跨标签页角色变更时调用（各角色停止函数幂等，未运行的服务直接跳过）。
+///
+/// # 请求体
+/// ```json
+/// { "keep_role": "fj200c_main" }
+/// ```
+///
+/// # 成功响应
+/// ```json
+/// {
+///     "success": true,
+///     "data": true
+/// }
+/// ```
+#[utoipa::path(
+    post,
+    tag = "auth",
+    path = "/api/auth/logout",
+    operation_id = "authLogout",
+    request_body = LogoutRequest,
+    responses(
+        (status = 200, description = "已按角色停止其他服务的后台线程与资源", body = ApiResponse<bool>),
+    ),
+)]
+pub async fn logout(Json(req): Json<LogoutRequest>) -> Result<Json<ApiResponse<bool>>, AppError> {
+    crate::common::service::stop_all_services_except(req.keep_role.as_deref());
+    Ok(Json(ApiResponse::success(true)))
 }

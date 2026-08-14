@@ -1,7 +1,7 @@
 import {defineStore, type StoreDefinition} from "pinia";
 import {ref, computed} from "vue";
 import type {MenuItem, Permission, User} from "../types";
-import {clearSession, loadSession, saveSession, SESSION_KEY, LEGACY_KEYS} from "../session";
+import {clearSession, getSessionToken, loadSession, saveSession, SESSION_KEY, LEGACY_KEYS} from "../session";
 import {getMenusByRole, getPermissionsByRole, loadRoleRegistry} from "../roles";
 import type {AuthApi} from "../api/auth";
 
@@ -132,6 +132,7 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
 
         // 其他标签页切换用户时实时同步（storage 事件只在别的标签页触发）
         const syncFromStorage = () => {
+            const prevUserId = user.value?.id ?? null;
             const session = loadSession();
             if (session && allowedRoles.includes(session.user.role)) {
                 token.value = session.token;
@@ -142,6 +143,11 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
                 user.value = null;
                 token.value = null;
                 refreshAuthState();
+            }
+            // 其他标签页切换了账号/角色（共享会话被新会话覆盖）：
+            // 通知后端停止其他角色的线程与资源，保留新会话当前角色的线程
+            if (session && prevUserId !== session.user.id) {
+                stopServices(session.user.role);
             }
         };
 
@@ -165,6 +171,11 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
                 await loadRoleRegistry();
                 const response = await authApi.login({email, password});
                 if (response.success && response.data) {
+                    // 切换账号/角色：先停掉旧会话的线程与资源，保留新账号角色的线程
+                    // （此时请求仍携带旧 token，幂等）
+                    if (!user.value || user.value.id !== response.data.user.id) {
+                        stopServices(response.data.user.role);
+                    }
                     token.value = response.data.token;
                     user.value = response.data.user;
                     saveSession(response.data.token, response.data.user);
@@ -180,8 +191,21 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
             }
         };
 
-        // 登出（统一会话键，fj200c_information/admin 同步退出）
+        // 通知后端按角色停止其他角色的后台线程与资源（公共组件，所有角色通用）
+        // 有且只有 keepRole 角色保持运行；keepRole 缺省 = 停止所有角色（退出登录场景）。
+        // 调用时机：退出登录 / 切换账号 / 切换角色 / 跨标签页会话变更 / 启动服务排他。
+        // 后端 POST /api/auth/logout 统一按角色停止 fj200c_information / fj200c_main / ftj1c 的服务线程。
+        const stopServices = (keepRole?: string) => {
+            // 无会话 token 时请求必然 401 并触发登录页跳转，直接跳过
+            if (!getSessionToken()) return;
+            authApi.logout(keepRole).catch(() => {});
+        };
+
+        // 登出（统一会话键，所有应用同步退出）
         const logout = () => {
+            // 先通知后端停止所有角色的后台线程与资源（登出后无当前角色，全部退出）
+            // （axios 请求拦截器同步读取 localStorage token，随后才清会话）
+            authApi.logout().catch(() => {});
             user.value = null;
             token.value = null;
             permissions.value = [];
@@ -222,6 +246,7 @@ export function createAuthStore(options: AuthStoreOptions): StoreDefinition {
             initAuth,
             login,
             logout,
+            stopServices,
             fetchProfile,
         };
     });

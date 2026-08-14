@@ -45,6 +45,8 @@ pub fn start_service(tx: broadcast::Sender<EventPayload>) -> Result<(), String> 
     if SERVICE_RUNNING.load(Ordering::Relaxed) {
         return Err("服务已在运行中".to_string());
     }
+    // 排他运行（公共组件）：有且只有当前角色保持线程与资源，停止其他角色的服务
+    crate::common::service::stop_all_services_except(Some("fj200c_information"));
     let cfg = Config::load(crate::fj200c_information::state::CONFIG_PATH)
         .map_err(|e| format!("加载配置文件失败: {}", e))?;
     let _ = config::set_global(cfg.clone());

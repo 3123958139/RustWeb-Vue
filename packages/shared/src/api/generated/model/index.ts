@@ -8,6 +8,7 @@
 
 export * from './adam4015Fields';
 export * from './adam4117Fields';
+export * from './apiResponseBool';
 export * from './apiResponseBuildingPage';
 export * from './apiResponseBuildingPageData';
 export * from './apiResponseConfigContent';
@@ -93,6 +94,7 @@ export * from './ipConfig';
 export * from './ledgerItem';
 export * from './loginRequest';
 export * from './loginResponse';
+export * from './logoutRequest';
 export * from './overview';
 export * from './parameterDef';
 export * from './performanceRow';

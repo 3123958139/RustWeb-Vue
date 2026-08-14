@@ -176,11 +176,6 @@ const city3dGetOverview = (
       options);
     }
   return {city3dListBuildings,city3dCreateBuilding,city3dUpdateBuilding,city3dDeleteBuilding,city3dListDistricts,city3dCreateDistrict,city3dUpdateDistrict,city3dDeleteDistrict,city3dListEvents,city3dCreateEvent,city3dDeleteEvent,city3dGetOverview}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type City3dListBuildingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCity3d>['city3dListBuildings']>>>
 export type City3dCreateBuildingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCity3d>['city3dCreateBuilding']>>>
 export type City3dUpdateBuildingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCity3d>['city3dUpdateBuilding']>>>

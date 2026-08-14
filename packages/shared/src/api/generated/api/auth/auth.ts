@@ -6,9 +6,11 @@
  * OpenAPI spec version: 1.0.0
  */
 import type {
+  ApiResponseBool,
   ApiResponseLoginResponse,
   ApiResponseUser,
-  LoginRequest
+  LoginRequest,
+  LogoutRequest
 } from '../../model';
 
 import { customInstance } from '../../../custom-instance';
@@ -80,6 +82,50 @@ const authLogin = (
     }
   /**
  * # 端点
+ * `POST /api/auth/logout`
+ *
+ * # 权限
+ * 需要登录（`auth_middleware` 保护）
+ *
+ * # 功能
+ *
+ * JWT 无状态，服务端无会话可销毁；本端点用于**按角色隔离停止后台线程与资源**，
+ * 保证**有且只有当前角色保持线程与资源**：
+ *
+ * - `keep_role` 缺省 / 为空：停止全部三个角色服务（退出登录场景，无当前角色）
+ * - `keep_role = "fj200c_information" / "fj200c_main" / "ftj1c"`：
+ *   仅停止**其他角色**自有的服务线程与资源，当前角色服务保持运行
+ *   （切换角色 / 切换账号 / 跨标签页角色变更场景）
+ *
+ * 前端公共层（`packages/shared`）在退出登录、切换角色、切换账号、
+ * 跨标签页角色变更时调用（各角色停止函数幂等，未运行的服务直接跳过）。
+ *
+ * # 请求体
+ * ```json
+ * { "keep_role": "fj200c_main" }
+ * ```
+ *
+ * # 成功响应
+ * ```json
+ * {
+ *     "success": true,
+ *     "data": true
+ * }
+ * ```
+ * @summary 退出登录处理器（公共清理组件：所有角色共用）
+ */
+const authLogout = (
+    logoutRequest: BodyType<LogoutRequest>,
+ options?: SecondParameter<typeof customInstance<ApiResponseBool>>,) => {
+      return customInstance<ApiResponseBool>(
+      {url: `/api/auth/logout`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: logoutRequest
+    },
+      options);
+    }
+  /**
+ * # 端点
  * `GET /api/auth/profile`
  *
  * # 权限
@@ -119,11 +165,7 @@ const authGetProfile = (
     },
       options);
     }
-  return {authLogin,authGetProfile}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
+  return {authLogin,authLogout,authGetProfile}};
 export type AuthLoginResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['authLogin']>>>
+export type AuthLogoutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['authLogout']>>>
 export type AuthGetProfileResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['authGetProfile']>>>

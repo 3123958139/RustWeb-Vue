@@ -18,6 +18,15 @@ export function createAuthApi() {
     async getProfile() {
       return getAuth().authGetProfile();
     },
+
+    /**
+     * 退出登录 / 角色清理（公共组件，所有角色通用）：
+     * 后端按角色隔离停止后台线程与资源，有且只有 keepRole 角色保持运行。
+     * keepRole 缺省时停止所有角色的服务（退出登录场景）。
+     */
+    async logout(keepRole?: string) {
+      return getAuth().authLogout({keep_role: keepRole ?? null});
+    },
   };
 }
 

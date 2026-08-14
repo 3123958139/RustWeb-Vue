@@ -30,9 +30,4 @@ const metaListRoles = (
       options);
     }
   return {metaListRoles}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type MetaListRolesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMeta>['metaListRoles']>>>

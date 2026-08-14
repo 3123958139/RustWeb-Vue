@@ -99,11 +99,6 @@ const protocolGeneratorExportMarkdown = (
       options);
     }
   return {protocolGeneratorParseCsv,protocolGeneratorSerializeCsv,protocolGeneratorGetDefaultCsv,protocolGeneratorSaveDefaultCsv,protocolGeneratorExportExcel,protocolGeneratorExportMarkdown}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type ProtocolGeneratorParseCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProtocolGenerator>['protocolGeneratorParseCsv']>>>
 export type ProtocolGeneratorSerializeCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProtocolGenerator>['protocolGeneratorSerializeCsv']>>>
 export type ProtocolGeneratorGetDefaultCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProtocolGenerator>['protocolGeneratorGetDefaultCsv']>>>

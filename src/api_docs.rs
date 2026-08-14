@@ -25,6 +25,7 @@ use utoipa::OpenApi;
         // ============ 认证（所有角色共用） ============
         crate::common::auth::handlers::login,
         crate::common::auth::handlers::get_profile,
+        crate::common::auth::handlers::logout,
         // ============ meta（角色注册表等元信息） ============
         crate::roles::list_roles,
         // ============ 管理员（用户管理） ============
@@ -99,6 +100,7 @@ use utoipa::OpenApi;
             crate::common::models::User,
             crate::common::models::LoginRequest,
             crate::common::models::LoginResponse,
+            crate::common::models::LogoutRequest,
             crate::common::models::CreateUserRequest,
             crate::common::models::UpdateUserRoleRequest,
             crate::common::models::UserSettings,
@@ -202,6 +204,7 @@ mod tests {
         for path in [
             "/api/auth/login",
             "/api/auth/profile",
+            "/api/auth/logout",
             "/api/meta/roles",
             "/admin/pwd",
             "/api/users",
@@ -254,9 +257,9 @@ mod tests {
             assert!(paths.contains_key(path), "缺少路径: {}", path);
         }
 
-        // 唯一路径数：auth 2 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
-        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 = 47
-        assert_eq!(paths.len(), 48, "路径数量与预期不符");
+        // 唯一路径数：auth 3 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
+        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 = 49
+        assert_eq!(paths.len(), 49, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -273,7 +276,7 @@ mod tests {
                 }
             }
         }
-        // 59 个 HTTP 操作（不含 WebSocket）：原 53 + protocol_generator 6
-        assert_eq!(operations, 60, "操作数量与预期不符");
+        // 61 个 HTTP 操作（不含 WebSocket）
+        assert_eq!(operations, 61, "操作数量与预期不符");
     }
 }

@@ -24,6 +24,8 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
     if is_running() {
         return Err("服务已在运行中".to_string());
     }
+    // 排他运行（公共组件）：有且只有当前角色保持线程与资源，停止其他角色的服务
+    crate::common::service::stop_all_services_except(Some("fj200c_main"));
     RUNTIME.wait_stopping(Duration::from_secs(3));
 
     let cfg = Config::load(state::CONFIG_PATH).map_err(|e| format!("加载配置文件失败: {}", e))?;
@@ -55,9 +57,17 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
 }
 
 pub fn stop_service() {
-    if !is_running() {
-        return;
-    }
+    stop_all();
+}
+
+/// 停止服务与模拟运行的全部线程资源（幂等，未运行也安全）
+///
+/// 除 `stop_service` 的常规停止外，还额外处理：
+/// - 服务未运行时单独启动的模拟发送线程（`/simulation/toggle`）
+/// - CSV 录制：复位标志并 flush 关闭文件，避免残留打开句柄
+///
+/// 登出 / 切换角色时由 `crate::common::service::stop_all_services` 统一调用。
+pub fn stop_all() {
     RUNTIME.set_stopping(true);
 
     if let Ok(mut guard) = state::ALL_COM_PORTS.lock() {
@@ -82,6 +92,14 @@ pub fn stop_service() {
         let event = Fj200cMainEvent::SimulationState { simulating: false };
         if let Ok(json) = crate::common::ws::serialize(&event) {
             let _ = crate::fj200c_main::fj200c_main_tx().send(json);
+        }
+    }
+
+    // 停止录制并 flush 关闭 CSV 文件（服务未运行但录制残留时同样清理）
+    state::CSV_RECORDING.store(0, Ordering::Relaxed);
+    if let Ok(mut guard) = state::CSV_WRITER.lock() {
+        if let Some(writer) = guard.take() {
+            let _ = writer.flush();
         }
     }
 
@@ -178,6 +196,8 @@ pub fn toggle_simulation(tx: &broadcast::Sender<crate::common::ws::EventPayload>
     let new_sim = !is_sim;
 
     if new_sim {
+        // 排他运行（公共组件）：启动模拟发送线程前停止其他角色的服务线程与资源
+        crate::common::service::stop_all_services_except(Some("fj200c_main"));
         // shared_port_data 惰性创建，未启动服务时模拟运行也能正常推送数据
         let mut guard = state::MOCK_SENDERS_STOP
             .lock()

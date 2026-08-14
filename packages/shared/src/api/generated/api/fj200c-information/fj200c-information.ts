@@ -124,11 +124,6 @@ const fj200cInformationStopService = (
       options);
     }
   return {fj200cInformationGetConfig,fj200cInformationSaveConfig,fj200cInformationListCsvFiles,fj200cInformationGetCsvFile,fj200cInformationSendCommand,fj200cInformationStartService,fj200cInformationGetServiceStatus,fj200cInformationStopService}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type Fj200cInformationGetConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFj200cInformation>['fj200cInformationGetConfig']>>>
 export type Fj200cInformationSaveConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFj200cInformation>['fj200cInformationSaveConfig']>>>
 export type Fj200cInformationListCsvFilesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFj200cInformation>['fj200cInformationListCsvFiles']>>>

@@ -63,6 +63,38 @@
         }
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "退出登录处理器（公共清理组件：所有角色共用）",
+        "description": "# 端点\n`POST /api/auth/logout`\n\n# 权限\n需要登录（`auth_middleware` 保护）\n\n# 功能\n\nJWT 无状态，服务端无会话可销毁；本端点用于**按角色隔离停止后台线程与资源**，\n保证**有且只有当前角色保持线程与资源**：\n\n- `keep_role` 缺省 / 为空：停止全部三个角色服务（退出登录场景，无当前角色）\n- `keep_role = \"fj200c_information\" / \"fj200c_main\" / \"ftj1c\"`：\n  仅停止**其他角色**自有的服务线程与资源，当前角色服务保持运行\n  （切换角色 / 切换账号 / 跨标签页角色变更场景）\n\n前端公共层（`packages/shared`）在退出登录、切换角色、切换账号、\n跨标签页角色变更时调用（各角色停止函数幂等，未运行的服务直接跳过）。\n\n# 请求体\n```json\n{ \"keep_role\": \"fj200c_main\" }\n```\n\n# 成功响应\n```json\n{\n    \"success\": true,\n    \"data\": true\n}\n```",
+        "operationId": "authLogout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "已按角色停止其他服务的后台线程与资源",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_bool"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/profile": {
       "get": {
         "tags": [
@@ -3122,6 +3154,29 @@
           }
         }
       },
+      "ApiResponse_bool": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
       "Building": {
         "type": "object",
         "description": "建筑（列表项，含区域名称）",
@@ -4315,6 +4370,19 @@
           "user": {
             "$ref": "#/components/schemas/User",
             "description": "用户信息"
+          }
+        }
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "description": "退出登录请求（公共清理组件，所有角色通用）\n\nJWT 无状态，服务端无会话可销毁；本请求用于**按角色隔离停止后台线程与资源**，\n保证有且只有当前角色保持线程与资源：\n\n- `keep_role` 缺省 / 为空：停止全部三个角色服务（退出登录场景，无当前角色）\n- `keep_role = Some(role)`：仅停止其他角色自有的服务线程与资源，\n  该角色（当前角色）的服务保持运行（切换角色 / 切换账号 / 跨标签页角色变更场景）",
+        "properties": {
+          "keep_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "需要保留线程与资源的角色 key（如 \"fj200c_main\"）；缺省时停止所有角色服务"
           }
         }
       },

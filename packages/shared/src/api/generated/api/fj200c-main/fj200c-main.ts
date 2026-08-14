@@ -225,11 +225,6 @@ const fj200cMainSetTheme = (
       options);
     }
   return {fj200cMainGetConfig,fj200cMainSaveConfig,fj200cMainListCsvFiles,fj200cMainGetCsvFile,fj200cMainGetExperiment,fj200cMainSaveExperiment,fj200cMainGetHelp,fj200cMainToggleRecording,fj200cMainGenerateReport,fj200cMainSendCommand,fj200cMainStartService,fj200cMainGetServiceStatus,fj200cMainStopService,fj200cMainToggleSimulation,fj200cMainSetTheme}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type Fj200cMainGetConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFj200cMain>['fj200cMainGetConfig']>>>
 export type Fj200cMainSaveConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFj200cMain>['fj200cMainSaveConfig']>>>
 export type Fj200cMainListCsvFilesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getFj200cMain>['fj200cMainListCsvFiles']>>>

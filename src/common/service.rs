@@ -93,3 +93,30 @@ pub fn stop_in_background(
         tracing::info!("{}", log_msg);
     });
 }
+
+/// 按角色隔离停止后台线程与资源（公共组件，所有角色通用）
+///
+/// 保证**有且只有当前角色保持线程与资源**：
+///
+/// - `keep_role = None`：停止全部三个角色服务（退出登录场景，无当前角色）
+/// - `keep_role = Some(role)`：仅停止**其他角色**自有的服务线程与资源，
+///   当前角色（`role`）的服务保持运行（切换角色 / 切换账号 / 启动当前角色服务场景）
+///
+/// 各角色停止函数幂等（未运行则直接返回），可随时安全调用：
+///
+/// - `fj200c_information`：串口/模拟采集会话线程、CSV 写线程
+/// - `fj200c_main`：五路串口（ECU/ADAM/DYNO/Flux）读线程、周期发送线程、
+///   处理线程、模拟发送线程，并关闭 CSV 录制文件
+/// - `ftj1c`：UDP 组播接收线程、串口发送线程
+pub fn stop_all_services_except(keep_role: Option<&str>) {
+    if keep_role != Some("fj200c_information") {
+        crate::fj200c_information::service::stop_service();
+    }
+    if keep_role != Some("fj200c_main") {
+        crate::fj200c_main::service::stop_all();
+    }
+    if keep_role != Some("ftj1c") {
+        crate::ftj1c::service::stop_service();
+    }
+    tracing::info!("角色服务线程清理完成（保留: {:?}）", keep_role);
+}

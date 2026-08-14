@@ -8,13 +8,15 @@
 //! |------|------|--------|------|
 //! | `/api/auth/login` | POST | `handlers::login` | 无 |
 //! | `/api/auth/profile` | GET | `handlers::get_profile` | `auth_middleware` |
+//! | `/api/auth/logout` | POST | `handlers::logout` | `auth_middleware` |
 //!
 //! # 路由分组
 //!
 //! ```text
 //! /api/auth/
 //! ├── POST /login        （公开，无需登录）
-//! └── GET  /profile      （需要登录）
+//! ├── GET  /profile      （需要登录）
+//! └── POST /logout       （需要登录，停止所有角色后台线程与资源）
 //! ```
 //!
 //! # 语法说明
@@ -49,6 +51,7 @@ pub fn auth_router(db: DatabaseConnection) -> Router<DatabaseConnection> {
     // `route_layer` 为当前路由组的所有路由添加中间件
     let protected = Router::<DatabaseConnection>::new()
         .route("/profile", get(handlers::get_profile))  // GET /api/auth/profile
+        .route("/logout", post(handlers::logout))       // POST /api/auth/logout
         .route_layer(middleware::from_fn_with_state(db, auth_middleware));  // 添加认证中间件
 
     // 创建公开路由 + 受保护路由

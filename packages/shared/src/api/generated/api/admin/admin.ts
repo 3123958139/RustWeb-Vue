@@ -207,11 +207,6 @@ const adminUpdateUserRole = (
       options);
     }
   return {adminListSeedPasswords,adminListUsers,adminCreateUser,adminGetPwdRouteStatus,adminSetPwdRouteStatus,adminDeleteUser,adminUpdateUserRole}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type AdminListSeedPasswordsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdmin>['adminListSeedPasswords']>>>
 export type AdminListUsersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdmin>['adminListUsers']>>>
 export type AdminCreateUserResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdmin>['adminCreateUser']>>>
