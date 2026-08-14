@@ -1283,7 +1283,7 @@
         "tags": [
           "fw150"
         ],
-        "summary": "设备台账列表（登录 + fw150:read 权限中间件保护）",
+        "summary": "设备台账列表（登录 + Fw150Monitor 权限中间件保护）",
         "operationId": "fw150ListItems",
         "responses": {
           "200": {
@@ -1684,6 +1684,7 @@
     "schemas": {
       "Adam4015Fields": {
         "type": "object",
+        "description": "Adam4015 模拟量采集模块解码字段（8 通道电压，V）",
         "required": [
           "channels"
         ],
@@ -1693,12 +1694,14 @@
             "items": {
               "type": "number",
               "format": "double"
-            }
+            },
+            "description": "8 通道电压值（V）"
           }
         }
       },
       "Adam4117Fields": {
         "type": "object",
+        "description": "Adam4117 模拟量采集模块解码字段（8 通道电压，V）",
         "required": [
           "channels"
         ],
@@ -1708,7 +1711,8 @@
             "items": {
               "type": "number",
               "format": "double"
-            }
+            },
+            "description": "8 通道电压值（V）"
           }
         }
       },
@@ -1956,6 +1960,7 @@
         "properties": {
           "data": {
             "type": "object",
+            "description": "试验信息（报表抬头使用，前端录入后保存）",
             "required": [
               "engineNo",
               "gasGeneratorNo",
@@ -1967,25 +1972,32 @@
             ],
             "properties": {
               "controllerNo": {
-                "type": "string"
+                "type": "string",
+                "description": "控制器编号"
               },
               "engineNo": {
-                "type": "string"
+                "type": "string",
+                "description": "发动机编号"
               },
               "gasGeneratorNo": {
-                "type": "string"
+                "type": "string",
+                "description": "燃气发生器编号"
               },
               "oilSensorNo": {
-                "type": "string"
+                "type": "string",
+                "description": "滑油传感器编号"
               },
               "speedSensorNo": {
-                "type": "string"
+                "type": "string",
+                "description": "转速传感器编号"
               },
               "testItem": {
-                "type": "string"
+                "type": "string",
+                "description": "试验项目"
               },
               "testTime": {
-                "type": "string"
+                "type": "string",
+                "description": "试验时间"
               }
             }
           },
@@ -2430,6 +2442,7 @@
         "properties": {
           "data": {
             "type": "object",
+            "description": "报表生成结果（试验信息 + 状态点 + 三张数据表）",
             "required": [
               "basicInfo",
               "statePoints",
@@ -2442,32 +2455,37 @@
                 "type": "array",
                 "items": {
                   "type": "string"
-                }
+                },
+                "description": "试验基本信息（抬头行，见 report.rs 组装逻辑）"
               },
               "designPointData": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/DesignPointRow"
-                }
+                },
+                "description": "设计点数据表"
               },
               "performanceData": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/PerformanceRow"
-                }
+                },
+                "description": "性能数据表"
               },
               "standardData": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/StandardRow"
-                }
+                },
+                "description": "标准数据表"
               },
               "statePoints": {
                 "type": "array",
                 "items": {
                   "type": "number",
                   "format": "double"
-                }
+                },
+                "description": "报表状态点（来自配置 [REPORT] StatePoints）"
               }
             }
           },
@@ -3292,60 +3310,71 @@
         "oneOf": [
           {
             "type": "object",
+            "description": "ECU 发动机数据",
             "required": [
               "Ecu"
             ],
             "properties": {
               "Ecu": {
-                "$ref": "#/components/schemas/EcuFields"
+                "$ref": "#/components/schemas/EcuFields",
+                "description": "ECU 发动机数据"
               }
             }
           },
           {
             "type": "object",
+            "description": "Adam4015 环境数据",
             "required": [
               "Adam4015"
             ],
             "properties": {
               "Adam4015": {
-                "$ref": "#/components/schemas/Adam4015Fields"
+                "$ref": "#/components/schemas/Adam4015Fields",
+                "description": "Adam4015 环境数据"
               }
             }
           },
           {
             "type": "object",
+            "description": "Adam4117 环境数据",
             "required": [
               "Adam4117"
             ],
             "properties": {
               "Adam4117": {
-                "$ref": "#/components/schemas/Adam4117Fields"
+                "$ref": "#/components/schemas/Adam4117Fields",
+                "description": "Adam4117 环境数据"
               }
             }
           },
           {
             "type": "object",
+            "description": "测功机数据",
             "required": [
               "Dyno"
             ],
             "properties": {
               "Dyno": {
-                "$ref": "#/components/schemas/DynoFields"
+                "$ref": "#/components/schemas/DynoFields",
+                "description": "测功机数据"
               }
             }
           },
           {
             "type": "object",
+            "description": "燃油流量计数据",
             "required": [
               "Flux"
             ],
             "properties": {
               "Flux": {
-                "$ref": "#/components/schemas/FluxFields"
+                "$ref": "#/components/schemas/FluxFields",
+                "description": "燃油流量计数据"
               }
             }
           }
-        ]
+        ],
+        "description": "五路串口的解码结果枚举（WebSocket 广播载荷，按 `type` 字段区分数据源）"
       },
       "CityEvent": {
         "type": "object",
@@ -3605,6 +3634,7 @@
       },
       "DesignPointRow": {
         "type": "object",
+        "description": "设计点数据行",
         "required": [
           "speed",
           "thrust",
@@ -3613,16 +3643,20 @@
         ],
         "properties": {
           "exhaustTemp": {
-            "type": "string"
+            "type": "string",
+            "description": "排气温度"
           },
           "sfc": {
-            "type": "string"
+            "type": "string",
+            "description": "耗油率 SFC"
           },
           "speed": {
-            "type": "string"
+            "type": "string",
+            "description": "转速"
           },
           "thrust": {
-            "type": "string"
+            "type": "string",
+            "description": "推力"
           }
         }
       },
@@ -3674,6 +3708,7 @@
       },
       "DynoFields": {
         "type": "object",
+        "description": "测功机解码字段",
         "required": [
           "njzs",
           "nj",
@@ -3682,20 +3717,24 @@
         "properties": {
           "nj": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "扭矩（N·m）"
           },
           "njgl": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "扭矩功率（kW，由 扭矩×转速/9550 计算）"
           },
           "njzs": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "扭矩转速（r/min）"
           }
         }
       },
       "EcuFields": {
         "type": "object",
+        "description": "ECU 解码字段（42 字节帧解析结果，见 `decode::decode_ecu`）",
         "required": [
           "ngSpeed",
           "exhaustTemp",
@@ -3728,106 +3767,134 @@
         ],
         "properties": {
           "accessoryStatus": {
-            "type": "string"
+            "type": "string",
+            "description": "附件状态（十六进制，低 5 位对应各附件）"
           },
           "altitude": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "海拔高度（m）"
           },
           "cmdExecStatus": {
-            "type": "string"
+            "type": "string",
+            "description": "控制指令执行情况（中文描述，见 `decode::cmd_exec_str`）"
           },
           "cmdExecU8": {
-            "type": "string"
+            "type": "string",
+            "description": "指令执行状态原始字节（十六进制）"
           },
           "engineStatus": {
-            "type": "string"
+            "type": "string",
+            "description": "发动机状态（中文描述，见 `decode::engine_status_str`）"
           },
           "engineStatusU8": {
-            "type": "string"
+            "type": "string",
+            "description": "发动机状态原始字节（十六进制）"
           },
           "exchangerOutletTemp": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "换热器出口滑油温度（℃）"
           },
           "exhaustTemp": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "排气温度（℃）"
           },
           "faultCode1": {
             "type": "integer",
             "format": "int32",
+            "description": "故障码 1（自检/起动阶段故障位）",
             "minimum": 0
           },
           "faultCode2": {
             "type": "integer",
             "format": "int32",
+            "description": "故障码 2（运行阶段故障位）",
             "minimum": 0
           },
           "faultCodes": {
-            "$ref": "#/components/schemas/FaultCodeFlags"
+            "$ref": "#/components/schemas/FaultCodeFlags",
+            "description": "故障码按位展开的标志集合"
           },
           "fingerprintCode": {
-            "type": "string"
+            "type": "string",
+            "description": "指纹码（4 字节十六进制）"
           },
           "frameCount": {
             "type": "integer",
             "format": "int32",
+            "description": "帧计数",
             "minimum": 0
           },
           "fuelPressure": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "燃油压力"
           },
           "fuelPump": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "燃油泵状态"
           },
           "ignition": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "点火状态（起动中/运行中为 true）"
           },
           "intakeTemp": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "进气温度（℃）"
           },
           "machNumber": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "飞行马赫数（回传值）"
           },
           "ngSpeed": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "燃气发生器转速 Ng（r/min）"
           },
           "npSpeed": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "动力涡轮转速 Np（r/min）"
           },
           "oilPressure": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "滑油压力（MPa）"
           },
           "oilPump": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "滑油泵状态"
           },
           "oilTemp": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "滑油温度（℃）"
           },
           "starter": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "起发电机状态"
           },
           "stopSolenoid": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "停车电磁阀状态"
           },
           "throttle": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "油门开度（%）"
           },
           "wheelLoadStatus": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "轮载状态"
           },
           "workingVoltage": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "工作电压（V）"
           }
         }
       },
@@ -3863,6 +3930,7 @@
       },
       "ExperimentInfo": {
         "type": "object",
+        "description": "试验信息（报表抬头使用，前端录入后保存）",
         "required": [
           "engineNo",
           "gasGeneratorNo",
@@ -3874,30 +3942,38 @@
         ],
         "properties": {
           "controllerNo": {
-            "type": "string"
+            "type": "string",
+            "description": "控制器编号"
           },
           "engineNo": {
-            "type": "string"
+            "type": "string",
+            "description": "发动机编号"
           },
           "gasGeneratorNo": {
-            "type": "string"
+            "type": "string",
+            "description": "燃气发生器编号"
           },
           "oilSensorNo": {
-            "type": "string"
+            "type": "string",
+            "description": "滑油传感器编号"
           },
           "speedSensorNo": {
-            "type": "string"
+            "type": "string",
+            "description": "转速传感器编号"
           },
           "testItem": {
-            "type": "string"
+            "type": "string",
+            "description": "试验项目"
           },
           "testTime": {
-            "type": "string"
+            "type": "string",
+            "description": "试验时间"
           }
         }
       },
       "FaultCodeFlags": {
         "type": "object",
+        "description": "故障码按位展开的标志集合（fc1/fc2 各 16 位，每位对应一个故障）",
         "required": [
           "fc1SelfCheckExhaust",
           "fc1SelfCheckIntakeTemp",
@@ -3929,97 +4005,126 @@
         ],
         "properties": {
           "fc1ColdStartAbnormal": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "冷运转异常"
           },
           "fc1ExhaustOvertemp": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "排温超温"
           },
           "fc1IgnitionFailure": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "点火失败"
           },
           "fc1NgOverspeed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Ng 转速超转"
           },
           "fc1NpOverspeed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Np 转速超转"
           },
           "fc1Overtemp": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "起动超温"
           },
           "fc1SelfCheckExhaust": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检排温异常"
           },
           "fc1SelfCheckFuelPressure": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检燃压异常"
           },
           "fc1SelfCheckFuelVent": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "油路排气异常"
           },
           "fc1SelfCheckIntakeTemp": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检进温异常"
           },
           "fc1SelfCheckNgSpeed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检 Ng 转速异常"
           },
           "fc1SelfCheckNpSpeed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检 Np 转速异常"
           },
           "fc1SelfCheckOilPressure": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检滑压异常"
           },
           "fc1SelfCheckOilTemp": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "自检滑温异常"
           },
           "fc1StartSpeedLow": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "起发转速低"
           },
           "fc1StartTimeout": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "起动超时"
           },
           "fc2CommDisconnected": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "通信断开"
           },
           "fc2ExhaustTempFault": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "排温故障"
           },
           "fc2FuelPressureFault": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "燃压故障"
           },
           "fc2GenVoltageAbnormal": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "发电电压异常"
           },
           "fc2InFlightFlameout": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "空中熄火"
           },
           "fc2NgSpeedFault": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Ng 转速故障"
           },
           "fc2NpSpeedFault": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Np 转速故障"
           },
           "fc2OilPressureFault": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "滑压故障"
           },
           "fc2OilTempFault": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "滑温故障"
           },
           "fc2StartVoltageAbnormal": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "起动电压异常"
           },
           "fc2VoltageAbnormal": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "ECU 电压异常"
           }
         }
       },
       "FluxFields": {
         "type": "object",
+        "description": "燃油流量计解码字段",
         "required": [
           "ll"
         ],
         "properties": {
           "ll": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "description": "燃油流量"
           }
         }
       },
@@ -4466,6 +4571,7 @@
       },
       "PerformanceRow": {
         "type": "object",
+        "description": "性能数据行（试验报表）",
         "required": [
           "speed",
           "thrust",
@@ -4476,22 +4582,28 @@
         ],
         "properties": {
           "ambientPressure": {
-            "type": "string"
+            "type": "string",
+            "description": "环境压力"
           },
           "ambientTemp": {
-            "type": "string"
+            "type": "string",
+            "description": "环境温度"
           },
           "exhaustTemp": {
-            "type": "string"
+            "type": "string",
+            "description": "排气温度"
           },
           "fuelFlow": {
-            "type": "string"
+            "type": "string",
+            "description": "燃油流量"
           },
           "speed": {
-            "type": "string"
+            "type": "string",
+            "description": "转速"
           },
           "thrust": {
-            "type": "string"
+            "type": "string",
+            "description": "推力"
           }
         }
       },
@@ -4635,6 +4747,7 @@
       },
       "ReportOutput": {
         "type": "object",
+        "description": "报表生成结果（试验信息 + 状态点 + 三张数据表）",
         "required": [
           "basicInfo",
           "statePoints",
@@ -4647,32 +4760,37 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "试验基本信息（抬头行，见 report.rs 组装逻辑）"
           },
           "designPointData": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DesignPointRow"
-            }
+            },
+            "description": "设计点数据表"
           },
           "performanceData": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PerformanceRow"
-            }
+            },
+            "description": "性能数据表"
           },
           "standardData": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/StandardRow"
-            }
+            },
+            "description": "标准数据表"
           },
           "statePoints": {
             "type": "array",
             "items": {
               "type": "number",
               "format": "double"
-            }
+            },
+            "description": "报表状态点（来自配置 [REPORT] StatePoints）"
           }
         }
       },
@@ -4817,6 +4935,7 @@
       },
       "StandardRow": {
         "type": "object",
+        "description": "标准数据行（与性能数据对比）",
         "required": [
           "speed",
           "thrust",
@@ -4825,16 +4944,20 @@
         ],
         "properties": {
           "exhaustTemp": {
-            "type": "string"
+            "type": "string",
+            "description": "排气温度"
           },
           "sfc": {
-            "type": "string"
+            "type": "string",
+            "description": "耗油率 SFC"
           },
           "speed": {
-            "type": "string"
+            "type": "string",
+            "description": "转速"
           },
           "thrust": {
-            "type": "string"
+            "type": "string",
+            "description": "推力"
           }
         }
       },

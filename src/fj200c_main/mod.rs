@@ -1,3 +1,26 @@
+//! # fj200c_main 模块（发动机测控）
+//!
+//! 发动机测控面板后端：五路串口（ECU / Adam4015 / Adam4117 / Dyno / Flux）的
+//! 实时采集与指令下发、帧解码、CSV 64 列录制、试验信息管理、报表生成，
+//! 并通过 WebSocket 向前端广播实时数据。
+//!
+//! # 模块结构（两级目录）
+//!
+//! 一级目录仅保留模板骨架，业务实现在二级目录 `fj200c_main/` 中：
+//!
+//! - `mod.rs` — 模块声明 + 再导出 + 全局广播通道 + WebSocket 事件类型
+//! - `handlers.rs` — HTTP 处理器（服务启停/指令/配置/CSV/试验/报表/主题）
+//! - `routes.rs` — 路由注册（`/api/fj200c_main/*`）
+//! - `service.rs` — 服务线程生命周期管理（启动/停止/状态）
+//! - `fj200c_main/` — 业务实现：串口通信（`com.rs` / `abstract_com.rs`）、
+//!   帧解码（`decode.rs`）、模拟数据源（`mock.rs`）、配置（`config.rs`）、
+//!   全局状态（`state.rs`）、字段类型（`types.rs`）、报表（`report.rs`）
+//!
+//! # 数据流
+//!
+//! 串口/模拟线程 → 帧解码 → `ChannelData` → 预序列化 `Arc<str>` →
+//! 广播通道（`FJ200C_MAIN_TX`）→ WebSocket 任务推送给前端。
+//! 指令下发：前端 → `send_command` → 帧构造 → ECU 串口发送。
 pub mod fj200c_main;
 pub mod handlers;
 pub mod routes;

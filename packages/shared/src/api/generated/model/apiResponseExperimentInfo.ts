@@ -30,6 +30,7 @@ import type { ApiResponseExperimentInfoData } from './apiResponseExperimentInfoD
  * - `ApiResponse<LoginResponse>` - 登录响应
  */
 export interface ApiResponseExperimentInfo {
+  /** 试验信息（报表抬头使用，前端录入后保存） */
   data?: ApiResponseExperimentInfoData;
   /**
      * 错误信息（可选）

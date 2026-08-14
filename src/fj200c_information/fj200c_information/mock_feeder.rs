@@ -4,11 +4,10 @@
 //! 让会话线程的读取路径与真实串口完全一致。
 //! 从 fj200c_information.informatization 的 backend/mock.rs 的 feeder 线程移植。
 //!
-//! ## 关键语法
+//! ## 实现要点
 //!
-//! - **`Arc<dyn IoControl>`**：trait 对象，使 feeder 可注入任意 IO 实现。
-//! - **`thread::spawn(move || ...)`**：feeder 线程循环直到 `STOP_SIGNAL`。
-//!   `move` 闭包将 `control` 的所有权转移到新线程中。
+//! - `Arc<dyn IoControl>` 使 feeder 可注入任意 IO 实现（真实串口或模拟通道）
+//! - feeder 线程循环直到 `STOP_SIGNAL` 置位，`move` 闭包持有 IO 句柄所有权
 
 use crate::fj200c_information::mock::{make_mock_frame, STOP_SIGNAL};
 use crate::fj200c_information::IoControl;

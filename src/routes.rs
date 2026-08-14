@@ -112,7 +112,7 @@ pub fn create_router(db: DatabaseConnection) -> Router {
         // 健康检查端点：GET /health
         // 返回 200 OK，用于负载均衡器、监控系统检测服务是否正常
         .route("/health", get(crate::common::health_check))
-        // OpenAPI spec：GET /api-docs/openapi.json
+        // OpenAPI 规范：GET /api-docs/openapi.json
         .route(
             "/api-docs/openapi.json",
             get(crate::api_docs::openapi_json),

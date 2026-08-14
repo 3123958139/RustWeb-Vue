@@ -1,20 +1,23 @@
-//! # 后端串口数据流组合式函数（WebSocket 版）
-//!
-//! 替代原 Tauri 的 4 类事件监听（port_data / simulation_state / theme_toggle /
-//! csv_recording_state）。WebSocket 连接为**模块级单例**，通过引用计数共享：
-//! App.vue 挂载时建立应用级常驻连接，页面切换不会断连，
-//! 任何页面（含试验数据查看页 ExperimentView）都实时收到 port_data。
-//!
-//! 特性：
-//! - 断开自动重连（1.5 秒间隔）
-//! - 未登录（无 token）时不发起连接，等待下次重连时机
-//! - 连接建立时先收到一个 JSON 数组（5 个 PortData 快照），之后为单个事件对象
-//! - 按 `type` 字段分发到 dashboard store / useTheme
-//! - 组件卸载时释放引用；引用归零时才真正断开连接
-//!
-//! 使用方式：
-//! - App.vue 调用 `useBackendPorts()`：应用级连接，从不断开
-//! - Monitor.vue 调用 `useBackendPorts()`：页面级引用，仅增加引用计数
+/**
+ * @module useBackendPorts
+ * @description 后端串口数据流组合式函数（WebSocket 版）
+ *
+ * 替代原 Tauri 的 4 类事件监听（port_data / simulation_state / theme_toggle /
+ * csv_recording_state）。WebSocket 连接为**模块级单例**，通过引用计数共享：
+ * App.vue 挂载时建立应用级常驻连接，页面切换不会断连，
+ * 任何页面（含试验数据查看页 ExperimentView）都实时收到 port_data。
+ *
+ * 特性：
+ * - 断开自动重连（1.5 秒间隔）
+ * - 未登录（无 token）时不发起连接，等待下次重连时机
+ * - 连接建立时先收到一个 JSON 数组（5 个 PortData 快照），之后为单个事件对象
+ * - 按 `type` 字段分发到 dashboard store / useTheme
+ * - 组件卸载时释放引用；引用归零时才真正断开连接
+ *
+ * 使用方式：
+ * - App.vue 调用 `useBackendPorts()`：应用级连接，从不断开
+ * - Monitor.vue 调用 `useBackendPorts()`：页面级引用，仅增加引用计数
+ */
 
 import {onMounted, onUnmounted} from 'vue'
 import {getSessionToken} from '@shared'

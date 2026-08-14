@@ -1,7 +1,10 @@
-//! # 配置文件编辑组合式函数
-//!
-//! 读取/保存服务端 config-fj200c_main.ini 配置文件。
-//! Web 版不再读写本地文件，全部通过后端 API 操作。
+/**
+ * @module useConfigDialog
+ * @description 配置文件编辑组合式函数
+ *
+ * 读取/保存服务端 config-fj200c_main.ini 配置文件。
+ * Web 版不再读写本地文件，全部通过后端 API 操作。
+ */
 
 import { ref } from "vue";
 import { fj200cMainApi } from "@/api";

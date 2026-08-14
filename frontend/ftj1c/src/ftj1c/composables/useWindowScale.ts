@@ -1,13 +1,16 @@
-//! # 窗口自适应缩放
-//!
-//! 基于 `ResizeObserver` 监听容器尺寸变化，动态计算 CSS scale 变换比例，
-//! 将 1920×1080 设计稿适配到任意分辨率的窗口。
-//!
-//! 关键点：
-//! - `ResizeObserver` 监听特定元素（比 window.resize 更精确）
-//! - `transform: scale(x, y)` 以容器中心为原点缩放
-//! - `maxScale` 限制最大缩放比，`noScale` 表示达到最大缩放比
-//! - `screen-resize` 自定义事件通知 ECharts 图表重新 resize
+/**
+ * @module composables/useWindowScale
+ * @description 窗口自适应缩放
+ *
+ * 基于 `ResizeObserver` 监听容器尺寸变化，动态计算 CSS scale 变换比例，
+ * 将 1920×1080 设计稿适配到任意分辨率的窗口。
+ *
+ * 关键点：
+ * - `ResizeObserver` 监听特定元素（比 window.resize 更精确）
+ * - `transform: scale(x, y)` 以容器中心为原点缩放
+ * - `maxScale` 限制最大缩放比，`noScale` 表示达到最大缩放比
+ * - `screen-resize` 自定义事件通知 ECharts 图表重新 resize
+ */
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 

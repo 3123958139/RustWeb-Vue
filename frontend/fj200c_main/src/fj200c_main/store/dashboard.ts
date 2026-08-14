@@ -1,13 +1,23 @@
+/**
+ * @module dashboard
+ * @description 仪表盘数据 Store（fj200c_main 模块）
+ *
+ * 集中维护五路串口（ECU/Adam4015/Adam4117/测功机/流量计）的解码数据、
+ * 环境参数、控制面板输入、底部统计与主题状态；
+ * 由 useBackendPorts 接收 WS `port_data` 事件后写入。
+ */
 import {defineStore} from 'pinia'
 import {computed, reactive, ref} from 'vue'
 import type {DynoFields, EcuFields, FluxFields} from '@shared/api/generated'
 
+/** 环境参数项（标签 + 数值 + 单位） */
 interface EnvParameter {
     label: string
     value: number
     unit: string
 }
 
+/** 控制面板输入状态（马赫数/海拔/油门开度/轮载） */
 interface ControlPanelState {
     machNumber: number
     altitude: number
@@ -15,6 +25,7 @@ interface ControlPanelState {
     wheelLoad: string
 }
 
+/** 底部状态栏统计 */
 interface FooterStats {
     ecuRxBytes: number
     ecuRxFrames: number
@@ -26,6 +37,7 @@ interface FooterStats {
     lastSentName: string
 }
 
+/** 仪表盘 Store：ECU 解码数据（WS port_data 写入，图表与故障显示读取） */
 export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
     const ecuData = reactive<EcuFields>({
         ngSpeed: 0,
@@ -86,6 +98,7 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         cmdExecU8: '',
     })
 
+    /** 环境参数面板（Adam4015 通道 0-3 + 流量计 + 测功机派生值） */
     const envParams = reactive<EnvParameter[]>([
         {label: '大气温度', value: 0, unit: '℃'},
         {label: '大气湿度', value: 0, unit: '%'},
@@ -107,6 +120,7 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         ll: 0,
     })
 
+    /** 仪表盘汇总值（ECU + 流量计 + 测功机组合视图用） */
     const dashboardState = computed(() => ({
         ngSpeed: ecuData.ngSpeed ?? 0,
         exhaustTemp: ecuData.exhaustTemp ?? 0,
@@ -133,10 +147,14 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         lastSentName: '',
     })
 
+    /** 模拟运行中（WS simulation_state） */
     const isSimulating = ref(false)
+    /** CSV 录制中（WS csv_recording_state） */
     const isRecording = ref(false)
+    /** 深色主题（WS theme_state） */
     const isDark = ref(true)
 
+    /** 趋势图数据点（最多保留 100 个，超出移除最旧） */
     const chartData = ref<Array<{
         ngSpeed: number
         exhaustTemp: number
@@ -144,8 +162,10 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         fuelFlow: number
         npSpeed: number
     }>>([])
+    /** 趋势图时间轴标签 */
     const chartTime = ref<string[]>([])
 
+    /** 追加一个趋势图数据点（由调用方周期触发） */
     function addChartPoint() {
         const ds = dashboardState.value
         chartData.value.push({

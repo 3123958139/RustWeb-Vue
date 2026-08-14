@@ -2,14 +2,12 @@
 //!
 //! 存放服务运行标志、配置文件路径和 16 个解码字段的共享数据。
 //!
-//! ## 关键语法
+//! ## 并发设计
 //!
 //! - **`OnceLock<SharedData>`**：全局单例。会话线程通过 `SharedData::global()`
-//!   获取共享引用并写入解码字段，HTTP handler 读取后推送表格事件。
-//! - **`AtomicBool`**：原子布尔标志，多线程无锁读写服务运行状态。
-//!   `Ordering::Relaxed` 表示最宽松的内存序，适合仅需最终一致性的场景。
-//! - **`RwLock<T>`**：读写锁，多个线程可同时读（`.read()`），
-//!   但写入需要独占（`.write()`），适合读多写少的场景。
+//!   获取共享引用并写入解码字段，HTTP handler 读取后推送表格事件
+//! - **`AtomicBool`**：服务运行状态原子标志，多线程无锁读写
+//! - **`RwLock<T>`**：字段读写锁，读多写少
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{OnceLock, RwLock};

@@ -17,7 +17,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
   export const getFw150 = () => {
 /**
- * @summary 设备台账列表（登录 + fw150:read 权限中间件保护）
+ * @summary 设备台账列表（登录 + Fw150Monitor 权限中间件保护）
  */
 const fw150ListItems = (
 

@@ -3,13 +3,13 @@
 //! 读取 config-fj200c_information.ini，按连接配置启动会话线程，管理运行标志。
 //! 从 fj200c_information.informatization 的 backend/service.rs 移植。
 //!
-//! ## 关键语法
+//! ## 协作要点
 //!
 //! - **`ServiceRuntime`**：公共线程句柄 / 停止标志管理
-//!   （`crate::common::service`），停止服务时依次 join，确保会话线程干净退出。
+//!   （`crate::common::service`），停止服务时依次 join，确保会话线程干净退出
 //! - **`broadcast::Sender` 的同步 send**：可以在 std 线程中调用，
-//!   WebSocket 任务（tokio）异步接收。
-//! - **`SERVICE_RUNNING: AtomicBool`**：供 HTTP 层查询运行状态。
+//!   WebSocket 任务（tokio）异步接收
+//! - **`SERVICE_RUNNING: AtomicBool`**：供 HTTP 层查询运行状态
 
 use crate::common::service::ServiceRuntime;
 use crate::common::ws::EventPayload;

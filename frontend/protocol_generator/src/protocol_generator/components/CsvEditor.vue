@@ -1,3 +1,9 @@
+<!--
+  CsvEditor.vue —— 默认参数表编辑器（protocol_generator 模块）
+
+  参数表（parameters.csv）行编辑：加载服务端默认参数表、上传 CSV 解析导入、
+  下载 CSV（UTF-8 BOM）导出、保存到服务端。
+-->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -5,14 +11,19 @@ import type { CsvParameter } from '../types/protocol'
 import { CSharpTypes } from '../types/protocol'
 import { protocolGeneratorApi } from '@/api'
 
+/** 参数表行 */
 const rows = ref<CsvParameter[]>([])
+/** 表格选中的行 */
 const selectedRows = ref<CsvParameter[]>([])
+/** 隐藏的 CSV 文件输入 */
 const fileInput = ref<HTMLInputElement>()
 
+/** 生成空行 */
 function emptyRow(): CsvParameter {
   return { name: '', alias: '', unit: '', dataType: '', remark: '' }
 }
 
+/** 从服务端加载默认参数表 */
 async function loadDefault() {
   try {
     const res = await protocolGeneratorApi.getDefaultCsv()
@@ -26,6 +37,7 @@ onMounted(async () => {
   await loadDefault()
 })
 
+/** 选择本地 CSV 文件 → 上传内容解析导入 */
 function onFileSelected(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]

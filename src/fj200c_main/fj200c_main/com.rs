@@ -1,3 +1,13 @@
+//! 五路串口的初始化、接收线程与处理线程（fj200c_main 模块）
+//!
+//! 五路设备（ECU/Adam4015/Adam4117/测功机/燃油流量计）以宏
+//! `define_com_port!` 生成同类包装结构（`ECUCom` 等），统一流程：
+//! 打开串口 → 起接收线程（`abstract_com.rs`）→ 校验/解码帧 → 写入
+//! 共享状态 `SharedPortData`（原始帧 `LatestFrame` + 解码结果 `ArcSwap`）
+//! → 预序列化后广播 WebSocket。
+//!
+//! 另含：CSV 录制写行线程（`start_processing_thread`）、ECU 指令周期
+//! 下发线程（`init_ecu` 内）、模拟数据发送线程（`start_mock_senders`）。
 use crate::common::latest_frame::LatestFrame;
 use crate::fj200c_main::abstract_com::*;
 use crate::fj200c_main::config;
@@ -18,25 +28,45 @@ use std::time::Instant;
 use tokio::sync::broadcast;
 use tracing::error;
 
+/// ECU 串口配置节名（`[COM0]`）
 pub const ECU_SECTION: &str = "COM0";
+/// Adam4015 串口配置节名（`[COM1]`）
 pub const ADAM4015_SECTION: &str = "COM1";
+/// Adam4117 串口配置节名（`[COM2]`）
 pub const ADAM4117_SECTION: &str = "COM2";
+/// 测功机串口配置节名（`[COM3]`）
 pub const DYNO_SECTION: &str = "COM3";
+/// 燃油流量计串口配置节名（`[COM4]`）
 pub const FLUX_SECTION: &str = "COM4";
 
+/// 五路端口的共享状态：原始帧（LatestFrame 无锁读）与解码结果（ArcSwap 无锁读）
+///
+/// 由 `create_shared_port_data` 创建后经 `state::shared_port_data` 全局持有，
+/// 接收线程/模拟线程写，处理线程与 WebSocket handler 读。
 pub struct SharedPortData {
+    /// ECU 原始帧
     pub ecu_raw: LatestFrame<256>,
+    /// Adam4015 原始帧
     pub adam4015_raw: LatestFrame<256>,
+    /// Adam4117 原始帧
     pub adam4117_raw: LatestFrame<256>,
+    /// 测功机原始帧
     pub dyno_raw: LatestFrame<256>,
+    /// 燃油流量计原始帧
     pub flux_raw: LatestFrame<256>,
+    /// ECU 解码结果
     pub ecu_decoded: ArcSwap<EcuFields>,
+    /// Adam4015 解码结果
     pub adam4015_decoded: ArcSwap<Adam4015Fields>,
+    /// Adam4117 解码结果
     pub adam4117_decoded: ArcSwap<Adam4117Fields>,
+    /// 测功机解码结果
     pub dyno_decoded: ArcSwap<DynoFields>,
+    /// 燃油流量计解码结果
     pub flux_decoded: ArcSwap<FluxFields>,
 }
 
+/// 创建共享端口数据实例（全部默认值）
 pub fn create_shared_port_data() -> Arc<SharedPortData> {
     Arc::new(SharedPortData {
         ecu_raw: LatestFrame::new(),
@@ -52,13 +82,24 @@ pub fn create_shared_port_data() -> Arc<SharedPortData> {
     })
 }
 
+/// 生成单路端口包装结构体（ECUCom / Adam4015Com / ...）
+///
+/// 每个结构体持有一个 `Result<Arc<AbstractCom>, String>`（串口打开可能失败），
+/// 对外提供 `send`（指令下发，打开失败时返回错误）与 `run`（启动接收线程）。
+/// `run` 内的解码回调流程：
+/// 1. 原始帧写入 `shared.<field_raw>`（LatestFrame）
+/// 2. 解码字段写入 `shared.<field_decoded>`（ArcSwap）
+/// 3. 组装 `Fj200cMainEvent::PortData` 事件，预序列化后广播
 macro_rules! define_com_port {
     ($name:ident, $field_raw:ident, $field_decoded:ident, $validator:expr, $decoder:expr, $payload_type:ty, $variant:ident) => {
+        /// 单路端口包装（由宏生成）
         pub struct $name {
+            /// 串口打开结果（Err 表示打开失败，接收线程不会启动）
             base: Result<Arc<AbstractCom>, String>,
         }
 
         impl $name {
+            /// 按协议描述构造（内部打开串口）
             pub fn new(
                 com_spec: ComSpec,
                 stop: Arc<AtomicBool>,
@@ -69,6 +110,7 @@ macro_rules! define_com_port {
                 })
             }
 
+            /// 下发指令（串口打开失败时返回错误）
             pub fn send(&self, buf: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
                 match self.base.as_ref() {
                     Ok(base) => base.send(buf),
@@ -76,6 +118,7 @@ macro_rules! define_com_port {
                 }
             }
 
+            /// 启动接收线程（校验 + 解码 + 写共享状态 + 广播）
             pub fn run(
                 &self,
                 shared: &Arc<SharedPortData>,
@@ -163,14 +206,23 @@ define_com_port!(
     Flux
 );
 
+/// 五路端口包装的集合（由 `init_all_from_config` 按配置 Count 构建，可含 None）
 pub struct AllComPorts {
+    /// ECU（COM0）
     pub ecu: Option<Arc<ECUCom>>,
+    /// Adam4015（COM1）
     pub adam4015: Option<Arc<Adam4015Com>>,
+    /// Adam4117（COM2）
     pub adam4117: Option<Arc<Adam4117Com>>,
+    /// 测功机（COM3）
     pub dyno: Option<Arc<DynoCom>>,
+    /// 燃油流量计（COM4）
     pub flux: Option<Arc<FluxCom>>,
 }
 
+/// 按配置 `[COM] Count` 初始化五路端口（含各自的发送线程）
+///
+/// 配置未加载或 Count 不足时对应端口为 None（跳过构造，不报错）。
 pub fn init_all_from_config(
     shared: &Arc<SharedPortData>,
     tx: broadcast::Sender<crate::common::ws::EventPayload>,
@@ -239,6 +291,10 @@ pub fn init_all_from_config(
     }
 }
 
+/// 启动处理线程：录制开启时每 100ms 读共享解码结果写一行 CSV（64 列）
+///
+/// 录制标志三态：0=停止、1=刚开启（首帧时间基准）、2=录制中。
+/// 返回停止标志（置位后线程退出）。
 pub fn start_processing_thread(
     shared: Arc<SharedPortData>,
     _tx: broadcast::Sender<crate::common::ws::EventPayload>,
@@ -291,6 +347,11 @@ pub fn start_processing_thread(
     stop
 }
 
+/// 初始化 ECU 端口（COM0）：接收线程 + 指令周期下发线程
+///
+/// 下发线程每 100ms 读取 `state::ecu_send_data`（前端下发的指令帧），
+/// 覆写序号字节（frame[3]，0~255 循环）与校验字节（frame[15] = 前 15 字节
+/// 累加和低 8 位）后发送。
 fn init_ecu(
     section: &str,
     idx: usize,
@@ -314,6 +375,7 @@ fn init_ecu(
 
     let sender = com.clone();
     thread::spawn(move || {
+        // 固定 100ms 周期，deadline 累加补偿睡眠漂移
         let interval = Duration::from_millis(100);
         let mut deadline = Instant::now();
         while !s.load(Ordering::Relaxed) {
@@ -327,6 +389,7 @@ fn init_ecu(
             if frame.len() < 16 {
                 continue;
             }
+            // 序号 0~255 循环覆写，校验 = 前 15 字节累加和取低 8 位
             if ECU_SEND_COUNTER.load(Ordering::Relaxed) == 255u8 {
                 ECU_SEND_COUNTER.store(0, Ordering::Relaxed);
             }
@@ -342,6 +405,7 @@ fn init_ecu(
     Some(com)
 }
 
+/// 初始化 Adam4015 端口（COM1）：接收线程 + 每秒轮询采集命令（`#010`）
 fn init_adam4015(
     section: &str,
     idx: usize,
@@ -375,6 +439,7 @@ fn init_adam4015(
     Some(com)
 }
 
+/// 初始化 Adam4117 端口（COM2）：接收线程 + 每秒轮询采集命令（`#010`）
 fn init_adam4117(
     section: &str,
     idx: usize,
@@ -408,6 +473,7 @@ fn init_adam4117(
     Some(com)
 }
 
+/// 初始化测功机端口（COM3）：只起接收线程（测功机主动上报，无需下发）
 fn init_dyno(
     section: &str,
     idx: usize,
@@ -422,6 +488,7 @@ fn init_dyno(
     Some(com)
 }
 
+/// 初始化燃油流量计端口（COM4）：只起接收线程（设备主动上报，无需下发）
 fn init_flux(
     section: &str,
     idx: usize,
@@ -436,12 +503,17 @@ fn init_flux(
     Some(com)
 }
 
+/// 启动五路模拟数据发送线程（`[MOCK_COM0..4]` 配置节驱动）
+///
+/// 每路按各自 `interval_ms` 周期生成模拟帧，经与真实端口相同的
+/// 校验/解码流程写入共享状态并广播；返回停止标志，`stop_mock_senders` 置位后全部退出。
 pub fn start_mock_senders(
     shared: &Arc<SharedPortData>,
     tx: broadcast::Sender<crate::common::ws::EventPayload>,
 ) -> Arc<AtomicBool> {
     let stop = Arc::new(AtomicBool::new(false));
 
+    // 模拟配置节 → 端口序号映射（MOCK_COM0 = ECU，依此类推）
     let mock_configs: &[(&str, usize)] = &[
         ("MOCK_COM0", 0),
         ("MOCK_COM1", 1),
@@ -596,6 +668,7 @@ pub fn start_mock_senders(
     stop
 }
 
+/// 停止全部模拟发送线程（置位停止标志）
 pub fn stop_mock_senders(stop: &AtomicBool) {
     stop.store(true, Ordering::Relaxed);
 }

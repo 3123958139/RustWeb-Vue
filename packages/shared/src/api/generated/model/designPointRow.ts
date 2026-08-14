@@ -6,9 +6,16 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 设计点数据行
+ */
 export interface DesignPointRow {
+  /** 排气温度 */
   exhaustTemp: string;
+  /** 耗油率 SFC */
   sfc: string;
+  /** 转速 */
   speed: string;
+  /** 推力 */
   thrust: string;
 }

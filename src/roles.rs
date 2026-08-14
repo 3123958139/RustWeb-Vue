@@ -16,8 +16,11 @@
 //! | `admin` | 管理员 | UsersRead, UsersWrite, UsersDelete, SystemAdmin |
 //! | `fj200c_information` | 发动机监控 | Fj200cInformationMonitor |
 //! | `fw100` | 设备台账 | Fw100Monitor |
-//! | `ftj1c` | UDP 通信监控 | Ftj1cMonitor |
+//! | `ftj1c` | UDP 通信监控 | Ftj1cMonitor, Ftj1cHelp |
 //! | `city3d` | 城市 3D 展示 | City3dView |
+//! | `fw150` | 设备台账 | Fw150Monitor |
+//! | `fj200c_main` | 发动机测控 | Fj200cMainMonitor |
+//! | `protocol_generator` | 通信协议生成 | ProtocolGeneratorMonitor |
 //!
 //! # 新增角色步骤（后端侧）
 //!

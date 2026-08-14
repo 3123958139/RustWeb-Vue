@@ -7,36 +7,73 @@
  */
 import type { FaultCodeFlags } from './faultCodeFlags';
 
+/**
+ * ECU 解码字段（42 字节帧解析结果，见 `decode::decode_ecu`）
+ */
 export interface EcuFields {
+  /** 附件状态（十六进制，低 5 位对应各附件） */
   accessoryStatus: string;
+  /** 海拔高度（m） */
   altitude: number;
+  /** 控制指令执行情况（中文描述，见 `decode::cmd_exec_str`） */
   cmdExecStatus: string;
+  /** 指令执行状态原始字节（十六进制） */
   cmdExecU8: string;
+  /** 发动机状态（中文描述，见 `decode::engine_status_str`） */
   engineStatus: string;
+  /** 发动机状态原始字节（十六进制） */
   engineStatusU8: string;
+  /** 换热器出口滑油温度（℃） */
   exchangerOutletTemp: number;
+  /** 排气温度（℃） */
   exhaustTemp: number;
-  /** @minimum 0 */
+  /**
+     * 故障码 1（自检/起动阶段故障位）
+     * @minimum 0
+     */
   faultCode1: number;
-  /** @minimum 0 */
+  /**
+     * 故障码 2（运行阶段故障位）
+     * @minimum 0
+     */
   faultCode2: number;
+  /** 故障码按位展开的标志集合 */
   faultCodes: FaultCodeFlags;
+  /** 指纹码（4 字节十六进制） */
   fingerprintCode: string;
-  /** @minimum 0 */
+  /**
+     * 帧计数
+     * @minimum 0
+     */
   frameCount: number;
+  /** 燃油压力 */
   fuelPressure: number;
+  /** 燃油泵状态 */
   fuelPump: boolean;
+  /** 点火状态（起动中/运行中为 true） */
   ignition: boolean;
+  /** 进气温度（℃） */
   intakeTemp: number;
+  /** 飞行马赫数（回传值） */
   machNumber: number;
+  /** 燃气发生器转速 Ng（r/min） */
   ngSpeed: number;
+  /** 动力涡轮转速 Np（r/min） */
   npSpeed: number;
+  /** 滑油压力（MPa） */
   oilPressure: number;
+  /** 滑油泵状态 */
   oilPump: boolean;
+  /** 滑油温度（℃） */
   oilTemp: number;
+  /** 起发电机状态 */
   starter: boolean;
+  /** 停车电磁阀状态 */
   stopSolenoid: boolean;
+  /** 油门开度（%） */
   throttle: number;
+  /** 轮载状态 */
   wheelLoadStatus: boolean;
+  /** 工作电压（V） */
   workingVoltage: number;
 }

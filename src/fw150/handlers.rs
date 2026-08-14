@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 
-/// 设备台账列表（登录 + fw150:read 权限中间件保护）
+/// 设备台账列表（登录 + Fw150Monitor 权限中间件保护）
 #[utoipa::path(
     tag = "fw150",
     get,

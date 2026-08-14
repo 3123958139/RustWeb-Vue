@@ -4,7 +4,7 @@
 //! 从 dch crate（fj200c_information.informatization control/com.rs）移植，
 //! 构造参数适配 Web 版 config-fj200c_information.ini 的 `[ConnectionN]` 节。
 //!
-//! ## 关键点
+//! ## 设计要点
 //!
 //! - **serial2（overlapped IO）**：Windows 下读/写请求各自独立挂起，互不串行化。
 //!   `read()/write()` 只取 `&self`，会话线程与 mock feeder 线程可无锁并发。

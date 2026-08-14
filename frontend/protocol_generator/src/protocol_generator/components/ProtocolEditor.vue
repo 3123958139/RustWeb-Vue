@@ -1,3 +1,11 @@
+<!--
+  ProtocolEditor.vue —— 通信协议表编辑器（protocol_generator 模块）
+
+  协议字段表格编辑：名称可从参数表目录选择（自动带出单位/类型/备注）、
+  增删行、按 C# 类型大小自动重排序号与字节范围（recalcFields）、
+  导入/导出 CSV、导出 Markdown（弹窗预览/复制）与 Excel（Blob 下载）、
+  打印报表（vue-plugin-hiprint）。
+-->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -8,18 +16,27 @@ import { recalcFields } from '../utils/protocol'
 import { protocolGeneratorApi } from '@/api'
 
 const router = useRouter()
+/** 协议字段行 */
 const fields = ref<ProtocolField[]>([])
+/** 表格选中的行 */
 const selectedRows = ref<ProtocolField[]>([])
+/** Markdown 预览弹窗 */
 const markdownDialogVisible = ref(false)
+/** Markdown 内容 */
 const markdownContent = ref('')
+/** 参数表目录（供名称选择） */
 const parameterCatalog = ref<CsvParameter[]>([])
+/** 报表标题（localStorage 持久化） */
 const reportTitle = ref(localStorage.getItem('reportTitle') || '通信协议表')
+/** 隐藏的 CSV 文件输入 */
 const fileInput = ref<HTMLInputElement>()
 
+/** 标题变更时持久化到 localStorage */
 function onTitleChange() {
   localStorage.setItem('reportTitle', reportTitle.value)
 }
 
+/** 从服务端加载默认参数表 */
 async function reloadCatalog() {
   try {
     const res = await protocolGeneratorApi.getDefaultCsv()
@@ -33,6 +50,7 @@ onMounted(async () => {
   await reloadCatalog()
 })
 
+/** 选择参数名后自动带出单位/类型/备注，并触发重排 */
 function onNameChange(row: ProtocolField, name: string) {
   const p = parameterCatalog.value.find(x => x.name === name)
   if (p) {
@@ -43,6 +61,7 @@ function onNameChange(row: ProtocolField, name: string) {
   }
 }
 
+/** 追加空行 */
 function addRow() {
   const newField: ProtocolField = {
     index: fields.value.length + 1,
@@ -55,6 +74,7 @@ function addRow() {
   fields.value.push(newField)
 }
 
+/** 删除选中的行 */
 function deleteSelected() {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请先选择要删除的行')

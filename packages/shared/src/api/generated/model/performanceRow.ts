@@ -6,11 +6,20 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 性能数据行（试验报表）
+ */
 export interface PerformanceRow {
+  /** 环境压力 */
   ambientPressure: string;
+  /** 环境温度 */
   ambientTemp: string;
+  /** 排气温度 */
   exhaustTemp: string;
+  /** 燃油流量 */
   fuelFlow: string;
+  /** 转速 */
   speed: string;
+  /** 推力 */
   thrust: string;
 }

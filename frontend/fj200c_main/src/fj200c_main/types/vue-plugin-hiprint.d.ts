@@ -1,7 +1,10 @@
-//! # vue-plugin-hiprint 类型声明
-//!
-//! 为无 TypeScript 类型定义的 `vue-plugin-hiprint` 库提供模块类型声明。
-//! 放置于 `src/types/` 下，TypeScript 自动识别。
+/**
+ * @module types/vue-plugin-hiprint
+ * @description 第三方库类型声明
+ *
+ * 为无 TypeScript 类型定义的 `vue-plugin-hiprint` 库提供模块类型声明。
+ * 放置于 `src/types/` 下，TypeScript 自动识别。
+ */
 
 declare module 'vue-plugin-hiprint' {
   interface TableColumn {

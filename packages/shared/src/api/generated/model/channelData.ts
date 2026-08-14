@@ -11,14 +11,22 @@ import type { DynoFields } from './dynoFields';
 import type { EcuFields } from './ecuFields';
 import type { FluxFields } from './fluxFields';
 
+/**
+ * 五路串口的解码结果枚举（WebSocket 广播载荷，按 `type` 字段区分数据源）
+ */
 export type ChannelData = {
+  /** ECU 发动机数据 */
   Ecu: EcuFields;
 } | {
+  /** Adam4015 环境数据 */
   Adam4015: Adam4015Fields;
 } | {
+  /** Adam4117 环境数据 */
   Adam4117: Adam4117Fields;
 } | {
+  /** 测功机数据 */
   Dyno: DynoFields;
 } | {
+  /** 燃油流量计数据 */
   Flux: FluxFields;
 };

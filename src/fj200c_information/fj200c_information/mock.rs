@@ -1,19 +1,19 @@
 //! # 进程内模拟控制器
 //!
-//! 无硬件时的模拟数据源：后台线程按 20Hz 生成合法 100 字节帧放入通道，
+//! 无硬件时的模拟数据源：后台线程按 20Hz 生成合法 60 字节帧放入通道，
 //! `recv()` 从通道取数据。从 fj200c_information.informatization 的 control/mock.rs 移植。
 //!
-//! ## 关键语法
+//! ## 实现要点
 //!
-//! - **`AtomicBool`（STOP_SIGNAL）**：全局停止信号。所有模拟线程在每次
-//!   循环开头检查该标志，置 true 后最多 50ms 内退出。
-//! - **`mpsc::Receiver`**：多生产者单消费者通道接收端。MockControl 内部
-//!   持有接收端，`recv()` 通过 `try_recv` 非阻塞轮询 + 短暂睡眠实现阻塞语义。
+//! - **停止信号**（`STOP_SIGNAL`）：所有模拟线程每次循环开头检查，
+//!   置 true 后最多 50ms 内退出
+//! - **通道**：`mpsc::Receiver` 供 `recv()` 通过 `try_recv` 非阻塞轮询 +
+//!   短暂睡眠实现阻塞语义
 //! - **正弦叠加噪声模拟**：`0.5 + 0.5 * sin(t * freq)` 生成 0~1 之间周期性
-//!   变化的基础值，叠加 `rng.gen_range(-noise..noise)` 随机噪声，模拟真实
-//!   传感器数据的缓变趋势（海拔、转速、温度等字段）。
-//! - **`Arc<dyn IoControl>`**：trait 对象（动态分发），把 MockControl 和
-//!   ComControl 统一为一个类型，会话代码无需关心底层实现。
+//!   变化的基础值，叠加随机噪声，模拟真实传感器数据的缓变趋势
+//!   （海拔、转速、温度等字段）
+//! - **trait 对象**：`Arc<dyn IoControl>` 把 MockControl 和 ComControl
+//!   统一为一个类型，会话代码无需关心底层实现
 
 use crate::common::utils::parse_hex;
 use crate::fj200c_information::IoControl;

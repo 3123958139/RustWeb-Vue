@@ -1,11 +1,27 @@
+//! 帧校验与解码（fj200c_main 模块）
+//!
+//! 五路串口各自的上位机/下位机协议帧校验与字段解码：
+//!
+//! - **ECU**（发动机电控器）：二进制帧，帧头 `EB 90 2A`，42 字节，
+//!   末字节为前 41 字节累加和校验；解码出转速/温度/压力/故障码等全部参数
+//! - **Adam4015 / Adam4117**（模拟量采集模块）：ASCII 帧，
+//!   以 `>` 开头、`\r` 结尾，`+` 分隔 8 通道电压值（单位 mV，除以 1000 转 V）
+//! - **Dyno**（测功机）：二进制帧，帧头 `FF FF`，18 字节；解出转速/扭矩/功率
+//! - **Flux**（燃油流量计）：二进制帧，帧头 `FF FF`，18 字节；解出流量
+//!
+//! 每个数据源都提供 `validate_*`（校验帧）与 `decode_*`（解码字段）两个函数，
+//! 由 `fj200c_main/fj200c_main/com.rs` 的帧处理线程调用。
 use crate::common::utils::format_hex;
 use crate::fj200c_main::types::{
     Adam4015Fields, Adam4117Fields, DynoFields, EcuFields, FaultCodeFlags, FluxFields,
 };
 
+/// ECU 帧头（固定 3 字节）
 const ECU_HEADER: [u8; 3] = [0xEB, 0x90, 0x2A];
+/// ECU 帧总长度（含末尾校验字节）
 const ECU_FRAME_LEN: usize = 42;
 
+/// 校验 ECU 帧：长度、帧头、累加和（前 41 字节之和取低 8 位 == 末字节）
 pub fn validate_ecu(frame: &[u8]) -> bool {
     if frame.len() < ECU_FRAME_LEN {
         return false;
@@ -29,6 +45,7 @@ pub fn validate_ecu(frame: &[u8]) -> bool {
     b
 }
 
+/// 发动机运行状态码 → 中文描述
 pub fn engine_status_str(code: u8) -> &'static str {
     match code {
         0x00 => "空闲",
@@ -45,6 +62,7 @@ pub fn engine_status_str(code: u8) -> &'static str {
     }
 }
 
+/// 指令执行状态码 → 中文描述
 pub fn cmd_exec_str(code: u8) -> &'static str {
     match code {
         0xA1 => "起动指令执行中",
@@ -66,8 +84,13 @@ pub fn cmd_exec_str(code: u8) -> &'static str {
     }
 }
 
+/// 解码 ECU 帧为 `EcuFields`
+///
+/// 帧内各字段按固定偏移读取（小端 u16），温度类字段需减去 273.0（开尔文转摄氏），
+/// 故障码拆分为两位（fc1/fc2）按位展开为 `FaultCodeFlags` 布尔位。
 pub fn decode_ecu(frame: &[u8]) -> EcuFields {
     tracing::trace!("{}", &format_hex(frame));
+    // 读取小端 u16 的便捷闭包
     let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
 
     let _count = frame[3];
@@ -85,9 +108,11 @@ pub fn decode_ecu(frame: &[u8]) -> EcuFields {
     let fc2 = u16_le(22);
     let oil_temp = u16_le(24) as f64 / 10.0 - 273.0;
     let fuel_pressure = u16_le(26) as f64;
+    // 附件状态：低 5 位按位表示 停车电磁阀/燃油泵/滑油泵/起动机/轮载
     let accessory = frame[28] & 0x1F;
     let oil_pressure = frame[29] as f64 / 100.0;
     let exchanger_temp = u16_le(30) as f64 / 10.0;
+    // 特征码（4 字节，十六进制拼接）
     let fingerprint = frame[34..38]
         .iter()
         .map(|b| format!("{:02X}", b))
@@ -119,6 +144,7 @@ pub fn decode_ecu(frame: &[u8]) -> EcuFields {
         oil_pump: acc_bits & 0x04 != 0,
         starter: acc_bits & 0x08 != 0,
         wheel_load_status: acc_bits & 0x10 != 0,
+        // 点火状态：起动中或运行中视为点火
         ignition: engine_status_u8 == 0x02 || engine_status_u8 == 0x06,
         fault_codes: FaultCodeFlags {
             fc1_self_check_exhaust: fc1 & (1 << 0) != 0,
@@ -154,6 +180,7 @@ pub fn decode_ecu(frame: &[u8]) -> EcuFields {
     }
 }
 
+/// 校验 Adam4015 帧：以 `>` 开头、`\r` 结尾（ASCII 协议）
 pub fn validate_adam4015(frame: &[u8]) -> bool {
     if frame.len() < 3 {
         return false;
@@ -164,6 +191,7 @@ pub fn validate_adam4015(frame: &[u8]) -> bool {
     frame[frame.len() - 1] == b'\r'
 }
 
+/// 解码 Adam4015 帧：`>ch1+ch2+...+ch8\r`，各通道 mV 值除以 1000 转 V
 pub fn decode_adam4015(frame: &[u8]) -> Adam4015Fields {
     let s = std::str::from_utf8(frame).unwrap_or("");
     let mut channels = [0.0f64; 8];
@@ -180,6 +208,7 @@ pub fn decode_adam4015(frame: &[u8]) -> Adam4015Fields {
     Adam4015Fields { channels }
 }
 
+/// 校验 Adam4117 帧：格式与 Adam4015 相同（以 `>` 开头、`\r` 结尾）
 pub fn validate_adam4117(frame: &[u8]) -> bool {
     if frame.len() < 3 {
         return false;
@@ -190,6 +219,7 @@ pub fn validate_adam4117(frame: &[u8]) -> bool {
     frame[frame.len() - 1] == b'\r'
 }
 
+/// 解码 Adam4117 帧：与 Adam4015 相同的 ASCII 格式，8 通道电压
 pub fn decode_adam4117(frame: &[u8]) -> Adam4117Fields {
     let s = std::str::from_utf8(frame).unwrap_or("");
     let mut channels = [0.0f64; 8];
@@ -206,8 +236,10 @@ pub fn decode_adam4117(frame: &[u8]) -> Adam4117Fields {
     Adam4117Fields { channels }
 }
 
+/// 测功机帧长度
 const DYNO_FRAME_LEN: usize = 18;
 
+/// 校验测功机帧：长度 18 字节、帧头 `FF FF`
 pub fn validate_dyno(frame: &[u8]) -> bool {
     if frame.len() < DYNO_FRAME_LEN {
         return false;
@@ -218,6 +250,8 @@ pub fn validate_dyno(frame: &[u8]) -> bool {
     true
 }
 
+/// 解码测功机帧：转速（offset 8）、扭矩（offset 10，除以 10），
+/// 功率按 `扭矩 × 转速 / 9550` 计算（转速为 0 时功率为 0）
 pub fn decode_dyno(frame: &[u8]) -> DynoFields {
     let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
 
@@ -228,8 +262,10 @@ pub fn decode_dyno(frame: &[u8]) -> DynoFields {
     DynoFields { njzs, nj, njgl }
 }
 
+/// 燃油流量计帧长度
 const FLUX_FRAME_LEN: usize = 18;
 
+/// 校验燃油流量计帧：长度 18 字节、帧头 `FF FF`
 pub fn validate_flux(frame: &[u8]) -> bool {
     if frame.len() < FLUX_FRAME_LEN {
         return false;
@@ -240,6 +276,7 @@ pub fn validate_flux(frame: &[u8]) -> bool {
     true
 }
 
+/// 解码燃油流量计帧：offset 2 处读取流量（小端 u16）
 pub fn decode_flux(frame: &[u8]) -> FluxFields {
     let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
 

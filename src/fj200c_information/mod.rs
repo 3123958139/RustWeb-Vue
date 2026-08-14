@@ -6,7 +6,7 @@
 //! 本模块实现了发动机监控的完整数据链路：
 //! - **数据采集**：通过串口（`com`）或进程内模拟（`mock`）获取原始字节流
 //! - **帧提取**：`frame_extractor` 从字节流中定位帧头、校验帧完整性
-//! - **协议解码**：`decode` 将 100 字节帧解码为 28 个工程字段
+//! - **协议解码**：`decode` 将 60 字节帧解码为 28 个工程字段
 //! - **数据存储**：`frame_bundle` 缓存最新帧，`common::csv_writer` + `csv_sink` 持久化记录
 //! - **实时推送**：通过 `tokio::sync::broadcast` 广播事件，WebSocket 推送到前端
 //!
@@ -31,7 +31,7 @@
 //! | `service` | 一级 | 服务启动/停止编排 |
 //! | `state` | 二级 | 全局状态（SharedData、运行标志、配置路径） |
 //! | `config` | 二级 | config-fj200c_information.ini 解析（复用公共 INI 封装） |
-//! | `decode` | 二级 | 100 字节帧协议校验与 28 字段解码 |
+//! | `decode` | 二级 | 60 字节帧协议校验与 28 字段解码 |
 //! | `csv_sink` | 二级 | CSV 异步写入线程（复用公共 `common::csv_writer`，磁盘 IO 移出采集线程） |
 //! | `frame_bundle` | 二级 | 帧数据复合存储（ArcSwap + RwLock） |
 //! | `com` | 二级 | 串口控制（serial2，overlapped IO 并发读写，实现 IoControl） |
@@ -42,14 +42,14 @@
 //! 帧提取器（`FrameExtractor`）、四槽帧缓冲（`QuadFrame`）、工具函数等
 //! 通用逻辑位于 `crate::common`，由 fj200c_information / ftj1c 共享。
 //!
-//! ## 关键语法
+//! ## 协作要点
 //!
 //! - **`broadcast::Sender`**：tokio 广播通道发送端，`send()` 是同步方法，
-//!   可在 `std::thread` 中直接调用，支持多接收者（多个 WebSocket 客户端）。
+//!   可在 `std::thread` 中直接调用，支持多接收者（多个 WebSocket 客户端）
 //! - **`OnceLock`**：线程安全一次性初始化容器（`std::sync::OnceLock`），
-//!   用于全局单例（Config、SharedData），保证只初始化一次。
-//! - **`#[serde(tag = "type", rename_all = "snake_case")]`**：serde 标签枚举序列化，
-//!   使 `Fj200cInformationEvent::Frame` 在 JSON 中自动包含 `"type": "frame"` 字段。
+//!   用于全局单例（Config、SharedData），保证只初始化一次
+//! - **`#[serde(tag = "type", rename_all = "snake_case")]`**：事件枚举标签序列化，
+//!   使 `Fj200cInformationEvent::Frame` 在 JSON 中自动包含 `"type": "frame"` 字段
 
 pub mod fj200c_information;
 pub mod handlers;

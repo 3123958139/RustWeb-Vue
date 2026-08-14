@@ -3,11 +3,11 @@
 //! 存储最近一帧的解码字段和原始帧，供会话线程与 WebSocket 快照共享。
 //! 从 dch crate（fj200c_information.informatization）移植（原实现存多帧历史，此处简化为最新帧）。
 //!
-//! ## 关键语法
+//! ## 并发设计
 //!
-//! - **`ArcSwap<Vec<String>>`**：原子可交换指针。读方无需持锁即可拿到
-//!   一份稳定的数据快照（`load()` 返回 Guard），写方替换整个指针。
-//! - **`RwLock<Vec<u8>>`**：原始帧数据读写锁，写多读少的场景。
+//! - **`ArcSwap<Vec<String>>`**：字段列表采用原子可交换指针，读方无需持锁
+//!   即可拿到稳定快照（`load()` 返回 Guard），写方替换整个指针
+//! - **`RwLock<Vec<u8>>`**：原始帧数据读写锁，读多写少
 
 use arc_swap::ArcSwap;
 use std::sync::RwLock;
@@ -16,7 +16,7 @@ use std::sync::RwLock;
 pub struct FrameBundle {
     /// 解码后的 28 列字段值（原子指针，无锁读取）
     frames: ArcSwap<Vec<String>>,
-    /// 原始帧数据（100 字节，读写锁保护）
+    /// 原始帧数据（60 字节，读写锁保护）
     last_frame: RwLock<Vec<u8>>,
 }
 

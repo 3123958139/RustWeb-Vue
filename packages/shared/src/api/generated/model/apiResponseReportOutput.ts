@@ -30,6 +30,7 @@ import type { ApiResponseReportOutputData } from './apiResponseReportOutputData'
  * - `ApiResponse<LoginResponse>` - 登录响应
  */
 export interface ApiResponseReportOutput {
+  /** 报表生成结果（试验信息 + 状态点 + 三张数据表） */
   data?: ApiResponseReportOutputData;
   /**
      * 错误信息（可选）

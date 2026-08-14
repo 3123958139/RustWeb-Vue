@@ -1,3 +1,13 @@
+//! 服务生命周期与业务操作（fj200c_main 模块）
+//!
+//! 对外提供：服务启停（`start_service`/`stop_service`）、ECU 指令下发
+//! （`send_command`）、CSV 录制开关（`toggle_csv_recording`）、模拟运行开关
+//! （`toggle_simulation`）、主题切换（`set_theme`）、试验信息读写。
+//!
+//! 线程模型：服务启动时打开五路串口并各起接收线程（`com.rs`），另起
+//! 处理线程（`com.rs::start_processing_thread`）轮询共享状态、写 CSV 并
+//! 广播 WebSocket；停止时统一回收（`stop_all`）。模拟运行可脱离服务
+//! 独立启动发送线程（`mock.rs`）。
 use crate::common::csv_writer::CsvWriter;
 use crate::common::global_var::GlobalVar;
 use crate::common::service::ServiceRuntime;
@@ -14,12 +24,17 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
+/// 服务运行时状态机（公共组件，管理 启动中/停止中 状态）
 static RUNTIME: ServiceRuntime = ServiceRuntime::new();
 
+/// 服务是否运行中（等价于 `state::SERVICE_RUNNING`）
 pub fn is_running() -> bool {
     state::SERVICE_RUNNING.load(Ordering::Relaxed)
 }
 
+/// 启动服务：加载配置 → 打开五路串口 → 启动处理线程
+///
+/// 失败返回中文错误信息；重复启动直接报"服务已在运行中"。
 pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> Result<(), String> {
     if is_running() {
         return Err("服务已在运行中".to_string());
@@ -31,6 +46,7 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
     let cfg = Config::load(state::CONFIG_PATH).map_err(|e| format!("加载配置文件失败: {}", e))?;
     config::set_global(cfg);
 
+    // 初始化全局变量容器，CSV 目录固定为 csv/
     GlobalVar::init();
     if let Some(gv) = GlobalVar::global() {
         gv.set("PathCSV", "csv");
@@ -41,11 +57,13 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
         .cloned()
         .ok_or("共享端口数据初始化失败")?;
 
+    // 五路串口（含模拟源）初始化
     let ports = init_all_from_config(&shared, tx.clone());
     *state::ALL_COM_PORTS
         .lock()
         .unwrap_or_else(|e| e.into_inner()) = Some(ports);
 
+    // 处理线程：轮询共享状态 → CSV 录制 / WebSocket 广播
     let proc_stop = start_processing_thread(shared.clone(), tx.clone());
     *state::PROCESSING_STOP
         .lock()
@@ -56,6 +74,7 @@ pub fn start_service(tx: broadcast::Sender<crate::common::ws::EventPayload>) -> 
     Ok(())
 }
 
+/// 停止服务（幂等，见 `stop_all`）
 pub fn stop_service() {
     stop_all();
 }
@@ -108,6 +127,10 @@ pub fn stop_all() {
     info!("fj200c_main 服务已停止");
 }
 
+/// 下发 ECU 指令（十六进制帧）
+///
+/// 校验长度 ≥ 16 字节后存入 `state::ecu_send_data`，由发送线程
+/// （`com.rs::start_processing_thread`）周期下发到 ECU 串口。
 pub fn send_command(hex: &str) -> Result<(), String> {
     if !is_running() {
         return Err("服务未运行".to_string());
@@ -123,6 +146,7 @@ pub fn send_command(hex: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 切换 CSV 录制（幂等）：开始写试验信息文件 + 数据文件，或停止并 flush
 pub fn toggle_csv_recording(
     tx: &broadcast::Sender<crate::common::ws::EventPayload>,
 ) -> Result<(), String> {
@@ -191,6 +215,10 @@ pub fn toggle_csv_recording(
     Ok(())
 }
 
+/// 切换模拟运行：启动/停止五路模拟数据发送线程
+///
+/// 模拟线程不依赖服务启动（`shared_port_data` 惰性创建），故服务未运行
+/// 时也可单独演示数据流；启动前同样先停止其他角色服务（排他）。
 pub fn toggle_simulation(tx: &broadcast::Sender<crate::common::ws::EventPayload>) {
     let is_sim = state::SIMULATION_MODE.load(Ordering::Relaxed);
     let new_sim = !is_sim;
@@ -232,6 +260,7 @@ pub fn toggle_simulation(tx: &broadcast::Sender<crate::common::ws::EventPayload>
     }
 }
 
+/// 切换界面主题（深浅色），状态广播给所有前端
 pub fn set_theme(is_dark: bool, tx: &broadcast::Sender<crate::common::ws::EventPayload>) {
     state::THEME_IS_DARK.store(if is_dark { 1 } else { 0 }, Ordering::Relaxed);
     let event = Fj200cMainEvent::ThemeState { is_dark };
@@ -240,6 +269,7 @@ pub fn set_theme(is_dark: bool, tx: &broadcast::Sender<crate::common::ws::EventP
     }
 }
 
+/// 读取试验信息（从全局变量容器，未初始化时返回默认空值）
 pub fn get_experiment_info() -> ExperimentInfo {
     let gv = match GlobalVar::global() {
         Some(g) => g,
@@ -256,6 +286,7 @@ pub fn get_experiment_info() -> ExperimentInfo {
     }
 }
 
+/// 保存试验信息（写入全局变量容器，未初始化时先初始化）
 pub fn save_experiment_info(info: &ExperimentInfo) -> Result<(), String> {
     let gv = match GlobalVar::global() {
         Some(g) => g,

@@ -1,3 +1,11 @@
+<!--
+  App.vue —— 前端应用（city3d）根组件
+
+  职责：
+  - 登录页不显示顶部导航栏（AppNavbar），其余页面显示
+  - 挂载时调用 authStore.initAuth() 恢复登录态并加载角色注册表
+  - 通过 el-config-provider 注入 Element Plus 中文语言包
+-->
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'

@@ -6,6 +6,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 燃油流量计解码字段
+ */
 export interface FluxFields {
+  /** 燃油流量 */
   ll: number;
 }

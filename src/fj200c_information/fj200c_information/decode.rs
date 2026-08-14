@@ -1,16 +1,16 @@
 //! # 帧解码模块
 //!
 //! 负责校验原始帧数据，并将其解码为可读的工程字段。
-//! 从 fj200c_information.informatization 的 backend/decode.rs 移植（100 字节帧协议）。
+//! 从 fj200c_information.informatization 的 backend/decode.rs 移植（60 字节帧协议）。
 //!
 //! ## 帧格式
 //!
-//! 帧固定 100 字节，实际遥测数据在前 50 字节：
+//! 帧固定 60 字节，实际遥测数据在前 50 字节：
 //! ```text
-//! [0..3]    帧头 0xEB 0x90 0x64
+//! [0..3]    帧头 0xEB 0x90 0x3C
 //! [3]       帧类型字节（见下表）
 //! [4..50]   遥测数据区
-//! [99]      校验字节（前 99 字节累加和 % 256）
+//! [59]      校验字节（前 59 字节累加和 % 256）
 //! ```
 //!
 //! ## 帧类型映射
@@ -25,14 +25,6 @@
 //! | 0xDB | SYSJMK | 试验数据末块 |
 //! | 0xBF | JBCSQCZL | 基本参数清除 |
 //! | 0xBE | SYSJQCZL | 试验数据清除 |
-//!
-//! ## 关键语法
-//!
-//! - **`Arc<Mutex<Option<ExtractedFrame>>>`**：线程安全的共享状态。
-//!   `Arc` 允许多个线程持有同一份数据的引用计数指针，
-//!   `Mutex` 保证互斥访问，`Option` 表示"可能还没有数据"。
-//! - **`impl Fn(&[u8]) -> bool + 'static`**：闭包类型签名，
-//!   用作帧解码器的回调函数，由 `make_decoder` 工厂函数创建。
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -79,9 +71,9 @@ pub struct ExtractedFrame {
 /// 校验帧数据的完整性和正确性
 ///
 /// 检查项：
-/// 1. 帧长度 >= 100 字节
-/// 2. 帧头为 `[0xEB, 0x90, 0x64]`
-/// 3. 校验字节 = 前 99 字节累加和 % 256
+/// 1. 帧长度 >= 60 字节
+/// 2. 帧头为 `[0xEB, 0x90, 0x3C]`
+/// 3. 校验字节 = 前 59 字节累加和 % 256
 pub fn frame_validator(frame: &[u8]) -> bool {
     if frame.len() < FRAME_LEN {
         return false;
@@ -102,10 +94,6 @@ pub fn frame_validator(frame: &[u8]) -> bool {
 ///
 /// 返回一个闭包，接收校验通过的帧数据，解析帧类型并存入共享状态。
 /// `result` 参数是线程安全的共享容器，解码器闭包写入 `Some(ExtractedFrame)`。
-///
-/// 闭包类型 `impl Fn(&[u8]) -> bool + 'static` 表示：
-/// - `Fn`：不可变借用捕获的变量（可多次调用）
-/// - `'static`：闭包不引用非静态生命周期的数据
 pub fn make_decoder(
     result: Arc<std::sync::Mutex<Option<ExtractedFrame>>>,
 ) -> impl Fn(&[u8]) -> bool + 'static {
@@ -135,7 +123,7 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02X}", b)).collect()
 }
 
-/// 解码 100 字节帧为 28 个工程字段（仅使用前 50 字节数据区）
+/// 解码 60 字节帧为 28 个工程字段（仅使用前 50 字节数据区）
 ///
 /// 各字段的字节偏移和转换公式参照协议文档，主要转换包括：
 /// - 有符号 16 位整数：`frame[i] + frame[i+1] * 256`（小端序）

@@ -6,8 +6,14 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 测功机解码字段
+ */
 export interface DynoFields {
+  /** 扭矩（N·m） */
   nj: number;
+  /** 扭矩功率（kW，由 扭矩×转速/9550 计算） */
   njgl: number;
+  /** 扭矩转速（r/min） */
   njzs: number;
 }

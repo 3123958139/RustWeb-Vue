@@ -1,3 +1,9 @@
+<!--
+  DataPanel.vue —— 数据面板（city3d 模块）
+
+  展示城市概览统计与建筑/区域/事件三张数据表，
+  挂载时并发拉取四个接口，失败提示后进入空数据状态。
+-->
 <script lang="ts" setup>
 import {onMounted, ref} from 'vue'
 import {useRouter} from 'vue-router'
@@ -8,15 +14,22 @@ import type {Building, CityEvent, CityOverview} from '@/city3d/api/city3d'
 
 const router = useRouter()
 
+/** 概览统计 */
 const overview = ref<CityOverview | null>(null)
+/** 建筑列表 */
 const buildings = ref<Building[]>([])
+/** 区域列表 */
 const districts = ref<any[]>([])
+/** 事件列表 */
 const events = ref<CityEvent[]>([])
+/** 当前激活的 Tab */
 const activeTab = ref('overview')
+/** 加载状态 */
 const loading = ref(true)
 
 onMounted(async () => {
   try {
+    // 并发拉取概览/建筑/区域/事件，避免串行等待
     const [overviewRes, buildingsRes, districtsRes, eventsRes] = await Promise.all([
       city3dApi.getOverview(),
       city3dApi.getBuildings(),

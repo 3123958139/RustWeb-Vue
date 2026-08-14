@@ -1,4 +1,4 @@
-//! fw150 角色模块路由：设备台账查询（权限点 fw150:read）。
+//! fw150 角色模块路由：设备台账查询（权限点 Fw150Monitor）。
 //! 挂载于 `/api/fw150`，见 `src/routes.rs`。
 
 use crate::common::middleware::{auth_middleware, permission_middleware};
@@ -27,7 +27,7 @@ pub fn fw150_router(db: DatabaseConnection) -> Router<DatabaseConnection> {
     Router::<DatabaseConnection>::new().merge(protected)
 }
 
-// 权限中间件：登录 + 拥有 fw150:read 权限
+// 权限中间件：登录 + 拥有 Fw150Monitor 权限
 async fn fw150_permission_middleware(
     State(db): State<DatabaseConnection>,
     request: Request,

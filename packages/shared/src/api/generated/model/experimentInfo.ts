@@ -6,12 +6,22 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 试验信息（报表抬头使用，前端录入后保存）
+ */
 export interface ExperimentInfo {
+  /** 控制器编号 */
   controllerNo: string;
+  /** 发动机编号 */
   engineNo: string;
+  /** 燃气发生器编号 */
   gasGeneratorNo: string;
+  /** 滑油传感器编号 */
   oilSensorNo: string;
+  /** 转速传感器编号 */
   speedSensorNo: string;
+  /** 试验项目 */
   testItem: string;
+  /** 试验时间 */
   testTime: string;
 }

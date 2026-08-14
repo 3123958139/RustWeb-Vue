@@ -1,3 +1,13 @@
+/**
+ * @module router
+ * @description 前端应用（city3d）路由配置
+ *
+ * 路由结构：
+ * - `/login`：登录页（未登录访问）
+ * - `/city3d/main`：3D 城市场景（需登录 + City3dView 权限）
+ * - `/city3d/data`：数据面板（需登录 + City3dView 权限）
+ * - 其余路径重定向到登录页
+ */
 import {useAuthStore} from "@/stores/auth";
 import {Permission, createAppRouter} from "@shared";
 

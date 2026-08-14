@@ -6,32 +6,62 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 故障码按位展开的标志集合（fc1/fc2 各 16 位，每位对应一个故障）
+ */
 export interface FaultCodeFlags {
+  /** 冷运转异常 */
   fc1ColdStartAbnormal: boolean;
+  /** 排温超温 */
   fc1ExhaustOvertemp: boolean;
+  /** 点火失败 */
   fc1IgnitionFailure: boolean;
+  /** Ng 转速超转 */
   fc1NgOverspeed: boolean;
+  /** Np 转速超转 */
   fc1NpOverspeed: boolean;
+  /** 起动超温 */
   fc1Overtemp: boolean;
+  /** 自检排温异常 */
   fc1SelfCheckExhaust: boolean;
+  /** 自检燃压异常 */
   fc1SelfCheckFuelPressure: boolean;
+  /** 油路排气异常 */
   fc1SelfCheckFuelVent: boolean;
+  /** 自检进温异常 */
   fc1SelfCheckIntakeTemp: boolean;
+  /** 自检 Ng 转速异常 */
   fc1SelfCheckNgSpeed: boolean;
+  /** 自检 Np 转速异常 */
   fc1SelfCheckNpSpeed: boolean;
+  /** 自检滑压异常 */
   fc1SelfCheckOilPressure: boolean;
+  /** 自检滑温异常 */
   fc1SelfCheckOilTemp: boolean;
+  /** 起发转速低 */
   fc1StartSpeedLow: boolean;
+  /** 起动超时 */
   fc1StartTimeout: boolean;
+  /** 通信断开 */
   fc2CommDisconnected: boolean;
+  /** 排温故障 */
   fc2ExhaustTempFault: boolean;
+  /** 燃压故障 */
   fc2FuelPressureFault: boolean;
+  /** 发电电压异常 */
   fc2GenVoltageAbnormal: boolean;
+  /** 空中熄火 */
   fc2InFlightFlameout: boolean;
+  /** Ng 转速故障 */
   fc2NgSpeedFault: boolean;
+  /** Np 转速故障 */
   fc2NpSpeedFault: boolean;
+  /** 滑压故障 */
   fc2OilPressureFault: boolean;
+  /** 滑温故障 */
   fc2OilTempFault: boolean;
+  /** 起动电压异常 */
   fc2StartVoltageAbnormal: boolean;
+  /** ECU 电压异常 */
   fc2VoltageAbnormal: boolean;
 }

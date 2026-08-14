@@ -1,3 +1,13 @@
+/**
+ * @module stores/auth
+ * @description 认证 store 工厂（公用代码）
+ *
+ * 通过 `createAuthStore(options)` 按应用差异化生成 store 实例：
+ * 会话管理（localStorage 持久化 + 跨标签页同步）+ 服务端校验 +
+ * 角色权限/菜单（注册表驱动），业务逻辑只维护一份。
+ * 各应用在 `stores/auth.ts` 中调用 `registerAuthStoreGetter` 登记自己的
+ * store 获取器，公共组件（如 AppNavbar）经 `getAppAuthStore()` 无参获取。
+ */
 import {defineStore, type StoreDefinition} from "pinia";
 import {ref, computed} from "vue";
 import type {MenuItem, Permission, User} from "../types";

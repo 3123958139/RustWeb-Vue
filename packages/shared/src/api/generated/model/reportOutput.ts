@@ -9,10 +9,18 @@ import type { DesignPointRow } from './designPointRow';
 import type { PerformanceRow } from './performanceRow';
 import type { StandardRow } from './standardRow';
 
+/**
+ * 报表生成结果（试验信息 + 状态点 + 三张数据表）
+ */
 export interface ReportOutput {
+  /** 试验基本信息（抬头行，见 report.rs 组装逻辑） */
   basicInfo: string[];
+  /** 设计点数据表 */
   designPointData: DesignPointRow[];
+  /** 性能数据表 */
   performanceData: PerformanceRow[];
+  /** 标准数据表 */
   standardData: StandardRow[];
+  /** 报表状态点（来自配置 [REPORT] StatePoints） */
   statePoints: number[];
 }

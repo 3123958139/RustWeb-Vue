@@ -1,3 +1,12 @@
+//! 串口抽象层：统一五路串口的打开、发送与接收线程
+//!
+//! 五路设备（ECU/Adam4015/Adam4117/测功机/流量计）协议差异仅体现在
+//! 帧头/帧长/校验上，故抽象为 `ComSpec`（协议描述）与 `AbstractCom`
+//! （串口句柄 + 接收线程）：接收线程用 `common/frame_extractor.rs` 的
+//! `FrameExtractor` 按帧规约拆帧，拆出的完整帧交给解码器（`decode.rs`）。
+//!
+//! `DualCom` 为串口句柄实现（基于 serial2），承担 `IoControl` trait 的
+//! 并发读写语义（详见其文档）。
 use crate::common::frame_extractor::FrameExtractor;
 use crate::common::io::IoControl;
 use crate::fj200c_main::config;
@@ -7,17 +16,25 @@ use std::thread;
 use tokio::sync::broadcast;
 use tracing::{debug, error};
 
+/// 接收缓冲长度（帧长 256 的两倍，一次读循环可吞下多帧）
 pub const FRAME_LEN: usize = 256;
 
+/// 串口协议描述：决定 FrameExtractor 如何从字节流中找帧边界
 pub struct ComSpec {
+    /// 配置节名（如 `[Connection1]`），串口参数从该节读取
     pub section: String,
+    /// 连接序号（1 起，日志与状态区分用）
     pub conn_idx: usize,
+    /// 帧头字节
     pub frame_header: Vec<u8>,
+    /// 帧数据区长度（帧头之后到校验前的字节数）
     pub frame_data_len: usize,
+    /// 帧尾长度（校验/结束字节数）
     pub frame_tail_len: usize,
 }
 
 impl ComSpec {
+    /// ECU 协议（头 0xEB 0x90 0x2A，数据 38 字节 + 1 校验）
     pub fn ecu_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
@@ -28,6 +45,7 @@ impl ComSpec {
         }
     }
 
+    /// Adam4015 协议（ASCII 帧，头 `>`，数据 57 字节，无帧尾）
     pub fn adam4015_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
@@ -38,6 +56,7 @@ impl ComSpec {
         }
     }
 
+    /// Adam4117 协议（与 4015 同为 ASCII `>` 帧，数据 57 字节）
     pub fn adam4117_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
@@ -48,6 +67,7 @@ impl ComSpec {
         }
     }
 
+    /// 测功机协议（头 0xFF 0xFF，数据 14 字节 + 2 校验）
     pub fn dyno_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
@@ -58,6 +78,7 @@ impl ComSpec {
         }
     }
 
+    /// 燃油流量计协议（与测功机同为 0xFF 0xFF 头，数据 14 字节 + 2 校验）
     pub fn flux_protocol(section: &str, conn_idx: usize) -> Self {
         ComSpec {
             section: section.to_string(),
@@ -68,6 +89,7 @@ impl ComSpec {
         }
     }
 
+    /// 完整帧长度 = 帧头 + 数据区 + 帧尾
     pub fn frame_size(&self) -> usize {
         self.frame_header.len() + self.frame_data_len + self.frame_tail_len
     }
@@ -88,6 +110,7 @@ pub struct DualCom {
 }
 
 impl DualCom {
+    /// 按配置节参数打开串口（超时 100ms），失败返回错误信息
     pub fn new(
         port_name: &str,
         baud_rate: u32,
@@ -131,6 +154,10 @@ impl IoControl for DualCom {
     }
 }
 
+/// 串口通信抽象：协议描述 + 串口句柄 + 停止标志
+///
+/// 对外只暴露 `send`（发指令）与 `start_with`（起接收线程）；
+/// 接收线程按 `ComSpec` 拆帧，完整帧交给 `validator`/`decoder` 回调。
 pub struct AbstractCom {
     com: Arc<dyn IoControl>,
     com_spec: Arc<ComSpec>,
@@ -144,6 +171,7 @@ impl Drop for AbstractCom {
 }
 
 impl AbstractCom {
+    /// 从配置节（`[ConnectionN]`）读取串口参数并打开，返回自引用包装
     pub fn new(
         com_spec: ComSpec,
         stop: Arc<AtomicBool>,
@@ -154,6 +182,7 @@ impl AbstractCom {
 
         let com_spec = Arc::new(com_spec);
 
+        // 从配置读取端口与串口参数（缺省值：COM1 / 115200 / 8N1）
         let cfg = config::global()
             .ok_or("配置未加载")?
             .as_ref()
@@ -199,14 +228,18 @@ impl AbstractCom {
         }))
     }
 
+    /// 发送原始字节（指令下发，帧由调用方组好）
     pub fn send(&self, buf: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
         self.com.send(buf)
     }
 
+    /// 连接序号（用于日志与事件区分设备）
     pub fn conn_idx(&self) -> usize {
         self.com_spec.conn_idx
     }
 
+    /// 启动接收线程：循环读取 → `FrameExtractor` 拆帧 → 逐帧调用
+    /// `validator`（校验和）与 `decoder`（解码入共享状态）；`stop` 置位即退出
     pub fn start_with(
         self: &Arc<Self>,
         validator: impl Fn(&[u8]) -> bool + Send + Sync + 'static,

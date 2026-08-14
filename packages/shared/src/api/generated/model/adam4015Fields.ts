@@ -6,6 +6,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * Adam4015 模拟量采集模块解码字段（8 通道电压，V）
+ */
 export interface Adam4015Fields {
+  /** 8 通道电压值（V） */
   channels: number[];
 }

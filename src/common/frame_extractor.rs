@@ -6,7 +6,7 @@
 
 /// 帧提取器：从连续字节流中定位和提取固定长度的帧
 pub struct FrameExtractor {
-    /// 帧头标识字节序列（如 `[0xEB, 0x90, 0x64]`）
+    /// 帧头标识字节序列（如 `[0xEB, 0x90, 0x3C]`）
     header: Vec<u8>,
     /// 每帧的固定长度（字节数）
     frame_size: usize,

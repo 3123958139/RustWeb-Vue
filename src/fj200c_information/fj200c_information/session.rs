@@ -10,20 +10,19 @@
 //!      │                                    │
 //!      ├─ payload 事件（原始 hex，200ms 节流）├─ frame 事件（hex + 类型 + 字段）
 //!      │                                    └─ table_data 事件（16 个 SharedData 字段）
-//!      └─ SharedData 解码（frame[4..64]）   + CSV 写入（SYSJSK 开始 / SYSJMK 结束）
+//!      └─ SharedData 解码（frame[5..54]）  + CSV 写入（SYSJSK 开始 / SYSJMK 结束）
 //! ```
 //!
-//! ## 关键语法
+//! ## 实现要点
 //!
-//! - **`Arc<Mutex<Option<ExtractedFrame>>>`**：解码器与主循环之间的结果传递。
-//!   解码器闭包（在 extractor 内部被调用）写入 `Some(frame)`，
-//!   主循环 `try_lock` 取走，避免阻塞。
-//! - **`Instant::now() - Duration` 节流**：`payload` 与 `table_data` 事件
-//!   每 200ms 最多发一次，避免高频数据导致前端 UI 卡顿。
-//! - **状态机**：`SYSJSK`（首块）创建 CSV → `SYSJZJK`（中间块）写行 →
-//!   `SYSJMK`（末块）刷新关闭，与硬件试验数据下载协议对应。
+//! - **解码结果传递**：解码器闭包（在 extractor 内部被调用）写入
+//!   `Some(frame)`，主循环 `try_lock` 取走，避免阻塞
+//! - **事件节流**：`payload` 与 `table_data` 事件每 200ms 最多发一次，
+//!   避免高频数据导致前端 UI 卡顿
+//! - **CSV 状态机**：`SYSJSK`（首块）创建 CSV → `SYSJZJK`（中间块）写行 →
+//!   `SYSJMK`（末块）刷新关闭，与硬件试验数据下载协议对应
 //! - **SharedData 16 字段解码**：非试验数据帧（参数设置/读取、遥测等）解码
-//!   frame[4..64] 为产品名称、编号、累计时间等标识字段，供 table_data 推送。
+//!   frame[5..54] 为产品名称、编号、累计时间等标识字段，供 table_data 推送
 
 use crate::common::config::Config;
 use crate::common::frame_extractor::FrameExtractor;

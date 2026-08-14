@@ -1,10 +1,13 @@
-//! # 主题切换（深色/浅色）
-//!
-//! 管理应用主题切换。在 `<html>` 标签上切换 `theme-dark` / `theme-light` CSS 类
-//! （驱动仪表盘 CSS 变量），同时切换 `dark` 类以联动 Element Plus 暗色主题。
-//!
-//! - `applyTheme(dark)`：模块级函数，供 useBackendPorts 收到 WS `theme_state` 事件时调用
-//! - `toggle()`：用户主动切换时调用，并通过 `fj200cMainApi.setTheme()` 同步到服务端
+/**
+ * @module useTheme
+ * @description 主题切换（深色/浅色）
+ *
+ * 管理应用主题切换。在 `<html>` 标签上切换 `theme-dark` / `theme-light` CSS 类
+ * （驱动仪表盘 CSS 变量），同时切换 `dark` 类以联动 Element Plus 暗色主题。
+ *
+ * - `applyTheme(dark)`：模块级函数，供 useBackendPorts 收到 WS `theme_state` 事件时调用
+ * - `toggle()`：用户主动切换时调用，并通过 `fj200cMainApi.setTheme()` 同步到服务端
+ */
 
 import { ref } from 'vue'
 import { fj200cMainApi } from '@/api'
@@ -12,6 +15,7 @@ import { useDashboardStore } from '@/fj200c_main/store/dashboard'
 
 const isDark = ref(true)
 
+/** 应用主题（切换 CSS 类 + 持久化 + 广播 `theme-changed` 事件） */
 export function applyTheme(dark: boolean) {
   isDark.value = dark
   document.documentElement.classList.toggle('theme-dark', dark)

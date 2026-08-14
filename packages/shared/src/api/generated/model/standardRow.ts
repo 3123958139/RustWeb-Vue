@@ -6,9 +6,16 @@
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * 标准数据行（与性能数据对比）
+ */
 export interface StandardRow {
+  /** 排气温度 */
   exhaustTemp: string;
+  /** 耗油率 SFC */
   sfc: string;
+  /** 转速 */
   speed: string;
+  /** 推力 */
   thrust: string;
 }

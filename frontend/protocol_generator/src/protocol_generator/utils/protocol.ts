@@ -7,6 +7,11 @@
 import type { ProtocolField } from '../types/protocol'
 import { getTypeSize } from '../types/protocol'
 
+/**
+ * 按 C# 数据类型大小重排协议字段：返回新数组，重新计算 index（1 起）与 byteRange
+ * - 固定大小类型：`offset` / `offset-(offset+size-1)`，连续累加偏移
+ * - 可变长类型（string/byte[]）：有 length 用 length 计算，否则标 `offset~N`
+ */
 export function recalcFields(fields: ProtocolField[]): ProtocolField[] {
   let offset = 0
   return fields.map((f, i) => {
