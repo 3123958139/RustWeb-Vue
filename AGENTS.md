@@ -124,6 +124,18 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 - **静态托管**（生产）：后端 `main.rs` 双模式——`embedded` feature 下 8 个前端已内嵌进 exe（`embedded_assets.rs` 内存服务，SPA 深链接回退 index.html）；默认 dev 模式仍读磁盘 `dist-*/` 目录；根路径 `/` 重定向到 `/admin`
 - **服务地址绑定**：`main.rs` 绑定 `127.0.0.1`，如需外网访问改为 `0.0.0.0`
 
+## 注释规范
+
+全项目注释统一使用**中文**，风格分层如下：
+
+- **模块级文档**：Rust 文件头用 `//!`（内部以 `# 章节` 分段：架构说明/设计理念/导出说明等，如 `src/roles.rs`、`src/common/models.rs`）；TS 文件头用 `/** @module ... @description ... */` JSDoc（如 `packages/shared/src/roles.ts`）
+- **公共 item 文档**：Rust 用 `///`（`# 参数` / `# 返回值` / `# 示例` / `# 语法说明` 小节）；TS 用 JSDoc `/** ... */`。DTO 字段的 `///` 注释会被 utoipa 带入 openapi.json 成为 schema description，编写时按最终用户文档对待
+- **章节分隔**：`// ============ 章节名 ============` 用于分组 import 区、权限枚举、菜单配置、api_docs.rs 的 paths 注册等
+- **教学性 vs 业务性注释**：一级公共模块（common/、roles.rs、role_template/）承担新人向导角色，会对 Rust 语法（Option、闭包、derive、生命周期等）写「语法说明」；二级目录角色业务代码注释只写「做什么/为什么」，不解释语法
+- **数值类注释必须与实现一致**：防漂移。典型为 `src/api_docs.rs` 的 `export_openapi` 测试断言注释（当前 49 路径 / 61 操作，AGENTS.md 与 README.md 中同样数字需同步维护）与 `src/roles.rs` 模块头的角色列表——改注册表/新增角色后必须一并更新
+- **生成代码不手写注释**：`openapi.json` 与 `packages/shared/src/api/generated/` 由工具生成，注释一律由源头（后端 `///`）产生
+- **禁止**：无意义的 `// 注释掉的死代码`、与实现不符的过时说明（发现时随手修正）
+
 ## 构建与部署
 
 ```powershell
