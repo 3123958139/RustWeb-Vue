@@ -37,7 +37,8 @@ use crate::ftj1c::quad_frame::QuadFrame;
 use crate::common::utils::format_hex;
 use chrono::{Local, Timelike};
 use std::f64::consts::{FRAC_PI_2, PI};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::time::Duration;
 use tracing::{error, info};
 
 // ════════════════════════════════════════════════════════════
@@ -508,19 +509,18 @@ impl Default for ComConfig {
     }
 }
 
-/// 串口控制器，支持打开/关闭/重连/收发
+/// 串口控制器，支持打开/关闭/发送
 ///
 /// # 说明
-/// 从 demo-test3-ftj 的 dch crate 移植，封装 `serialport` 库。
-/// 使用 `Mutex<Option<Box<dyn SerialPort>>>` 保护串口实例，
-/// 支持多线程安全访问和自动重连。
+/// 从 demo-test3-ftj 的 dch crate 移植，串口库改用 `serial2`（Windows 下
+/// overlapped IO）。`send` 只取 `&self`，发送线程无需互斥锁。
 ///
 /// # 线程安全
-/// - `Mutex` 保护串口实例，防止并发访问冲突
+/// - serial2 句柄本身线程安全，`read()/write()` 均可并发调用
 /// - `Drop` trait 自动关闭串口，确保资源释放
 pub struct ComControl {
-    /// 串口实例（`Box<dyn SerialPort>` 为 trait object，支持不同平台实现）
-    port: Mutex<Option<Box<dyn serialport::SerialPort>>>,
+    /// serial2 串口句柄（overlapped IO）
+    port: serial2::SerialPort,
     /// 串口配置参数
     config: ComConfig,
     /// 配置节名（用于日志标识）
@@ -585,89 +585,73 @@ impl ComControl {
             timeout_ms,
         };
 
-        let control = Self {
-            port: Mutex::new(None),
-            config,
-            section: section.to_string(),
-        };
-        control.open_port()?;
-        Ok(control)
-    }
-
-    /// 打开串口
-    ///
-    /// # 说明
-    /// 根据配置参数创建串口实例并绑定。
-    /// 使用 `socket2` 库设置 `SO_REUSEADDR` 选项。
-    ///
-    /// # 错误处理
-    /// 如果端口被占用，尝试绑定 `0.0.0.0:<port>` 作为回退。
-    fn open_port(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let builder = serialport::new(&self.config.port_name, self.config.baud_rate)
-            .data_bits(match self.config.data_bits {
-                5 => serialport::DataBits::Five,
-                6 => serialport::DataBits::Six,
-                7 => serialport::DataBits::Seven,
-                _ => serialport::DataBits::Eight,
+        let mut port =
+            serial2::SerialPort::open(&port_name, |mut settings: serial2::Settings| {
+                settings.set_raw();
+                settings.set_baud_rate(baud_rate)?;
+                settings.set_char_size(match data_bits {
+                    5 => serial2::CharSize::Bits5,
+                    6 => serial2::CharSize::Bits6,
+                    7 => serial2::CharSize::Bits7,
+                    _ => serial2::CharSize::Bits8,
+                });
+                settings.set_stop_bits(match stop_bits {
+                    ComStopBits::Two => serial2::StopBits::Two,
+                    ComStopBits::One => serial2::StopBits::One,
+                });
+                settings.set_parity(match parity {
+                    ComParity::Even => serial2::Parity::Even,
+                    ComParity::Odd => serial2::Parity::Odd,
+                    ComParity::None => serial2::Parity::None,
+                });
+                settings.set_flow_control(serial2::FlowControl::None);
+                Ok(settings)
             })
-            .parity(match self.config.parity {
-                ComParity::None => serialport::Parity::None,
-                ComParity::Even => serialport::Parity::Even,
-                ComParity::Odd => serialport::Parity::Odd,
-            })
-            .stop_bits(match self.config.stop_bits {
-                ComStopBits::One => serialport::StopBits::One,
-                ComStopBits::Two => serialport::StopBits::Two,
-            })
-            .timeout(std::time::Duration::from_millis(self.config.timeout_ms));
-
-        let port = builder.open().map_err(|e| {
-            let msg = format!(
-                "[{}] 打开串口 {} 失败: {}",
-                self.section, self.config.port_name, e
-            );
-            error!("{}", msg);
-            msg
-        })?;
-
-        {
-            let mut p = self.port.lock().unwrap_or_else(|e| e.into_inner());
-            *p = Some(port);
-        }
+            .map_err(|e| {
+                let msg = format!("[{}] 打开串口 {} 失败: {}", section, port_name, e);
+                error!("{}", msg);
+                msg
+            })?;
+        port.set_read_timeout(Duration::from_millis(timeout_ms))
+            .map_err(|e| {
+                let msg = format!("[{}] 设置读超时失败: {}", section, e);
+                error!("{}", msg);
+                msg
+            })?;
 
         info!(
-            "[{}] 串口 {} 已打开: {} baud, {}{}{}",
-            self.section,
-            self.config.port_name,
-            self.config.baud_rate,
-            self.config.data_bits,
-            match self.config.parity {
+            "[{}] 串口 {} 已打开(overlapped 并发读写, 无流控): {} baud, {}{}{}",
+            section,
+            port_name,
+            baud_rate,
+            data_bits,
+            match parity {
                 ComParity::None => "N",
                 ComParity::Even => "E",
                 ComParity::Odd => "O",
             },
-            match self.config.stop_bits {
+            match stop_bits {
                 ComStopBits::One => "1",
                 ComStopBits::Two => "2",
             },
         );
 
-        Ok(())
+        Ok(ComControl {
+            port,
+            config,
+            section: section.to_string(),
+        })
     }
 
     /// 关闭串口
     ///
     /// # 说明
-    /// 使用 `Option::take` 取出串口实例，触发 `Drop` 释放资源。
-    /// 如果串口已关闭，此操作无副作用。
+    /// serial2 句柄在 `ComControl` 析构时自动释放，close 仅记录日志。
     pub fn destroy(&self) {
-        let mut p = self.port.lock().unwrap_or_else(|e| e.into_inner());
-        if p.take().is_some() {
-            info!(
-                "[{}] 串口 {} 已关闭",
-                self.section, self.config.port_name
-            );
-        }
+        info!(
+            "[{}] 串口 {} 已关闭",
+            self.section, self.config.port_name
+        );
     }
 
     /// 向串口发送数据
@@ -679,13 +663,7 @@ impl ComControl {
     /// - `Ok(usize)`: 实际发送的字节数
     /// - `Err(Box<dyn Error>)`: 串口未打开或发送失败
     pub fn send(&self, buf: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
-        let mut p = self.port.lock().unwrap_or_else(|e| e.into_inner());
-        let port = p.as_mut().ok_or_else(|| {
-            let msg = format!("[{}] 串口未打开，无法发送", self.section);
-            error!("{}", msg);
-            msg
-        })?;
-        let n = port.write(buf).map_err(|e| {
+        let n = self.port.write(buf).map_err(|e| {
             let msg = format!("[{}] 串口发送失败: {}", self.section, e);
             error!("{}", msg);
             msg

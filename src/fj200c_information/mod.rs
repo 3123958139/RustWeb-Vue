@@ -34,7 +34,7 @@
 //! | `decode` | 二级 | 100 字节帧协议校验与 28 字段解码 |
 //! | `csv_sink` | 二级 | CSV 异步写入线程（复用公共 `common::csv_writer`，磁盘 IO 移出采集线程） |
 //! | `frame_bundle` | 二级 | 帧数据复合存储（ArcSwap + RwLock） |
-//! | `com` | 二级 | 串口控制（serialport 4，实现 IoControl） |
+//! | `com` | 二级 | 串口控制（serial2，overlapped IO 并发读写，实现 IoControl） |
 //! | `mock` | 二级 | 进程内模拟数据控制器（实现 IoControl） |
 //! | `mock_feeder` | 二级 | 虚拟串口对模式的数据发生器 |
 //! | `session` | 二级 | 每连接 IO 会话线程 |

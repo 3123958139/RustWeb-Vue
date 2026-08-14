@@ -46,8 +46,7 @@ chrono = { version = "0.4", features = ["serde"] }
 validator = { version = "0.16", features = ["derive"] }
 
 # 发动机监控模块（从 fj200c.informatization 迁移）
-serialport = "4"
-serial2 = "0.2"
+serial2 = { version = "0.2", features = ["windows"] }
 csv = "1"
 configparser = "3"
 arc-swap = "1"
