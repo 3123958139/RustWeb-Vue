@@ -8,8 +8,8 @@
   - ResizeObserver 监听容器尺寸自动 resize
   - 同时监听 screen-resize / theme-changed 全局事件
 -->
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+<script lang="ts" setup>
+import {onMounted, onUnmounted, ref, watch} from 'vue'
 import * as echarts from 'echarts'
 
 const props = defineProps<{
@@ -53,11 +53,11 @@ function getOption(): echarts.EChartsOption {
         axisTick: {
           length: 8,
           splitNumber: 5,
-          lineStyle: { color: cssVar('--text-muted'), width: 1.5 },
+          lineStyle: {color: cssVar('--text-muted'), width: 1.5},
         },
         splitLine: {
           length: 16,
-          lineStyle: { color: cssVar('--border-color'), width: 3 },
+          lineStyle: {color: cssVar('--border-color'), width: 3},
         },
         axisLabel: {
           distance: 14,
@@ -68,11 +68,18 @@ function getOption(): echarts.EChartsOption {
         pointer: {
           length: '58%',
           width: 5,
-          itemStyle: { color: cssVar('--text-accent') },
+          itemStyle: {color: cssVar('--text-accent')},
         },
         detail: {
           valueAnimation: true,
-          formatter: (v: number) => v.toFixed(1),
+          formatter: (v: number) => {
+            // 在此处调用你的逻辑
+            // 例如：return formatValue(value, props.unit);
+            // 或者直接写死逻辑：
+            if (props.unit.includes('r/min')) return v.toFixed(0);
+            if (props.unit.includes('kW')) return v.toFixed(1);
+            return v.toFixed(2);
+          },
           color: cssVar('--text-detail'),
           fontSize: 44,
           fontWeight: 'bolder',
@@ -84,7 +91,7 @@ function getOption(): echarts.EChartsOption {
           fontSize: 13,
           color: cssVar('--text-muted'),
         },
-        data: [{ value: props.value, name: props.unit }],
+        data: [{value: props.value, name: props.unit}],
       },
     ],
   }
@@ -99,7 +106,7 @@ function initChart() {
 function updateChart() {
   if (!chartInstance) return
   chartInstance.setOption({
-    series: [{ data: [{ value: props.value }] }],
+    series: [{data: [{value: props.value}]}],
     animation: false,
   })
 }
@@ -133,7 +140,7 @@ onUnmounted(() => {
 <template>
   <div class="gauge-card">
     <div class="gauge-label">{{ label }}</div>
-    <div ref="chartRef" class="gauge-chart" />
+    <div ref="chartRef" class="gauge-chart"/>
   </div>
 </template>
 
@@ -145,6 +152,7 @@ onUnmounted(() => {
   gap: 2px;
   max-width: 280px;
 }
+
 .gauge-label {
   font-size: 26px;
   font-weight: 600;
@@ -153,6 +161,7 @@ onUnmounted(() => {
   white-space: nowrap;
   transition: color 0.3s;
 }
+
 .gauge-chart {
   width: 260px;
   height: 260px;
