@@ -199,6 +199,33 @@ fn run_receiver(
                             }
                             t.altitude = v.alt;
                         }
+                        mavlink::msg::RADIO_STATUS => {
+                            let r = mavlink::decode_radio_status(&f.payload);
+                            if r.rssi != 127 {
+                                t.radio_rssi = r.rssi;
+                            }
+                            if r.remote_rssi != 127 {
+                                t.radio_rssi_remote = r.remote_rssi;
+                            }
+                        }
+                        mavlink::msg::HOME_POSITION => {
+                            let h = mavlink::decode_home_position(&f.payload);
+                            if h.lat != 0 || h.lon != 0 {
+                                t.home_lat = h.lat as f64 / 1e7;
+                                t.home_lon = h.lon as f64 / 1e7;
+                            }
+                            if h.alt != 0 {
+                                t.home_alt = h.alt as f32 / 1000.0;
+                            }
+                        }
+                        mavlink::msg::HEARTBEAT => {
+                            // 飞行时长累计（解锁期间以 100ms 步进，按帧到达近似）
+                            if t.armed {
+                                t.flight_time_s += 0.1;
+                            } else {
+                                t.flight_time_s = 0.0;
+                            }
+                        }
                         // ── 任务协议（仅接受常规任务 MISSION_TYPE_MISSION） ──
                         mavlink::msg::MISSION_REQUEST_INT => {
                             let r = mavlink::decode_mission_request_int(&f.payload);
@@ -303,6 +330,14 @@ fn run_receiver(
                 t.last_heartbeat_ms = since_hb;
                 if since_hb > CONNECTION_TIMEOUT.as_millis() as u64 {
                     t.connected = false;
+                }
+                // 距返航点距离 / 方位（HOME_POSITION 已收到时计算）
+                if t.home_lat != 0.0 || t.home_lon != 0.0 {
+                    t.distance_home = haversine(t.lat, t.lon, t.home_lat, t.home_lon) as f32;
+                    t.bearing_home = bearing_deg(t.lat, t.lon, t.home_lat, t.home_lon) as f32;
+                } else {
+                    t.distance_home = 0.0;
+                    t.bearing_home = 0.0;
                 }
                 *state::telemetry().write().unwrap_or_else(|e| e.into_inner()) = t;
                 // 10Hz 节流广播
@@ -498,6 +533,26 @@ fn run_sender(
 // ════════════════════════════════════════════════════════════
 //  事件发射
 // ════════════════════════════════════════════════════════════
+
+/// 球面大圆距离（米）
+fn haversine(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    let r = 6371000.0;
+    let dlat = (lat2 - lat1).to_radians();
+    let dlon = (lon2 - lon1).to_radians();
+    let a = (dlat / 2.0).sin().powi(2)
+        + lat1.to_radians().cos() * lat2.to_radians().cos() * (dlon / 2.0).sin().powi(2);
+    2.0 * r * a.sqrt().atan2((1.0 - a).sqrt())
+}
+
+/// 起点到终点的方位角（度）
+fn bearing_deg(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    let phi1 = lat1.to_radians();
+    let phi2 = lat2.to_radians();
+    let dl = (lon2 - lon1).to_radians();
+    let y = dl.sin() * phi2.cos();
+    let x = phi1.cos() * phi2.sin() - phi1.sin() * phi2.cos() * dl.cos();
+    y.atan2(x).to_degrees().rem_euclid(360.0)
+}
 
 /// 发射任务进度事件（预序列化一次后广播）
 fn emit_mission_progress(tx: &broadcast::Sender<EventPayload>, m: &MissionState) {

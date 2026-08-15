@@ -1503,7 +1503,7 @@
           "qgc"
         ],
         "summary": "发送飞控命令",
-        "description": "# HTTP 端点\n`POST /api/qgc/command`\n\n# 请求体\n```json\n{ \"command\": \"arm\", \"altitude\": 10 }\n```\n支持命令：`arm` 解锁 / `disarm` 锁定 / `takeoff` 起飞（`altitude` 米）/\n`land` 降落 / `rtl` 返航。\n\n# 说明\n命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执\n（WebSocket `command_ack` 事件，`result_name` 为结果码名称）。",
+        "description": "# HTTP 端点\n`POST /api/qgc/command`\n\n# 请求体\n```json\n{ \"command\": \"arm\", \"altitude\": 10 }\n```\n支持命令：`arm` 解锁 / `disarm` 锁定 / `takeoff` 起飞（`altitude` 米）/\n`land` 降落 / `rtl` 返航 / `start` 开始任务 / `pause` 暂停 / `resume` 继续 /\n`click_to_go` 随点随行（`params`=[lat, lon, alt]）/\n`move` 键盘摇杆速度控制（`params`=[vx, vy, vz] 机体速度 m/s）。\n\n# 说明\n命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执\n（WebSocket `command_ack` 事件，`result_name` 为结果码名称）；\n`click_to_go` / `move` 走 SET_POSITION_TARGET 消息（无回执）。",
         "operationId": "qgcSendCommand",
         "requestBody": {
           "content": {
@@ -2806,7 +2806,15 @@
               "gps_eph",
               "satellites_visible",
               "packet_rate",
-              "last_heartbeat_ms"
+              "last_heartbeat_ms",
+              "home_lat",
+              "home_lon",
+              "home_alt",
+              "distance_home",
+              "bearing_home",
+              "radio_rssi",
+              "radio_rssi_remote",
+              "flight_time_s"
             ],
             "properties": {
               "airspeed": {
@@ -2833,6 +2841,11 @@
                 "format": "int32",
                 "description": "电池剩余电量（%，-1 为未知）"
               },
+              "bearing_home": {
+                "type": "number",
+                "format": "float",
+                "description": "返航点方位角（度，0-360）"
+              },
               "climb": {
                 "type": "number",
                 "format": "float",
@@ -2851,6 +2864,16 @@
                 "type": "number",
                 "format": "float",
                 "description": "电池电流（A）"
+              },
+              "distance_home": {
+                "type": "number",
+                "format": "float",
+                "description": "距返航点水平距离（米）"
+              },
+              "flight_time_s": {
+                "type": "number",
+                "format": "float",
+                "description": "飞行时长（秒，解锁起累计）"
               },
               "gps_eph": {
                 "type": "number",
@@ -2872,6 +2895,21 @@
                 "type": "number",
                 "format": "float",
                 "description": "航向（度，0-360）"
+              },
+              "home_alt": {
+                "type": "number",
+                "format": "float",
+                "description": "返航点海拔（米，MSL）"
+              },
+              "home_lat": {
+                "type": "number",
+                "format": "double",
+                "description": "返航点纬度（度，HOME_POSITION）"
+              },
+              "home_lon": {
+                "type": "number",
+                "format": "double",
+                "description": "返航点经度（度，HOME_POSITION）"
               },
               "last_heartbeat_ms": {
                 "type": "integer",
@@ -2907,6 +2945,16 @@
                 "type": "number",
                 "format": "float",
                 "description": "俯仰速率（度/秒，ATTITUDE pitchspeed）"
+              },
+              "radio_rssi": {
+                "type": "integer",
+                "format": "int32",
+                "description": "数传链路本地信号强度（dBm，127 为未知）"
+              },
+              "radio_rssi_remote": {
+                "type": "integer",
+                "format": "int32",
+                "description": "数传链路远端信号强度（dBm，127 为未知）"
               },
               "relative_alt": {
                 "type": "number",
@@ -5282,7 +5330,7 @@
       },
       "QgcCommandRequest": {
         "type": "object",
-        "description": "飞控命令请求体（`POST /api/qgc/command`）\n\n# 支持的命令\n- `arm`：解锁（MAV_CMD_COMPONENT_ARM_DISARM, param1=1）\n- `disarm`：锁定（MAV_CMD_COMPONENT_ARM_DISARM, param1=0）\n- `takeoff`：起飞（MAV_CMD_NAV_TAKEOFF, param7=altitude）\n- `land`：降落（MAV_CMD_NAV_LAND）\n- `rtl`：返航（MAV_CMD_NAV_RETURN_TO_LAUNCH）\n\n命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执（WebSocket `command_ack` 事件）。",
+        "description": "飞控命令请求体（`POST /api/qgc/command`）\n\n# 支持的命令\n- `arm`：解锁（MAV_CMD_COMPONENT_ARM_DISARM, param1=1）\n- `disarm`：锁定（MAV_CMD_COMPONENT_ARM_DISARM, param1=0）\n- `takeoff`：起飞（MAV_CMD_NAV_TAKEOFF, param7=altitude）\n- `land`：降落（MAV_CMD_NAV_LAND）\n- `rtl`：返航（MAV_CMD_NAV_RETURN_TO_LAUNCH）\n- `start`：开始执行任务（MAV_CMD_MISSION_START）\n- `pause`：暂停任务（MAV_CMD_DO_PAUSE_CONTINUE, param1=0）\n- `resume`：继续任务（MAV_CMD_DO_PAUSE_CONTINUE, param1=1）\n- `click_to_go`：随点随行（SET_POSITION_TARGET_GLOBAL_INT，`params`=[lat, lon, alt]）\n- `move`：键盘/摇杆速度控制（SET_POSITION_TARGET_LOCAL_NED，`params`=[vx, vy, vz] 机体速度 m/s）\n\n命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执（WebSocket `command_ack` 事件）。",
         "required": [
           "command"
         ],
@@ -5297,7 +5345,18 @@
           },
           "command": {
             "type": "string",
-            "description": "命令名：arm / disarm / takeoff / land / rtl"
+            "description": "命令名：arm / disarm / takeoff / land / rtl / start / pause / resume / click_to_go / move"
+          },
+          "params": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number",
+              "format": "float"
+            },
+            "description": "附加参数（click_to_go: [lat, lon, alt]；move: [vx, vy, vz]）"
           }
         }
       },
@@ -5429,7 +5488,15 @@
           "gps_eph",
           "satellites_visible",
           "packet_rate",
-          "last_heartbeat_ms"
+          "last_heartbeat_ms",
+          "home_lat",
+          "home_lon",
+          "home_alt",
+          "distance_home",
+          "bearing_home",
+          "radio_rssi",
+          "radio_rssi_remote",
+          "flight_time_s"
         ],
         "properties": {
           "airspeed": {
@@ -5456,6 +5523,11 @@
             "format": "int32",
             "description": "电池剩余电量（%，-1 为未知）"
           },
+          "bearing_home": {
+            "type": "number",
+            "format": "float",
+            "description": "返航点方位角（度，0-360）"
+          },
           "climb": {
             "type": "number",
             "format": "float",
@@ -5474,6 +5546,16 @@
             "type": "number",
             "format": "float",
             "description": "电池电流（A）"
+          },
+          "distance_home": {
+            "type": "number",
+            "format": "float",
+            "description": "距返航点水平距离（米）"
+          },
+          "flight_time_s": {
+            "type": "number",
+            "format": "float",
+            "description": "飞行时长（秒，解锁起累计）"
           },
           "gps_eph": {
             "type": "number",
@@ -5495,6 +5577,21 @@
             "type": "number",
             "format": "float",
             "description": "航向（度，0-360）"
+          },
+          "home_alt": {
+            "type": "number",
+            "format": "float",
+            "description": "返航点海拔（米，MSL）"
+          },
+          "home_lat": {
+            "type": "number",
+            "format": "double",
+            "description": "返航点纬度（度，HOME_POSITION）"
+          },
+          "home_lon": {
+            "type": "number",
+            "format": "double",
+            "description": "返航点经度（度，HOME_POSITION）"
           },
           "last_heartbeat_ms": {
             "type": "integer",
@@ -5530,6 +5627,16 @@
             "type": "number",
             "format": "float",
             "description": "俯仰速率（度/秒，ATTITUDE pitchspeed）"
+          },
+          "radio_rssi": {
+            "type": "integer",
+            "format": "int32",
+            "description": "数传链路本地信号强度（dBm，127 为未知）"
+          },
+          "radio_rssi_remote": {
+            "type": "integer",
+            "format": "int32",
+            "description": "数传链路远端信号强度（dBm，127 为未知）"
           },
           "relative_alt": {
             "type": "number",

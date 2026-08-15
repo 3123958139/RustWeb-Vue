@@ -3,13 +3,49 @@
 
   Leaflet + OpenStreetMap 瓦片：
   1. 飞机 Marker（SVG 图标按航向旋转）+ 历史轨迹线（10Hz 遥测驱动）
-  2. 点击地图添加航点（加入 MissionPanel 列表）
+  2. 点击地图添加航点（加入 MissionPanel 列表）；随点随行模式下点击即飞向目标
   3. 航点 Marker 同步显示，MissionPanel 管理增删/上传/下载/清除
   4. mission_progress 事件实时驱动面板进度
+  5. 视角控制按钮组（跟随飞机 / 回中复位 / 缩放）+ 飞机 HUD 叠加条
+
+  说明：地图页为交互式页面，不做 1920×1080 整屏缩放（transform 会破坏
+  Leaflet 鼠标坐标换算），改用与仪表盘一致的主题配色与面板风格。
 -->
 <template>
   <div class="qgc-map-root">
-    <div class="map-container" ref="mapEl"></div>
+    <div class="map-stage">
+      <!-- 地图上方状态条 -->
+      <div class="map-topbar">
+        <span class="topbar-brand">
+          <span class="brand-dot"></span>
+          <span class="topbar-title">地图与任务</span>
+        </span>
+        <span class="topbar-hint"><i class="hint-dot"></i>{{ planMode === "plan" ? "点击地图添加航点" : "随点随行：点击地图即飞向目标" }}</span>
+        <div class="mode-switch">
+          <button class="mode-btn" :class="{ active: planMode === 'plan' }" @click="planMode = 'plan'">航线规划</button>
+          <button class="mode-btn" :class="{ active: planMode === 'goto' }" @click="planMode = 'goto'">随点随行</button>
+        </div>
+      </div>
+      <div class="map-body">
+        <div class="map-container" ref="mapEl"></div>
+
+        <!-- 视角控制按钮组 -->
+        <div class="view-ctrl">
+          <button class="vc-btn" :class="{ active: followPlane }" title="跟随飞机" @click="toggleFollow">◎</button>
+          <button class="vc-btn" title="回中复位" @click="resetView">⌂</button>
+          <button class="vc-btn" title="放大" @click="zoomBy(1)">+</button>
+          <button class="vc-btn" title="缩小" @click="zoomBy(-1)">−</button>
+        </div>
+
+        <!-- 飞机 HUD 叠加条 -->
+        <div class="hud-strip">
+          <span class="hud-item"><i class="hud-dot alt"></i>高 <b>{{ (telemetry.relative_alt ?? 0).toFixed(1) }}m</b></span>
+          <span class="hud-item"><i class="hud-dot spd"></i>速 <b>{{ (telemetry.groundspeed ?? 0).toFixed(1) }}m/s</b></span>
+          <span class="hud-item"><i class="hud-dot hdg"></i>向 <b>{{ (telemetry.heading ?? 0).toFixed(0) }}°</b></span>
+          <span class="hud-item"><i class="hud-dot dist"></i>距 <b>{{ ((telemetry.distance_home ?? 0) / 1000).toFixed(2) }}km</b></span>
+        </div>
+      </div>
+    </div>
     <div class="map-sidebar">
       <MissionPanel ref="missionPanelRef" />
     </div>
@@ -18,6 +54,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
+import { ElMessage } from "element-plus";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { qgcApi } from "@/api";
@@ -28,6 +65,54 @@ import MissionPanel from "@/qgc/components/MissionPanel.vue";
 const mapEl = ref<HTMLElement | null>(null);
 /** 任务面板引用（调用暴露方法） */
 const missionPanelRef = ref<InstanceType<typeof MissionPanel> | null>(null);
+
+// ---------- 规划 / 随行模式与视角控制 ----------
+
+/** 地图交互模式：plan 添加航点 / goto 随点随行 */
+const planMode = ref<"plan" | "goto">("plan");
+/** 跟随飞机开关 */
+const followPlane = ref(false);
+/** 随行目标高度（米） */
+const gotoAlt = ref(30);
+
+/** 跟随飞机 */
+function toggleFollow() {
+  followPlane.value = !followPlane.value;
+  if (followPlane.value && telemetry.value.lat !== undefined && telemetry.value.lon !== undefined) {
+    map?.panTo([telemetry.value.lat, telemetry.value.lon]);
+  }
+}
+
+/** 回中复位 */
+function resetView() {
+  const lat = telemetry.value.lat;
+  const lon = telemetry.value.lon;
+  if (lat !== undefined && lat !== 0 && lon !== undefined) {
+    map?.setView([lat, lon], 15);
+  } else {
+    map?.setView([31.2304, 121.4737], 15);
+  }
+}
+
+/** 缩放 */
+function zoomBy(delta: number) {
+  const z = (map?.getZoom() ?? 15) + delta;
+  map?.setZoom(z);
+}
+
+/** 随点随行：点击地图飞向目标 */
+async function onMapClick(lat: number, lon: number) {
+  try {
+    const response = await qgcApi.sendCommand("click_to_go", null, [lat, lon, gotoAlt.value]);
+    if (!response.data) {
+      ElMessage.error("随点随行指令发送失败");
+    } else {
+      ElMessage.success(`已下达随行指令 (${lat.toFixed(5)}, ${lon.toFixed(5)}, ${gotoAlt.value}m)`);
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || "随点随行失败");
+  }
+}
 
 /** Leaflet 地图实例 */
 let map: L.Map | null = null;
@@ -130,6 +215,9 @@ function refreshWaypoints() {
 const { telemetry, connect, disconnect } = useQgcEvents({
   onTelemetry: (t) => {
     updatePlane(t.lat, t.lon, t.heading);
+    if (followPlane.value && t.lat !== undefined && t.lon !== undefined) {
+      map?.panTo([t.lat, t.lon]);
+    }
   },
   onMissionProgress: (p) => {
     missionPanelRef.value?.applyProgress(p.state, p.total, p.received, p.result);
@@ -152,10 +240,14 @@ onMounted(async () => {
   }).addTo(map);
   waypointLayer = L.layerGroup().addTo(map);
 
-  // 点击地图添加航点
+  // 点击地图：规划模式添加航点 / 随行模式下达飞行指令
   map.on("click", (e: L.LeafletMouseEvent) => {
-    missionPanelRef.value?.addExternalItem(e.latlng.lat, e.latlng.lng);
-    refreshWaypoints();
+    if (planMode.value === "goto") {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    } else {
+      missionPanelRef.value?.addExternalItem(e.latlng.lat, e.latlng.lng);
+      refreshWaypoints();
+    }
   });
 
   // 初始遥测快照（未启动服务时保持默认视野）
@@ -186,31 +278,246 @@ onUnmounted(() => {
 
 <style scoped>
 .qgc-map-root {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  gap: 12px;
-  height: calc(100vh - 96px);
-  padding: 16px;
+  gap: 14px;
+  padding: 14px 16px;
   box-sizing: border-box;
-  background: #17181b;
+  background:
+    radial-gradient(1100px 380px at 50% -10%, rgba(0, 180, 216, 0.09), transparent 60%),
+    var(--bg-page);
+  overflow: hidden;
+}
+
+.map-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-topbar {
+  flex-shrink: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-accent);
+  box-shadow: 0 0 10px rgba(0, 180, 216, 0.9);
+  animation: brand-breathe 2.4s ease-in-out infinite;
+}
+
+.topbar-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, #00b4d8, #4d9fff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.topbar-hint {
+  margin-left: auto;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hint-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-success);
+  box-shadow: 0 0 6px rgba(0, 230, 118, 0.8);
 }
 
 .map-container {
-  flex: 1;
-  border-radius: 6px;
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
   overflow: hidden;
-  background: #1f2126;
+  background: var(--bg-cell);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.map-body {
+  flex: 1;
   min-height: 0;
+  position: relative;
 }
 
 .map-sidebar {
-  width: 460px;
+  width: 620px;
   flex-shrink: 0;
   overflow: auto;
-  background-color: #1f2126;
-  border: 1px solid #2c2f36;
-  border-radius: 6px;
-  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
   box-sizing: border-box;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* 视角控制按钮组 */
+.view-ctrl {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(10, 20, 40, 0.75);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.vc-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vc-btn:hover {
+  background: var(--btn-hover-bg);
+  border-color: rgba(0, 180, 216, 0.6);
+  box-shadow: 0 0 10px rgba(0, 180, 216, 0.3);
+}
+
+.vc-btn.active {
+  background: linear-gradient(180deg, #00b4d8, #0077b6);
+  border-color: rgba(0, 180, 216, 0.8);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(0, 180, 216, 0.5);
+}
+
+/* 飞机 HUD 叠加条 */
+.hud-strip {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 1000;
+  display: flex;
+  gap: 18px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(10, 20, 40, 0.75);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.hud-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.hud-item b {
+  font-family: "Consolas", "Courier New", monospace;
+  color: var(--text-primary);
+  text-shadow: 0 0 6px rgba(0, 180, 216, 0.4);
+}
+
+.hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.hud-dot.alt {
+  background: #00d4ff;
+  box-shadow: 0 0 5px rgba(0, 212, 255, 0.9);
+}
+
+.hud-dot.spd {
+  background: #00e676;
+  box-shadow: 0 0 5px rgba(0, 230, 118, 0.9);
+}
+
+.hud-dot.hdg {
+  background: #f0c040;
+  box-shadow: 0 0 5px rgba(240, 192, 64, 0.9);
+}
+
+.hud-dot.dist {
+  background: #00d4aa;
+  box-shadow: 0 0 5px rgba(0, 212, 170, 0.9);
+}
+
+/* 模式切换 */
+.mode-switch {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  padding: 4px 14px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  border: none;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-btn.active {
+  background: linear-gradient(180deg, #00b4d8, #0077b6);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+}
+
+@keyframes brand-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(0, 180, 216, 0.9);
+  }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 4px rgba(0, 180, 216, 0.4);
+  }
 }
 </style>
 
@@ -232,6 +539,7 @@ onUnmounted(() => {
   background: #ffcc00;
   border: 2px solid #000;
   border-radius: 50%;
+  box-shadow: 0 0 8px rgba(255, 204, 0, 0.9);
   box-sizing: border-box;
 }
 
@@ -240,12 +548,32 @@ onUnmounted(() => {
   height: 12px;
   background: #4aa3ff;
   border: 1px solid #fff;
+  box-shadow: 0 0 6px rgba(74, 163, 255, 0.8);
   transform: rotate(45deg);
   box-sizing: border-box;
 }
 
 /* 深色地图底图下让 Leaflet 控件可见 */
 .leaflet-container {
-  background: #141518;
+  background: #0a1428;
+}
+
+.leaflet-control-zoom a {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--bg-hover);
+}
+
+.leaflet-control-attribution {
+  background: rgba(7, 13, 26, 0.7);
+  color: var(--text-dim);
+}
+
+.leaflet-control-attribution a {
+  color: var(--text-accent);
 }
 </style>

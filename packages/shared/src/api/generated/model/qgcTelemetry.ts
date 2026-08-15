@@ -23,6 +23,8 @@ export interface QgcTelemetry {
   battery_consumed_mah: number;
   /** 电池剩余电量（%，-1 为未知） */
   battery_remaining: number;
+  /** 返航点方位角（度，0-360） */
+  bearing_home: number;
   /** 爬升率（m/s，正为上升） */
   climb: number;
   /** 飞控连接状态（收到心跳后为 true，超时 3 秒复位为 false） */
@@ -31,6 +33,10 @@ export interface QgcTelemetry {
   cpu_load: number;
   /** 电池电流（A） */
   current: number;
+  /** 距返航点水平距离（米） */
+  distance_home: number;
+  /** 飞行时长（秒，解锁起累计） */
+  flight_time_s: number;
   /** GPS 水平定位精度（米，0 为未知） */
   gps_eph: number;
   /**
@@ -42,6 +48,12 @@ export interface QgcTelemetry {
   groundspeed: number;
   /** 航向（度，0-360） */
   heading: number;
+  /** 返航点海拔（米，MSL） */
+  home_alt: number;
+  /** 返航点纬度（度，HOME_POSITION） */
+  home_lat: number;
+  /** 返航点经度（度，HOME_POSITION） */
+  home_lon: number;
   /**
      * 距上次心跳的毫秒数（连接超时判定用）
      * @minimum 0
@@ -59,6 +71,10 @@ export interface QgcTelemetry {
   pitch: number;
   /** 俯仰速率（度/秒，ATTITUDE pitchspeed） */
   pitch_rate: number;
+  /** 数传链路本地信号强度（dBm，127 为未知） */
+  radio_rssi: number;
+  /** 数传链路远端信号强度（dBm，127 为未知） */
+  radio_rssi_remote: number;
   /** 相对高度（米，相对起飞点） */
   relative_alt: number;
   /** 滚转角（度） */

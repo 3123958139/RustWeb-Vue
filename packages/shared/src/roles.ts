@@ -318,10 +318,10 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
     qgc: {
         userMenus: [
             {
-                id: "qgc-monitor",
-                title: "仪表盘",
-                path: "/qgc/monitor",
-                icon: "Odometer",
+                id: "qgc-screen",
+                title: "显控中心",
+                path: "/qgc/screen",
+                icon: "Monitor",
                 permissions: [Permission.QgcMonitor],
             },
             {
@@ -329,6 +329,13 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
                 title: "地图与任务",
                 path: "/qgc/map",
                 icon: "MapLocation",
+                permissions: [Permission.QgcMonitor],
+            },
+            {
+                id: "qgc-monitor",
+                title: "仪表盘",
+                path: "/qgc/monitor",
+                icon: "Odometer",
                 permissions: [Permission.QgcMonitor],
             },
             {

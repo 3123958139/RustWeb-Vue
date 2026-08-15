@@ -71,6 +71,22 @@ pub struct QgcTelemetry {
     pub packet_rate: f32,
     /// 距上次心跳的毫秒数（连接超时判定用）
     pub last_heartbeat_ms: u64,
+    /// 返航点纬度（度，HOME_POSITION）
+    pub home_lat: f64,
+    /// 返航点经度（度，HOME_POSITION）
+    pub home_lon: f64,
+    /// 返航点海拔（米，MSL）
+    pub home_alt: f32,
+    /// 距返航点水平距离（米）
+    pub distance_home: f32,
+    /// 返航点方位角（度，0-360）
+    pub bearing_home: f32,
+    /// 数传链路本地信号强度（dBm，127 为未知）
+    pub radio_rssi: i8,
+    /// 数传链路远端信号强度（dBm，127 为未知）
+    pub radio_rssi_remote: i8,
+    /// 飞行时长（秒，解锁起累计）
+    pub flight_time_s: f32,
 }
 
 impl Default for QgcTelemetry {
@@ -106,6 +122,14 @@ impl Default for QgcTelemetry {
             satellites_visible: 0,
             packet_rate: 0.0,
             last_heartbeat_ms: 0,
+            home_lat: 0.0,
+            home_lon: 0.0,
+            home_alt: 0.0,
+            distance_home: 0.0,
+            bearing_home: 0.0,
+            radio_rssi: 127,
+            radio_rssi_remote: 127,
+            flight_time_s: 0.0,
         }
     }
 }
@@ -118,14 +142,21 @@ impl Default for QgcTelemetry {
 /// - `takeoff`：起飞（MAV_CMD_NAV_TAKEOFF, param7=altitude）
 /// - `land`：降落（MAV_CMD_NAV_LAND）
 /// - `rtl`：返航（MAV_CMD_NAV_RETURN_TO_LAUNCH）
+/// - `start`：开始执行任务（MAV_CMD_MISSION_START）
+/// - `pause`：暂停任务（MAV_CMD_DO_PAUSE_CONTINUE, param1=0）
+/// - `resume`：继续任务（MAV_CMD_DO_PAUSE_CONTINUE, param1=1）
+/// - `click_to_go`：随点随行（SET_POSITION_TARGET_GLOBAL_INT，`params`=[lat, lon, alt]）
+/// - `move`：键盘/摇杆速度控制（SET_POSITION_TARGET_LOCAL_NED，`params`=[vx, vy, vz] 机体速度 m/s）
 ///
 /// 命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执（WebSocket `command_ack` 事件）。
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct QgcCommandRequest {
-    /// 命令名：arm / disarm / takeoff / land / rtl
+    /// 命令名：arm / disarm / takeoff / land / rtl / start / pause / resume / click_to_go / move
     pub command: String,
     /// 起飞高度（米，仅 takeoff 使用，缺省 10）
     pub altitude: Option<f32>,
+    /// 附加参数（click_to_go: [lat, lon, alt]；move: [vx, vy, vz]）
+    pub params: Option<Vec<f32>>,
 }
 
 /// 飞行模式切换请求体（`POST /api/qgc/mode`）

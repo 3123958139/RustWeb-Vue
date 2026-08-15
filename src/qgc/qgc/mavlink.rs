@@ -46,8 +46,12 @@ pub mod msg {
     pub const VFR_HUD: u32 = 74;
     pub const COMMAND_LONG: u32 = 76;
     pub const COMMAND_ACK: u32 = 77;
+    pub const SET_POSITION_TARGET_LOCAL_NED: u32 = 84;
+    pub const SET_POSITION_TARGET_GLOBAL_INT: u32 = 86;
+    pub const RADIO_STATUS: u32 = 109;
     pub const BATTERY_STATUS: u32 = 147;
     pub const SET_MODE: u32 = 176;
+    pub const HOME_POSITION: u32 = 242;
 }
 
 /// MAVLink 命令常量（MAV_CMD，COMMAND_LONG 的 command 字段）
@@ -56,7 +60,22 @@ pub mod cmd {
     pub const NAV_RETURN_TO_LAUNCH: u16 = 20;
     pub const NAV_LAND: u16 = 21;
     pub const NAV_TAKEOFF: u16 = 22;
+    pub const DO_PAUSE_CONTINUE: u16 = 157;
+    pub const MISSION_START: u16 = 300;
     pub const COMPONENT_ARM_DISARM: u16 = 400;
+}
+
+/// SET_POSITION_TARGET 速度/位置掩码（type_mask）
+pub mod mask {
+    /// 忽略位置分量（只设置速度）
+    pub const POSITION_IGNORE: u16 = 0x07;
+    /// 忽略加速度分量
+    pub const ACCEL_IGNORE: u16 = 0x38;
+    /// 忽略速度分量（只设置位置）
+    pub const VELOCITY_IGNORE: u16 = 0x07 << 0;
+    /// 忽略偏航（只设置位置，随点随行用）
+    pub const YAW_IGNORE: u16 = 0x80;
+    pub const YAW_RATE_IGNORE: u16 = 0x100;
 }
 
 /// 其他协议常量
@@ -102,8 +121,12 @@ pub fn crc_extra(msgid: u32) -> u8 {
         msg::VFR_HUD => 20,
         msg::COMMAND_LONG => 152,
         msg::COMMAND_ACK => 143,
+        msg::SET_POSITION_TARGET_LOCAL_NED => 53,
+        msg::SET_POSITION_TARGET_GLOBAL_INT => 53,
+        msg::RADIO_STATUS => 185,
         msg::BATTERY_STATUS => 154,
         msg::SET_MODE => 89,
+        msg::HOME_POSITION => 104,
         // 未登记消息按 0 计算（不校验其 CRC，直接跳过解码）
         _ => 0,
     }
@@ -381,10 +404,74 @@ pub fn decode_vfr_hud(p: &[u8]) -> VfrHud {
     }
 }
 
+/// RADIO_STATUS 解码结果
+#[derive(Debug, Clone)]
+pub struct RadioStatus {
+    /// 本地接收信号强度（dBm，127 表示未知）
+    pub rssi: i8,
+    /// 远端（飞控）接收信号强度（dBm，127 表示未知）
+    pub remote_rssi: i8,
+}
+
+pub fn decode_radio_status(p: &[u8]) -> RadioStatus {
+    RadioStatus {
+        rssi: rd_u8(p, 2) as i8,
+        remote_rssi: rd_u8(p, 3) as i8,
+    }
+}
+
+/// HOME_POSITION 解码结果
+#[derive(Debug, Clone)]
+pub struct HomePosition {
+    pub lat: i32,
+    pub lon: i32,
+    /// 海拔（mm，MSL）
+    pub alt: i32,
+}
+
+pub fn decode_home_position(p: &[u8]) -> HomePosition {
+    HomePosition {
+        lat: rd_i32(p, 4),
+        lon: rd_i32(p, 8),
+        alt: rd_i32(p, 12),
+    }
+}
+
+/// SET_POSITION_TARGET_GLOBAL_INT 解码结果（随点随行目标）
+#[derive(Debug, Clone)]
+pub struct SetPositionGlobal {
+    pub lat: f64,
+    pub lon: f64,
+    pub alt: f32,
+}
+
+pub fn decode_set_position_global(p: &[u8]) -> SetPositionGlobal {
+    SetPositionGlobal {
+        lat: rd_i32(p, 9) as f64 / 1e7,
+        lon: rd_i32(p, 13) as f64 / 1e7,
+        alt: rd_f32(p, 17),
+    }
+}
+
+/// SET_POSITION_TARGET_LOCAL_NED 解码结果（键盘/摇杆速度控制，机体坐标系）
+#[derive(Debug, Clone)]
+pub struct SetPositionLocal {
+    pub vx: f32,
+    pub vy: f32,
+    pub vz: f32,
+}
+
+pub fn decode_set_position_local(p: &[u8]) -> SetPositionLocal {
+    SetPositionLocal {
+        vx: rd_f32(p, 21),
+        vy: rd_f32(p, 25),
+        vz: rd_f32(p, 29),
+    }
+}
+
 /// SYS_STATUS 解码结果
 #[derive(Debug, Clone)]
-pub struct SysStatus {
-    /// 飞控负载（×0.1%）
+pub struct SysStatus {    /// 飞控负载（×0.1%）
     pub load: u16,
     pub voltage_battery: u16,
     pub current_battery: i16,
@@ -612,6 +699,61 @@ pub fn encode_request_data_stream(
     p[3..5].copy_from_slice(&rate.to_le_bytes());
     p[5] = 1; // start
     encode_v2(sysid, compid, seq, msg::REQUEST_DATA_STREAM, &p)
+}
+
+/// 编码 SET_POSITION_TARGET_GLOBAL_INT（随点随行：只带位置，忽略速度/加速度/偏航）
+///
+/// # 参数
+/// - `lat_deg` / `lon_deg`：目标坐标（WGS84）
+/// - `alt_m`：目标相对高度（米）
+pub fn encode_set_position_global(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    target_sys: u8,
+    target_comp: u8,
+    lat_deg: f64,
+    lon_deg: f64,
+    alt_m: f32,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 53];
+    p[0..4].copy_from_slice(&0u32.to_le_bytes()); // time_boot_ms
+    p[4] = target_sys;
+    p[5] = target_comp;
+    p[6] = 6; // MAV_FRAME_GLOBAL_INT
+    let mask = mask::VELOCITY_IGNORE | mask::ACCEL_IGNORE | mask::YAW_IGNORE | mask::YAW_RATE_IGNORE;
+    p[7..9].copy_from_slice(&mask.to_le_bytes());
+    p[9..13].copy_from_slice(&((lat_deg * 1e7).round() as i32).to_le_bytes());
+    p[13..17].copy_from_slice(&((lon_deg * 1e7).round() as i32).to_le_bytes());
+    p[17..21].copy_from_slice(&alt_m.to_bits().to_le_bytes());
+    encode_v2(sysid, compid, seq, msg::SET_POSITION_TARGET_GLOBAL_INT, &p)
+}
+
+/// 编码 SET_POSITION_TARGET_LOCAL_NED（键盘/摇杆速度控制，机体坐标系）
+///
+/// # 参数
+/// - `vx` / `vy` / `vz`：机体速度（m/s，向前 / 向右 / 向下）
+pub fn encode_set_position_local(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    target_sys: u8,
+    target_comp: u8,
+    vx: f32,
+    vy: f32,
+    vz: f32,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 53];
+    p[0..4].copy_from_slice(&0u32.to_le_bytes()); // time_boot_ms
+    p[4] = target_sys;
+    p[5] = target_comp;
+    p[6] = 1; // MAV_FRAME_BODY_NED
+    let mask = mask::POSITION_IGNORE | mask::ACCEL_IGNORE | mask::YAW_IGNORE | mask::YAW_RATE_IGNORE;
+    p[7..9].copy_from_slice(&mask.to_le_bytes());
+    p[21..25].copy_from_slice(&vx.to_bits().to_le_bytes());
+    p[25..29].copy_from_slice(&vy.to_bits().to_le_bytes());
+    p[29..33].copy_from_slice(&vz.to_bits().to_le_bytes());
+    encode_v2(sysid, compid, seq, msg::SET_POSITION_TARGET_LOCAL_NED, &p)
 }
 
 /// 编码 MISSION_COUNT（通知飞控开始接收 n 条任务）

@@ -23,7 +23,16 @@ const router = createAppRouter({
         {
             path: "/qgc",
             name: "QgcHome",
-            redirect: "/qgc/monitor",
+            redirect: "/qgc/screen",
+        },
+        {
+            path: "/qgc/screen",
+            name: "QgcScreen",
+            component: () => import("@/qgc/views/Screen.vue"),
+            meta: {
+                requiresAuth: true,
+                permissions: [Permission.QgcMonitor],
+            },
         },
         {
             path: "/login",

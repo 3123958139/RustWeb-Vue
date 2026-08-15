@@ -73,9 +73,15 @@ struct SimVehicle {
     remaining: i8,
     /// 已消耗电量（mAh，2A × 0.1s ≈ 0.0556 mAh/拍）
     consumed_mah: f32,
+    /// 飞行时长（秒，解锁累计）
+    flight_time_s: f32,
     takeoff_alt: f32,
     /// 当前目标（纬度, 经度, 相对高度）；None = 悬停
     target: Option<(f64, f64, f64)>,
+    /// 任务暂停标志（DO_PAUSE_CONTINUE）
+    paused: bool,
+    /// 键盘/摇杆速度指令（机体 vx/vy/vz，m/s）；None = 无
+    kbd_vel: Option<(f32, f32, f32)>,
     home: (f64, f64),
     mission: Vec<QgcMissionItem>,
     /// 正在执行的航点下标（1..=n，0 为首页不飞）
@@ -116,8 +122,11 @@ impl SimVehicle {
             current: 0.0,
             remaining: 100,
             consumed_mah: 0.0,
+            flight_time_s: 0.0,
             takeoff_alt: 0.0,
             target: None,
+            paused: false,
+            kbd_vel: None,
             home: (lat, lon),
             mission: Vec::new(),
             wp_index: 1,
@@ -147,13 +156,14 @@ impl SimVehicle {
             self.current = 2.0 + self.rng.unit().abs() * 0.5;
             // 2A × 0.1s ≈ 0.0556 mAh/拍
             self.consumed_mah += 0.0556;
+            self.flight_time_s += 0.1;
         }
         // 任务目标选择
         let mut moving = false;
         let mut tx = 0.0;
         let mut ty = 0.0;
         let mut tz = 0.0;
-        if self.armed {
+        if self.armed && !self.paused {
             let mode = mavlink::mode_name(self.mode);
             match mode.as_str() {
                 "AUTO" | "GUIDED" => {
@@ -205,6 +215,19 @@ impl SimVehicle {
             }
         } else {
             self.target = None;
+        }
+        // 键盘/摇杆速度指令（机体坐标系：前/右/下）
+        if self.armed && !self.paused {
+            if let Some((vx, vy, vz)) = self.kbd_vel {
+                let dt = 0.1;
+                let rad = self.heading.to_radians();
+                // 机体前方（vx）→ 纬度方向（0° 朝北），机体右方（vy）→ 经度方向
+                let dlat = (vx * rad.cos() - vy * rad.sin()) as f64 * dt / 111320.0;
+                let dlon = (vx * rad.sin() + vy * rad.cos()) as f64 * dt / (111320.0 * self.lat.to_radians().cos().max(0.01));
+                self.lat += dlat;
+                self.lon += dlon;
+                self.alt_rel = (self.alt_rel - (vz as f64) * dt).max(0.0);
+            }
         }
         // 位置噪声（悬停抖动 ±0.000005°）
         self.lat += (self.rng.unit() as f64) * 5e-6;
@@ -314,8 +337,29 @@ impl SimVehicle {
                     mavlink::cmd::NAV_RETURN_TO_LAUNCH => {
                         self.mode = 6; // RTL
                         self.takeoff_alt = 0.0;
+                        self.paused = false;
+                        self.kbd_vel = None;
                         self.target = Some((self.home.0, self.home.1, 30.0));
                         info!("[qgc] 模拟器返航命令");
+                        0
+                    }
+                    mavlink::cmd::MISSION_START => {
+                        self.mode = 3; // AUTO
+                        self.paused = false;
+                        self.kbd_vel = None;
+                        self.wp_index = 1;
+                        info!("[qgc] 模拟器开始执行任务");
+                        0
+                    }
+                    mavlink::cmd::DO_PAUSE_CONTINUE => {
+                        self.paused = cmd.params[0] < 0.5;
+                        if self.paused {
+                            self.target = None;
+                            info!("[qgc] 模拟器任务暂停");
+                        } else {
+                            self.kbd_vel = None;
+                            info!("[qgc] 模拟器任务继续");
+                        }
                         0
                     }
                     _ => 1, // MAV_RESULT_UNSUPPORTED
@@ -333,6 +377,23 @@ impl SimVehicle {
                     }
                     info!("[qgc] 模拟器切换模式 → {}", mavlink::mode_name(m.custom_mode));
                 }
+                None
+            }
+            mavlink::msg::SET_POSITION_TARGET_GLOBAL_INT => {
+                // 随点随行：GUIDED + 直接飞向目标坐标
+                let g = mavlink::decode_set_position_global(payload);
+                self.mode = 4; // GUIDED
+                self.paused = false;
+                self.kbd_vel = None;
+                self.takeoff_alt = 0.0;
+                self.target = Some((g.lat, g.lon, g.alt as f64));
+                info!("[qgc] 模拟器随点随行 → ({:.5}, {:.5}, {}m)", g.lat, g.lon, g.alt);
+                None
+            }
+            mavlink::msg::SET_POSITION_TARGET_LOCAL_NED => {
+                // 键盘/摇杆速度控制（机体坐标系）
+                let v = mavlink::decode_set_position_local(payload);
+                self.kbd_vel = Some((v.vx, v.vy, v.vz));
                 None
             }
             mavlink::msg::MISSION_COUNT => {
@@ -566,6 +627,24 @@ fn telemetry_frames(v: &mut SimVehicle) -> Vec<Vec<u8>> {
         p[35] = v.remaining as u8;
         p[36..40].copy_from_slice(&(-1i32).to_le_bytes()); // time_remaining 未知
         frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::BATTERY_STATUS, &p));
+    }
+    // RADIO_STATUS（数传信号：本地/远端 rssi 波动）
+    {
+        let mut p = vec![0u8; 9];
+        p[2] = (95 - (v.rng.unit().abs() * 10.0) as u8) as u8; // rssi
+        p[3] = (88 - (v.rng.unit().abs() * 12.0) as u8) as u8; // remrssi
+        p[4] = (70 + (v.rng.unit().abs() * 20.0) as u8) as u8; // txbuf
+        p[5] = 100; // noise
+        p[6] = 100; // remnoise
+        frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::RADIO_STATUS, &p));
+    }
+    // HOME_POSITION（起飞点）
+    {
+        let mut p = vec![0u8; 66];
+        p[4..8].copy_from_slice(&((v.home.0 * 1e7) as i32).to_le_bytes());
+        p[8..12].copy_from_slice(&((v.home.1 * 1e7) as i32).to_le_bytes());
+        p[12..16].copy_from_slice(&((v.alt_msl * 1000.0) as i32).to_le_bytes());
+        frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::HOME_POSITION, &p));
     }
     frames
 }

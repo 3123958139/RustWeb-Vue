@@ -49,6 +49,47 @@ fn command_params(command: &str, altitude: Option<f32>) -> Option<(u16, [f32; 7]
         })),
         "land" => Some((crate::qgc::mavlink::cmd::NAV_LAND, params)),
         "rtl" => Some((crate::qgc::mavlink::cmd::NAV_RETURN_TO_LAUNCH, params)),
+        "start" => Some((crate::qgc::mavlink::cmd::MISSION_START, params)),
+        "pause" => Some((crate::qgc::mavlink::cmd::DO_PAUSE_CONTINUE, {
+            params[0] = 0.0;
+            params
+        })),
+        "resume" => Some((crate::qgc::mavlink::cmd::DO_PAUSE_CONTINUE, {
+            params[0] = 1.0;
+            params
+        })),
+        _ => None,
+    }
+}
+
+/// 发送非 COMMAND_LONG 命令（随点随行 / 键盘摇杆速度控制）
+///
+/// # 返回值
+/// 成功发送时返回 `Some(frame)`；命令名不匹配或参数缺失返回 `None`。
+fn send_special_command(
+    req: &QgcCommandRequest,
+    sysid: u8,
+    compid: u8,
+) -> Option<Vec<u8>> {
+    match req.command.as_str() {
+        "click_to_go" => {
+            let p = req.params.as_ref()?;
+            if p.len() < 3 {
+                return None;
+            }
+            Some(crate::qgc::mavlink::encode_set_position_global(
+                sysid, compid, state::next_seq(), 1, 1, p[0] as f64, p[1] as f64, p[2],
+            ))
+        }
+        "move" => {
+            let p = req.params.as_ref()?;
+            if p.len() < 3 {
+                return None;
+            }
+            Some(crate::qgc::mavlink::encode_set_position_local(
+                sysid, compid, state::next_seq(), 1, 1, p[0], p[1], p[2],
+            ))
+        }
         _ => None,
     }
 }
@@ -211,11 +252,14 @@ pub async fn telemetry_handler() -> Json<ApiResponse<QgcTelemetry>> {
 /// { "command": "arm", "altitude": 10 }
 /// ```
 /// 支持命令：`arm` 解锁 / `disarm` 锁定 / `takeoff` 起飞（`altitude` 米）/
-/// `land` 降落 / `rtl` 返航。
+/// `land` 降落 / `rtl` 返航 / `start` 开始任务 / `pause` 暂停 / `resume` 继续 /
+/// `click_to_go` 随点随行（`params`=[lat, lon, alt]）/
+/// `move` 键盘摇杆速度控制（`params`=[vx, vy, vz] 机体速度 m/s）。
 ///
 /// # 说明
 /// 命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执
-/// （WebSocket `command_ack` 事件，`result_name` 为结果码名称）。
+/// （WebSocket `command_ack` 事件，`result_name` 为结果码名称）；
+/// `click_to_go` / `move` 走 SET_POSITION_TARGET 消息（无回执）。
 #[utoipa::path(
     tag = "qgc",
     post,
@@ -227,14 +271,19 @@ pub async fn telemetry_handler() -> Json<ApiResponse<QgcTelemetry>> {
     ),
 )]
 pub async fn command_handler(Json(req): Json<QgcCommandRequest>) -> Json<ApiResponse<bool>> {
-    let Some((command, params)) = command_params(&req.command, req.altitude) else {
-        return Json(ApiResponse::error(format!("不支持的命令: {}", req.command)));
-    };
     let Some(tx) = state::outbound_sender() else {
         return Json(ApiResponse::error("服务未启动".to_string()));
     };
     let (_mock, _port, _tip, _tport, sysid, compid, _hb, _hz) = crate::qgc::config::udp_params();
-    let frame = crate::qgc::mavlink::encode_command_long(sysid, compid, state::next_seq(), 1, 1, command, params);
+    // 先尝试特殊命令（SET_POSITION_TARGET 系列），再走 COMMAND_LONG
+    let frame = if let Some(f) = send_special_command(&req, sysid, compid) {
+        f
+    } else {
+        let Some((command, params)) = command_params(&req.command, req.altitude) else {
+            return Json(ApiResponse::error(format!("不支持的命令: {}", req.command)));
+        };
+        crate::qgc::mavlink::encode_command_long(sysid, compid, state::next_seq(), 1, 1, command, params)
+    };
     let _ = tx.send(Outbound::Frame(frame));
     Json(ApiResponse::success(true))
 }

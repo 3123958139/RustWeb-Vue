@@ -85,9 +85,9 @@ export function createQgcApi() {
             return api.qgcGetTelemetry();
         },
 
-        /** 发送飞控命令（arm / disarm / takeoff / land / rtl） */
-        async sendCommand(command: string, altitude?: number | null) {
-            return api.qgcSendCommand({command, altitude});
+        /** 发送飞控命令（arm / disarm / takeoff / land / rtl / start / pause / resume / click_to_go / move） */
+        async sendCommand(command: string, altitude?: number | null, params?: number[] | null) {
+            return api.qgcSendCommand({command, altitude: altitude ?? null, params: params ?? []});
         },
 
         /** 切换飞行模式（ArduPilot Copter 模式名或数字 ID） */

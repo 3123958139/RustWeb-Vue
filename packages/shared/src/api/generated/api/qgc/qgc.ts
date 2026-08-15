@@ -35,11 +35,14 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * { "command": "arm", "altitude": 10 }
  * ```
  * 支持命令：`arm` 解锁 / `disarm` 锁定 / `takeoff` 起飞（`altitude` 米）/
- * `land` 降落 / `rtl` 返航。
+ * `land` 降落 / `rtl` 返航 / `start` 开始任务 / `pause` 暂停 / `resume` 继续 /
+ * `click_to_go` 随点随行（`params`=[lat, lon, alt]）/
+ * `move` 键盘摇杆速度控制（`params`=[vx, vy, vz] 机体速度 m/s）。
  *
  * # 说明
  * 命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执
- * （WebSocket `command_ack` 事件，`result_name` 为结果码名称）。
+ * （WebSocket `command_ack` 事件，`result_name` 为结果码名称）；
+ * `click_to_go` / `move` 走 SET_POSITION_TARGET 消息（无回执）。
  * @summary 发送飞控命令
  */
 const qgcSendCommand = (
