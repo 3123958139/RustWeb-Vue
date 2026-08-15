@@ -84,6 +84,8 @@ pub enum Permission {
     Fj200cMainMonitor,
     /// protocol_generator 面板：通信协议生成器权限
     ProtocolGeneratorMonitor,
+    /// qgc 面板：飞控地面站权限
+    QgcMonitor,
 
     // ============ 管理面板权限 ============
     /// 用户读取权限（查看用户列表）

@@ -21,6 +21,7 @@
 //! | `fw150` | 设备台账 | Fw150Monitor |
 //! | `fj200c_main` | 发动机测控 | Fj200cMainMonitor |
 //! | `protocol_generator` | 通信协议生成 | ProtocolGeneratorMonitor |
+//! | `qgc` | 飞控地面站 | QgcMonitor |
 //!
 //! # 新增角色步骤（后端侧）
 //!
@@ -155,6 +156,12 @@ pub static ROLE_REGISTRY: &[RoleDef] = &[
         key: "protocol_generator",
         name: "protocol_generator",
         permissions: &[Permission::ProtocolGeneratorMonitor],
+    },
+    // qgc 角色：飞控地面站面板
+    RoleDef {
+        key: "qgc",
+        name: "qgc",
+        permissions: &[Permission::QgcMonitor],
     },
 ];
 

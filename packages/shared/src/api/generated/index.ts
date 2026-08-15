@@ -9,3 +9,4 @@ export * from './api/fw150/fw150';
 export * from './model';
 export * from './api/meta/meta';
 export * from './api/protocol-generator/protocol-generator';
+export * from './api/qgc/qgc';

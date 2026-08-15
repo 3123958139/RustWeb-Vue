@@ -4,7 +4,7 @@
 //! 字段与 handlers 层实际返回的 JSON 保持一一对应。
 //! 集中定义避免 OpenAPI schema 同名冲突。
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// 服务运行状态
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -25,7 +25,7 @@ pub struct SavedResult {
 }
 
 /// 配置文件内容
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ConfigContent {
     pub content: String,
 }

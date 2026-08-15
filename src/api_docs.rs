@@ -93,6 +93,20 @@ use utoipa::OpenApi;
         crate::protocol_generator::handlers::export_excel,
         crate::protocol_generator::handlers::parse_csv,
         crate::protocol_generator::handlers::serialize_csv,
+        // ============ qgc（飞控地面站，MAVLink v2） ============
+        crate::qgc::handlers::start_service_handler,
+        crate::qgc::handlers::stop_service_handler,
+        crate::qgc::handlers::service_status_handler,
+        crate::qgc::handlers::read_config_handler,
+        crate::qgc::handlers::save_config_handler,
+        crate::qgc::handlers::telemetry_handler,
+        crate::qgc::handlers::command_handler,
+        crate::qgc::handlers::mode_handler,
+        crate::qgc::handlers::get_mission_handler,
+        crate::qgc::handlers::upload_mission_handler,
+        crate::qgc::handlers::clear_mission_handler,
+        crate::qgc::handlers::download_mission_handler,
+        crate::qgc::handlers::get_help_handler,
     ),
     components(
         schemas(
@@ -168,6 +182,13 @@ use utoipa::OpenApi;
             crate::protocol_generator::models::ProtocolExportRequest,
             crate::protocol_generator::models::CsvParseRequest,
             crate::protocol_generator::models::TextContent,
+            // qgc 模型（飞控地面站）
+            crate::qgc::models::QgcTelemetry,
+            crate::qgc::models::QgcCommandRequest,
+            crate::qgc::models::QgcModeRequest,
+            crate::qgc::models::QgcMissionItem,
+            crate::qgc::models::QgcMission,
+            crate::qgc::models::QgcMissionUploadRequest,
         )
     ),
 )]
@@ -253,13 +274,24 @@ mod tests {
             "/api/protocol_generator/excel",
             "/api/protocol_generator/csv/parse",
             "/api/protocol_generator/csv/serialize",
+            // qgc：10 个唯一路径（mission 三方法共用 1 路径，mission/download 单独 1 路径）
+            "/api/qgc/service/start",
+            "/api/qgc/service/stop",
+            "/api/qgc/service/status",
+            "/api/qgc/config",
+            "/api/qgc/telemetry",
+            "/api/qgc/command",
+            "/api/qgc/mode",
+            "/api/qgc/mission",
+            "/api/qgc/mission/download",
+            "/api/qgc/help",
         ] {
             assert!(paths.contains_key(path), "缺少路径: {}", path);
         }
 
         // 唯一路径数：auth 3 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
-        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 = 49
-        assert_eq!(paths.len(), 49, "路径数量与预期不符");
+        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 + qgc 10 = 59
+        assert_eq!(paths.len(), 59, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -276,7 +308,7 @@ mod tests {
                 }
             }
         }
-        // 61 个 HTTP 操作（不含 WebSocket）
-        assert_eq!(operations, 61, "操作数量与预期不符");
+        // 74 个 HTTP 操作（不含 WebSocket；qgc 新增 13：start/stop/status/config GET+PUT/telemetry/command/mode/mission GET+PUT+DELETE/mission/download/help）
+        assert_eq!(operations, 74, "操作数量与预期不符");
     }
 }

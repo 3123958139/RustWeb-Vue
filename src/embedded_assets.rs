@@ -1,6 +1,6 @@
 //! # 前端静态资源嵌入模块（`--features embedded` 编译）
 //!
-//! 打包单 exe 时，将 8 个前端应用的 `frontend/<app>/dist/` 构建产物
+//! 打包单 exe 时，将 9 个前端应用的 `frontend/<app>/dist/` 构建产物
 //! 在编译期内嵌进二进制（rust-embed），运行时直接从内存返回字节，
 //! 不再依赖磁盘上的 `dist-*` 目录。
 //!
@@ -45,6 +45,7 @@ embed_assets!(
     Ftj1cAssets => "frontend/ftj1c/dist/",
     City3dAssets => "frontend/city3d/dist/",
     ProtocolGeneratorAssets => "frontend/protocol_generator/dist/",
+    QgcAssets => "frontend/qgc/dist/",
 );
 
 // ============ 处理函数 ============
@@ -120,5 +121,6 @@ pub fn embedded_router() -> Router {
         "ftj1c" => Ftj1cAssets,
         "city3d" => City3dAssets,
         "protocol_generator" => ProtocolGeneratorAssets,
+        "qgc" => QgcAssets,
     )
 }

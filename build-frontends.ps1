@@ -1,16 +1,16 @@
-# build-frontends.ps1 — 并行构建 8 个前端（由 deploy.bat 调用）
+# build-frontends.ps1 — 并行构建 9 个前端（由 deploy.bat 调用）
 #
 # 本机为 Windows PowerShell 5.1，没有 PS7 的 ForEach-Object -Parallel，
-# 改用 Start-Job 分两波并行（每波最多 4 个任务），效果等同 -ThrottleLimit 4。
+# 改用 Start-Job 分三波并行（每波最多 3 个任务），效果等同 -ThrottleLimit 3。
 # 任一波有失败即输出失败信息并返回非零退出码（deploy.bat 据此中止）。
 $ErrorActionPreference = 'Stop'
 
 $root = (Get-Location).Path
-$apps = 'fj200c_information', 'fj200c_main', 'fw100', 'admin', 'ftj1c', 'city3d', 'fw150', 'protocol_generator'
+$apps = 'fj200c_information', 'fj200c_main', 'fw100', 'admin', 'ftj1c', 'city3d', 'fw150', 'protocol_generator', 'qgc'
 
 $failed = @()
 
-foreach ($wave in @($apps[0..3], $apps[4..7])) {
+foreach ($wave in @($apps[0..2], $apps[3..5], $apps[6..8])) {
     $jobs = foreach ($a in $wave) {
         Start-Job -ArgumentList $root, $a -ScriptBlock {
             param($root, $a)
@@ -40,4 +40,4 @@ if ($failed.Count -gt 0) {
     Write-Output "[FAILED] $($failed -join ', ') frontend build failed."
     exit 1
 }
-Write-Output 'All 8 frontends built successfully.'
+Write-Output 'All 9 frontends built successfully.'

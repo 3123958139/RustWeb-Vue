@@ -1,7 +1,7 @@
 /**
  * 路由工厂：createAppRouter
  *
- * 7 个前端应用的路由守卫（initAuth → requiresAuth → requiresGuest → 权限检查）
+ * 8 个用户端应用的路由守卫（initAuth → requiresAuth → requiresGuest → 权限检查）
  * 完全一致，收敛到本工厂；各应用 router/index.ts 只保留应用专属的 routes 数组。
  *
  * 差异点通过参数控制：

@@ -312,6 +312,42 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
         ],
         adminMenus: [],
     },
+    // ============ qgc 角色（飞控地面站） ============
+    // 职责：MAVLink 飞控连接监控、命令控制、地图航点任务规划
+    // 应用：qgc（端口 5181）
+    qgc: {
+        userMenus: [
+            {
+                id: "qgc-monitor",
+                title: "仪表盘",
+                path: "/qgc/monitor",
+                icon: "Odometer",
+                permissions: [Permission.QgcMonitor],
+            },
+            {
+                id: "qgc-map",
+                title: "地图与任务",
+                path: "/qgc/map",
+                icon: "MapLocation",
+                permissions: [Permission.QgcMonitor],
+            },
+            {
+                id: "qgc-config",
+                title: "打开配置",
+                path: "/qgc/config",
+                icon: "Setting",
+                permissions: [Permission.QgcMonitor],
+            },
+            {
+                id: "qgc-help",
+                title: "帮助",
+                path: "/qgc/help",
+                icon: "QuestionFilled",
+                permissions: [Permission.QgcMonitor],
+            },
+        ],
+        adminMenus: [],
+    },
 };
 
 /**
@@ -495,6 +531,8 @@ export const ROLE_APP_URLS: Record<string, { dev: string; prod: string }> = {
     city3d: {dev: "http://localhost:5177", prod: "/city3d"},
     // 通信协议生成 → protocol_generator（端口 5180，路径 /protocol_generator）
     protocol_generator: {dev: "http://localhost:5180", prod: "/protocol_generator"},
+    // 飞控地面站 → qgc（端口 5181，路径 /qgc）
+    qgc: {dev: "http://localhost:5181", prod: "/qgc"},
 };
 
 /**

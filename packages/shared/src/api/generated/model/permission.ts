@@ -46,6 +46,7 @@ export const Permission = {
   Fw150Monitor: 'Fw150Monitor',
   Fj200cMainMonitor: 'Fj200cMainMonitor',
   ProtocolGeneratorMonitor: 'ProtocolGeneratorMonitor',
+  QgcMonitor: 'QgcMonitor',
   UsersRead: 'UsersRead',
   UsersWrite: 'UsersWrite',
   UsersDelete: 'UsersDelete',

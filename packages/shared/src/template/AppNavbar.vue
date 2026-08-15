@@ -416,6 +416,8 @@ const brandText = computed(() => {
       return '城市3D';
     case 'protocol_generator':
       return '协议生成器';
+    case 'qgc':
+      return 'QGC 飞控地面站';
   }
   return name;
 })

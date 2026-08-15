@@ -1497,6 +1497,326 @@
         }
       }
     },
+    "/api/qgc/command": {
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "发送飞控命令",
+        "description": "# HTTP 端点\n`POST /api/qgc/command`\n\n# 请求体\n```json\n{ \"command\": \"arm\", \"altitude\": 10 }\n```\n支持命令：`arm` 解锁 / `disarm` 锁定 / `takeoff` 起飞（`altitude` 米）/\n`land` 降落 / `rtl` 返航。\n\n# 说明\n命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执\n（WebSocket `command_ack` 事件，`result_name` 为结果码名称）。",
+        "operationId": "qgcSendCommand",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QgcCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "命令已发送",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_bool"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/config": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "读取配置文件内容",
+        "description": "# HTTP 端点\n`GET /api/qgc/config`\n\n# 说明\n返回 `config-qgc.ini` 文件的原始内容，供前端配置编辑器使用。",
+        "operationId": "qgcGetConfig",
+        "responses": {
+          "200": {
+            "description": "配置文件内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "保存配置文件内容",
+        "description": "# HTTP 端点\n`PUT /api/qgc/config`\n\n# 请求体\n`{ \"content\": \"新的 INI 配置内容\" }`\n\n# 说明\n将新配置写入 `config-qgc.ini` 并校验语法；修改的配置在服务重启后生效。",
+        "operationId": "qgcSaveConfig",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigContent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/help": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "获取帮助文档",
+        "description": "# HTTP 端点\n`GET /api/qgc/help`\n\n# 说明\n返回 `help_doc.md` 帮助文档内容（Markdown 文本）。",
+        "operationId": "qgcGetHelp",
+        "responses": {
+          "200": {
+            "description": "帮助文档内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ConfigContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/mission": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "获取任务快照",
+        "description": "# HTTP 端点\n`GET /api/qgc/mission`\n\n# 说明\n返回任务状态（idle / uploading / downloading / clearing）、航点列表\n与飞控当前执行航点序号。下载完成后 `items` 为飞控当前任务\n（首条 seq=0 为首页，真实飞控要求）。",
+        "operationId": "qgcGetMission",
+        "responses": {
+          "200": {
+            "description": "任务快照",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_QgcMission"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "上传任务（航点规划）",
+        "description": "# HTTP 端点\n`PUT /api/qgc/mission`\n\n# 请求体\n```json\n{ \"items\": [ { \"seq\": 1, \"command\": 16, \"lat\": 31.2304, \"lon\": 121.4737, \"altitude\": 30 } ] }\n```\n\n# 说明\n上传 1~100 个航点（MAV_CMD_NAV_WAYPOINT），序号按数组顺序自动重排；\n服务端自动补首页（seq=0，当前位置）后走 MISSION_COUNT → MISSION_ITEM_INT\n协议上传，进度经 WebSocket `mission_progress` 事件实时推送，\n完成/失败/超时后状态回到 idle。",
+        "operationId": "qgcUploadMission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QgcMissionUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "上传已开始",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_bool"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "清除飞控任务",
+        "description": "# HTTP 端点\n`DELETE /api/qgc/mission`\n\n# 说明\n经 MISSION_CLEAR_ALL 协议清除飞控当前任务，飞控以 MISSION_ACK 回执\n（WebSocket `mission_progress` 事件，result=ok 即清除成功）。",
+        "operationId": "qgcClearMission",
+        "responses": {
+          "200": {
+            "description": "清除已开始",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_bool"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/mission/download": {
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "从飞控下载任务",
+        "description": "# HTTP 端点\n`POST /api/qgc/mission/download`\n\n# 说明\n经 MISSION_REQUEST_LIST → MISSION_ITEM_INT 协议从飞控逐条下载当前任务，\n下载完成后 `GET /api/qgc/mission` 的 `items` 即为飞控当前任务\n（首条 seq=0 为首页），进度经 WebSocket `mission_progress` 事件实时推送。",
+        "operationId": "qgcDownloadMission",
+        "responses": {
+          "200": {
+            "description": "下载已开始",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_bool"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/mode": {
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "切换飞行模式",
+        "description": "# HTTP 端点\n`POST /api/qgc/mode`\n\n# 请求体\n```json\n{ \"mode\": \"guided\" }\n```\n\n# 说明\n支持 ArduPilot Copter 模式名（stabilize / acro / alt_hold / auto / guided /\nloiter / rtl / circle / land / drift / sport / poshold / brake / throw），\n也接受数字模式 ID（如 `\"16\"`）。经 SET_MODE 发送（base_mode 带\nCUSTOM_MODE_ENABLED 位，ArduPilot 协议要求）。",
+        "operationId": "qgcSetMode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QgcModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "模式切换指令已发送",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_bool"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/service/start": {
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "启动飞控通信服务",
+        "description": "# HTTP 端点\n`POST /api/qgc/service/start`\n\n# 说明\n排他启动（自动停止其他角色后台线程），启动 UDP 接收/发送线程；\n`[Udp] Mock = true`（默认）时同时启动模拟飞控线程。",
+        "operationId": "qgcStartService",
+        "responses": {
+          "200": {
+            "description": "启动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/service/status": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "查询飞控服务运行状态",
+        "description": "# HTTP 端点\n`GET /api/qgc/service/status`",
+        "operationId": "qgcGetServiceStatus",
+        "responses": {
+          "200": {
+            "description": "运行状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/service/stop": {
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "停止飞控通信服务",
+        "description": "# HTTP 端点\n`POST /api/qgc/service/stop`\n\n# 说明\n停止操作是异步的，HTTP 请求立即返回，实际停止在后台线程中完成。",
+        "operationId": "qgcStopService",
+        "responses": {
+          "200": {
+            "description": "停止成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ServiceStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/telemetry": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "获取遥测快照",
+        "description": "# HTTP 端点\n`GET /api/qgc/telemetry`\n\n# 说明\n返回当前遥测快照（由 MAVLink 遥测帧聚合，10Hz 更新）。\n实时推送请使用 WebSocket `telemetry` 事件。",
+        "operationId": "qgcGetTelemetry",
+        "responses": {
+          "200": {
+            "description": "遥测快照",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_QgcTelemetry"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -2384,6 +2704,215 @@
               "disabled": {
                 "type": "boolean",
                 "description": "是否停用（true 表示 GET /admin/pwd 不再返回初始密码）"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_QgcMission": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "任务快照（`GET /api/qgc/mission` 响应）\n\n任务协议（MISSION_COUNT / MISSION_ITEM_INT / MISSION_ACK）为异步交互，\n上传/下载/清除期间状态为 `uploading` / `downloading` / `clearing`，\n完成后回到 `idle`；进度经 WebSocket `mission_progress` 事件实时推送。",
+            "required": [
+              "state",
+              "items",
+              "current_seq"
+            ],
+            "properties": {
+              "current_seq": {
+                "type": "integer",
+                "format": "int32",
+                "description": "飞控当前执行的航点序号（-1 表示不在任务中）"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QgcMissionItem"
+                },
+                "description": "航点列表（下载完成后为飞控当前任务）"
+              },
+              "state": {
+                "type": "string",
+                "description": "任务状态：idle / uploading / downloading / clearing"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_QgcTelemetry": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "飞控遥测快照（`GET /api/qgc/telemetry` 响应 + WebSocket `telemetry` 事件）\n\n由 MAVLink 常用消息聚合而来，10Hz 更新（由 `[Gcs] TelemetryHz` 配置）。\n角度单位统一为度，距离单位为米，速度为 m/s。",
+            "required": [
+              "connected",
+              "sysid",
+              "armed",
+              "mode",
+              "vehicle_type",
+              "roll",
+              "pitch",
+              "heading",
+              "lat",
+              "lon",
+              "altitude",
+              "relative_alt",
+              "groundspeed",
+              "airspeed",
+              "climb",
+              "voltage",
+              "current",
+              "battery_remaining",
+              "gps_fix_type",
+              "satellites_visible",
+              "packet_rate",
+              "last_heartbeat_ms"
+            ],
+            "properties": {
+              "airspeed": {
+                "type": "number",
+                "format": "float",
+                "description": "空速（m/s）"
+              },
+              "altitude": {
+                "type": "number",
+                "format": "float",
+                "description": "海拔（米，MSL）"
+              },
+              "armed": {
+                "type": "boolean",
+                "description": "解锁状态（心跳 base_mode 的 SAFETY_ARMED 位）"
+              },
+              "battery_remaining": {
+                "type": "integer",
+                "format": "int32",
+                "description": "电池剩余电量（%，-1 为未知）"
+              },
+              "climb": {
+                "type": "number",
+                "format": "float",
+                "description": "爬升率（m/s，正为上升）"
+              },
+              "connected": {
+                "type": "boolean",
+                "description": "飞控连接状态（收到心跳后为 true，超时 3 秒复位为 false）"
+              },
+              "current": {
+                "type": "number",
+                "format": "float",
+                "description": "电池电流（A）"
+              },
+              "gps_fix_type": {
+                "type": "integer",
+                "format": "int32",
+                "description": "GPS 定位类型（0=无定位, 2=2D, 3=3D, 4=3D 差分）",
+                "minimum": 0
+              },
+              "groundspeed": {
+                "type": "number",
+                "format": "float",
+                "description": "地速（m/s）"
+              },
+              "heading": {
+                "type": "number",
+                "format": "float",
+                "description": "航向（度，0-360）"
+              },
+              "last_heartbeat_ms": {
+                "type": "integer",
+                "format": "int64",
+                "description": "距上次心跳的毫秒数（连接超时判定用）",
+                "minimum": 0
+              },
+              "lat": {
+                "type": "number",
+                "format": "double",
+                "description": "纬度（度）"
+              },
+              "lon": {
+                "type": "number",
+                "format": "double",
+                "description": "经度（度）"
+              },
+              "mode": {
+                "type": "string",
+                "description": "飞行模式名（ArduPilot Copter 模式，如 GUIDED / AUTO / RTL）"
+              },
+              "packet_rate": {
+                "type": "number",
+                "format": "float",
+                "description": "遥测帧速率（帧/秒，最近 2 秒平均）"
+              },
+              "pitch": {
+                "type": "number",
+                "format": "float",
+                "description": "俯仰角（度）"
+              },
+              "relative_alt": {
+                "type": "number",
+                "format": "float",
+                "description": "相对高度（米，相对起飞点）"
+              },
+              "roll": {
+                "type": "number",
+                "format": "float",
+                "description": "滚转角（度）"
+              },
+              "satellites_visible": {
+                "type": "integer",
+                "format": "int32",
+                "description": "可见卫星数",
+                "minimum": 0
+              },
+              "sysid": {
+                "type": "integer",
+                "format": "int32",
+                "description": "飞控系统 ID（MAVLink sysid，来自心跳）",
+                "minimum": 0
+              },
+              "vehicle_type": {
+                "type": "integer",
+                "format": "int32",
+                "description": "飞行器类型（MAV_TYPE 枚举值，如 2=四旋翼）",
+                "minimum": 0
+              },
+              "voltage": {
+                "type": "number",
+                "format": "float",
+                "description": "电池电压（V）"
               }
             }
           },
@@ -4619,6 +5148,7 @@
           "Fw150Monitor",
           "Fj200cMainMonitor",
           "ProtocolGeneratorMonitor",
+          "QgcMonitor",
           "UsersRead",
           "UsersWrite",
           "UsersDelete",
@@ -4705,6 +5235,265 @@
           "disabled": {
             "type": "boolean",
             "description": "是否停用（true 表示 GET /admin/pwd 不再返回初始密码）"
+          }
+        }
+      },
+      "QgcCommandRequest": {
+        "type": "object",
+        "description": "飞控命令请求体（`POST /api/qgc/command`）\n\n# 支持的命令\n- `arm`：解锁（MAV_CMD_COMPONENT_ARM_DISARM, param1=1）\n- `disarm`：锁定（MAV_CMD_COMPONENT_ARM_DISARM, param1=0）\n- `takeoff`：起飞（MAV_CMD_NAV_TAKEOFF, param7=altitude）\n- `land`：降落（MAV_CMD_NAV_LAND）\n- `rtl`：返航（MAV_CMD_NAV_RETURN_TO_LAUNCH）\n\n命令经 COMMAND_LONG 发送，飞控以 COMMAND_ACK 回执（WebSocket `command_ack` 事件）。",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "altitude": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "起飞高度（米，仅 takeoff 使用，缺省 10）"
+          },
+          "command": {
+            "type": "string",
+            "description": "命令名：arm / disarm / takeoff / land / rtl"
+          }
+        }
+      },
+      "QgcMission": {
+        "type": "object",
+        "description": "任务快照（`GET /api/qgc/mission` 响应）\n\n任务协议（MISSION_COUNT / MISSION_ITEM_INT / MISSION_ACK）为异步交互，\n上传/下载/清除期间状态为 `uploading` / `downloading` / `clearing`，\n完成后回到 `idle`；进度经 WebSocket `mission_progress` 事件实时推送。",
+        "required": [
+          "state",
+          "items",
+          "current_seq"
+        ],
+        "properties": {
+          "current_seq": {
+            "type": "integer",
+            "format": "int32",
+            "description": "飞控当前执行的航点序号（-1 表示不在任务中）"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QgcMissionItem"
+            },
+            "description": "航点列表（下载完成后为飞控当前任务）"
+          },
+          "state": {
+            "type": "string",
+            "description": "任务状态：idle / uploading / downloading / clearing"
+          }
+        }
+      },
+      "QgcMissionItem": {
+        "type": "object",
+        "description": "航点（任务条目）\n\n对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT），\n经纬度为 WGS84 十进制度，高度为相对高度（米）。",
+        "required": [
+          "seq",
+          "command",
+          "lat",
+          "lon",
+          "altitude"
+        ],
+        "properties": {
+          "altitude": {
+            "type": "number",
+            "format": "float",
+            "description": "相对高度（米）"
+          },
+          "command": {
+            "type": "integer",
+            "format": "int32",
+            "description": "命令（16 = NAV_WAYPOINT）",
+            "minimum": 0
+          },
+          "lat": {
+            "type": "number",
+            "format": "double",
+            "description": "纬度（度）"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double",
+            "description": "经度（度）"
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int32",
+            "description": "序号（上传时由服务端自动重排，从 1 开始）",
+            "minimum": 0
+          }
+        }
+      },
+      "QgcMissionUploadRequest": {
+        "type": "object",
+        "description": "任务上传请求体（`PUT /api/qgc/mission`）\n\n上传 1~100 个航点；序号不要求连续，服务端按数组顺序自动重排。",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QgcMissionItem"
+            },
+            "description": "航点列表（1~100 个）"
+          }
+        }
+      },
+      "QgcModeRequest": {
+        "type": "object",
+        "description": "飞行模式切换请求体（`POST /api/qgc/mode`）\n\n支持 ArduPilot Copter 模式名：stabilize / acro / alt_hold / auto /\nguided / loiter / rtl / circle / land / drift / sport / poshold / brake / throw；\n也接受数字自定义模式 ID（如 \"16\"）。",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "模式名或数字模式 ID"
+          }
+        }
+      },
+      "QgcTelemetry": {
+        "type": "object",
+        "description": "飞控遥测快照（`GET /api/qgc/telemetry` 响应 + WebSocket `telemetry` 事件）\n\n由 MAVLink 常用消息聚合而来，10Hz 更新（由 `[Gcs] TelemetryHz` 配置）。\n角度单位统一为度，距离单位为米，速度为 m/s。",
+        "required": [
+          "connected",
+          "sysid",
+          "armed",
+          "mode",
+          "vehicle_type",
+          "roll",
+          "pitch",
+          "heading",
+          "lat",
+          "lon",
+          "altitude",
+          "relative_alt",
+          "groundspeed",
+          "airspeed",
+          "climb",
+          "voltage",
+          "current",
+          "battery_remaining",
+          "gps_fix_type",
+          "satellites_visible",
+          "packet_rate",
+          "last_heartbeat_ms"
+        ],
+        "properties": {
+          "airspeed": {
+            "type": "number",
+            "format": "float",
+            "description": "空速（m/s）"
+          },
+          "altitude": {
+            "type": "number",
+            "format": "float",
+            "description": "海拔（米，MSL）"
+          },
+          "armed": {
+            "type": "boolean",
+            "description": "解锁状态（心跳 base_mode 的 SAFETY_ARMED 位）"
+          },
+          "battery_remaining": {
+            "type": "integer",
+            "format": "int32",
+            "description": "电池剩余电量（%，-1 为未知）"
+          },
+          "climb": {
+            "type": "number",
+            "format": "float",
+            "description": "爬升率（m/s，正为上升）"
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "飞控连接状态（收到心跳后为 true，超时 3 秒复位为 false）"
+          },
+          "current": {
+            "type": "number",
+            "format": "float",
+            "description": "电池电流（A）"
+          },
+          "gps_fix_type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "GPS 定位类型（0=无定位, 2=2D, 3=3D, 4=3D 差分）",
+            "minimum": 0
+          },
+          "groundspeed": {
+            "type": "number",
+            "format": "float",
+            "description": "地速（m/s）"
+          },
+          "heading": {
+            "type": "number",
+            "format": "float",
+            "description": "航向（度，0-360）"
+          },
+          "last_heartbeat_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "距上次心跳的毫秒数（连接超时判定用）",
+            "minimum": 0
+          },
+          "lat": {
+            "type": "number",
+            "format": "double",
+            "description": "纬度（度）"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double",
+            "description": "经度（度）"
+          },
+          "mode": {
+            "type": "string",
+            "description": "飞行模式名（ArduPilot Copter 模式，如 GUIDED / AUTO / RTL）"
+          },
+          "packet_rate": {
+            "type": "number",
+            "format": "float",
+            "description": "遥测帧速率（帧/秒，最近 2 秒平均）"
+          },
+          "pitch": {
+            "type": "number",
+            "format": "float",
+            "description": "俯仰角（度）"
+          },
+          "relative_alt": {
+            "type": "number",
+            "format": "float",
+            "description": "相对高度（米，相对起飞点）"
+          },
+          "roll": {
+            "type": "number",
+            "format": "float",
+            "description": "滚转角（度）"
+          },
+          "satellites_visible": {
+            "type": "integer",
+            "format": "int32",
+            "description": "可见卫星数",
+            "minimum": 0
+          },
+          "sysid": {
+            "type": "integer",
+            "format": "int32",
+            "description": "飞控系统 ID（MAVLink sysid，来自心跳）",
+            "minimum": 0
+          },
+          "vehicle_type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "飞行器类型（MAV_TYPE 枚举值，如 2=四旋翼）",
+            "minimum": 0
+          },
+          "voltage": {
+            "type": "number",
+            "format": "float",
+            "description": "电池电压（V）"
           }
         }
       },

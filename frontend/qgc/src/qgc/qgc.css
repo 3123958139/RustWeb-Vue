@@ -1,0 +1,73 @@
+/**
+ * qgc 飞控地面站全局样式（QGC 深色仪表主题）
+ *
+ * 应用级样式，非 scoped（组件内仍用 scoped 样式细化）。
+ */
+
+/* ============ 页面底色 ============ */
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  background-color: #17181b;
+  color: #e0e0e0;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+/* Element Plus 暗色主题下统一卡片底色 */
+.el-card {
+  background-color: #1f2126;
+  border-color: #2c2f36;
+  color: #e0e0e0;
+}
+
+.el-card__header {
+  border-bottom-color: #2c2f36;
+  font-weight: 600;
+}
+
+/* ============ 命令按钮组 ============ */
+
+.qgc-command-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.qgc-command-buttons .cmd-arm {
+  background-color: #d9534f;
+  border-color: #d9534f;
+}
+
+.qgc-command-buttons .cmd-arm:hover {
+  background-color: #c9302c;
+  border-color: #c9302c;
+}
+
+.qgc-command-buttons .cmd-takeoff {
+  background-color: #5cb85c;
+  border-color: #5cb85c;
+}
+
+.qgc-command-buttons .cmd-takeoff:hover {
+  background-color: #449d44;
+  border-color: #449d44;
+}
+
+/* ============ 状态标签 ============ */
+
+.qgc-state-tag {
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+/* ============ 通用面板 ============ */
+
+.qgc-panel {
+  background-color: #1f2126;
+  border: 1px solid #2c2f36;
+  border-radius: 6px;
+  padding: 12px;
+}

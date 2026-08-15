@@ -108,6 +108,7 @@ pub fn stop_in_background(
 /// - `fj200c_main`：五路串口（ECU/ADAM/DYNO/Flux）读线程、周期发送线程、
 ///   处理线程、模拟发送线程，并关闭 CSV 录制文件
 /// - `ftj1c`：UDP 组播接收线程、串口发送线程
+/// - `qgc`：UDP 接收/发送线程、模拟飞控线程
 pub fn stop_all_services_except(keep_role: Option<&str>) {
     if keep_role != Some("fj200c_information") {
         crate::fj200c_information::service::stop_service();
@@ -117,6 +118,9 @@ pub fn stop_all_services_except(keep_role: Option<&str>) {
     }
     if keep_role != Some("ftj1c") {
         crate::ftj1c::service::stop_service();
+    }
+    if keep_role != Some("qgc") {
+        crate::qgc::service::stop_service();
     }
     tracing::info!("角色服务线程清理完成（保留: {:?}）", keep_role);
 }

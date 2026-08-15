@@ -7,11 +7,11 @@ echo ========================================
 echo   RustWeb One-Click Deploy: build + package + start
 echo ========================================
 
-rem Build frontends in PARALLEL (max 4 concurrent, see build-frontends.ps1).
+rem Build frontends in PARALLEL (max 3 concurrent, see build-frontends.ps1).
 rem Order still matters: frontends must be built BEFORE the backend, because the
 rem frontend dist is embedded INTO the exe at compile time
 rem (cargo build --release --features embedded, see src/embedded_assets.rs).
-echo Building 8 frontends in parallel (4 concurrent)...
+echo Building 9 frontends in parallel (3 concurrent)...
 powershell -NoProfile -ExecutionPolicy Bypass -File build-frontends.ps1
 if errorlevel 1 (
     echo.
@@ -171,6 +171,18 @@ if not exist config-fj200c_main.ini (
 )
 copy /y config-fj200c_main.ini deploy\ >nul
 
+rem qgc role config (MAVLink 飞控地面站)
+if not exist config-qgc.ini (
+    echo [WARN] config-qgc.ini not found. A default one will be created.
+    echo [Udp]>> config-qgc.ini
+    echo Mock = true>> config-qgc.ini
+    echo LocalPort = 14550>> config-qgc.ini
+    echo.>> config-qgc.ini
+    echo [Gcs]>> config-qgc.ini
+    echo TelemetryHz = 10>> config-qgc.ini
+)
+copy /y config-qgc.ini deploy\ >nul
+
 echo [8/8] Deployment complete!
 echo ----------------------------------------
 echo   Deploy folder: %~dp0deploy
@@ -183,6 +195,7 @@ echo   Ftj1c:                   http://localhost:3000/ftj1c
 echo   Admin:                   http://localhost:3000/admin
 echo   City3d:                  http://localhost:3000/city3d
 echo   Protocol_generator:      http://localhost:3000/protocol_generator
+echo   Qgc:                     http://localhost:3000/qgc
 echo ----------------------------------------
 
 cd deploy

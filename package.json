@@ -9,6 +9,7 @@
     "frontend/admin",
     "frontend/city3d",
     "frontend/protocol_generator",
+    "frontend/qgc",
     "packages/shared"
   ],
   "scripts": {

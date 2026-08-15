@@ -9,6 +9,7 @@
 //! /api/fw100/*  → fw100 模块（设备台账）
 //! /api/ftj1c/*   → ftj1c 模块（UDP 通信监控）
 //! /api/city3d/*  → city3d 模块（城市 3D 展示）
+//! /api/qgc/*     → qgc 模块（飞控地面站）
 //! ```
 //!
 //! # 设计理念
@@ -25,6 +26,7 @@
 //! - `fw100_routes`：需要 `Fw100Monitor` 权限
 //! - `ftj1c_routes`：需要 `Ftj1cMonitor` 权限
 //! - `city3d_routes`：需要 `City3dView` 权限
+//! - `qgc_routes`：需要 `QgcMonitor` 权限
 
 use crate::database::DatabaseConnection;
 // 数据库连接池类型
@@ -98,6 +100,11 @@ pub fn create_router(db: DatabaseConnection) -> Router {
     // - 通信协议生成（Markdown / Excel / CSV 参数表）
     let protocol_generator_routes = crate::protocol_generator::routes::protocol_generator_router(db.clone());
 
+    // qgc 角色路由（需要 QgcMonitor 权限）：
+    // - 飞控地面站：遥测监控 / 命令 / 模式 / 任务规划
+    // - WebSocket 推送（telemetry / mission_progress / command_ack）
+    let qgc_routes = crate::qgc::routes::qgc_router(db.clone());
+
     // ============ 2. 组装路由树 ============
     //
     // `Router::new()` 创建空路由
@@ -152,5 +159,6 @@ pub fn create_router(db: DatabaseConnection) -> Router {
         // 处理器通过 `State(db): State<DatabaseConnection>` 提取
         .nest("/api/fw150", fw150_routes)
         .nest("/api/protocol_generator", protocol_generator_routes)
+        .nest("/api/qgc", qgc_routes)
         .with_state(db)
 }

@@ -378,6 +378,12 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             "protocol_generator@7304.com",
             "protocol_generator",
         ),
+        (
+            "00000000-0000-4000-8000-000000000009",
+            "qgc",
+            "qgc@7304.com",
+            "qgc",
+        ),
     ];
 
     for (id_str, username, email, role) in seeds {

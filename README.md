@@ -1,6 +1,6 @@
 # Rust Web 全栈管理系统
 
-Rust + Axum 后端 + 8 个 Vue 3 前端应用的多角色管理系统。RBAC 角色权限、WebSocket 实时监控、OpenAPI 契约自动同步前后端类型。
+Rust + Axum 后端 + 9 个 Vue 3 前端应用的多角色管理系统。RBAC 角色权限、WebSocket 实时监控、OpenAPI 契约自动同步前后端类型。
 
 ## 技术栈
 
@@ -17,7 +17,7 @@ RustWeb-Vue/
 │   ├── routes.rs           # 路由集中注册
 │   ├── roles.rs            # 角色注册表（RBAC 唯一源，经 /api/meta/roles 暴露）
 │   ├── api_docs.rs         # OpenAPI 聚合 + export_openapi 测试
-│   ├── embedded_assets.rs  # single-exe 打包：--features embedded 时内嵌 8 个前端 dist
+│   ├── embedded_assets.rs  # single-exe 打包：--features embedded 时内嵌 9 个前端 dist
 │   ├── database.rs         # 建表 + 种子账号（无 sqlx 迁移文件）
 │   ├── common/             # 认证、中间件、模型、DTO、错误处理、JWT、串口封装
 │   ├── admin/              # 用户管理
@@ -27,8 +27,9 @@ RustWeb-Vue/
 │   ├── fw100/  fw150/      # 设备台账
 │   ├── city3d/             # 城市区域/建筑/事件 + 概览统计
 │   ├── protocol_generator/ # 通信协议生成（参数表 CSV、协议代码、Excel/Markdown 导出）
+│   ├── qgc/                # 飞控地面站（MAVLink v2、UDP 模拟飞控、航点任务、WebSocket）
 │   └── role_template/      # 新角色模块参考模板
-├── frontend/               # 8 个独立 Vue 应用（见下表）
+├── frontend/               # 9 个独立 Vue 应用（见下表）
 ├── packages/shared/        # @rustweb/shared 共享包
 │   └── src/
 │       ├── roles.ts        # 前端菜单配置 + 注册表拉取/缓存（loadRoleRegistry）
@@ -59,8 +60,9 @@ RustWeb-Vue/
 | 设备台账 | `frontend/fw150` | 设备台账 CRUD | 5178 | `/fw150` |
 | 发动机测控 | `frontend/fj200c_main` | ECU/ADAM/DYNO 三路串口测控、试验、报表 | 5179 | `/fj200c_main` |
 | 通信协议生成 | `frontend/protocol_generator` | 参数表 CSV 编辑、协议 C# 代码生成、Excel/Markdown 导出 | 5180 | `/protocol_generator` |
+| 飞控地面站 | `frontend/qgc` | MAVLink 遥测仪表、地图航点任务规划、命令控制 | 5181 | `/qgc` |
 
-8 个应用共享同一登录态（localStorage token），跨应用跳转自动传递；各自 `vite.config.ts` 均是一行工厂调用 `defineAppConfig({ app, port, ws }, __dirname)`（`/api` 代理到后端 :3000，WebSocket 代理仅 fj200c_information / fj200c_main / ftj1c 开启）。
+9 个应用共享同一登录态（localStorage token），跨应用跳转自动传递；各自 `vite.config.ts` 均是一行工厂调用 `defineAppConfig({ app, port, ws }, __dirname)`（`/api` 代理到后端 :3000，WebSocket 代理仅 fj200c_information / fj200c_main / ftj1c / qgc 开启）。
 
 ## 角色与权限（RBAC）
 
@@ -74,6 +76,7 @@ RustWeb-Vue/
 | `ftj1c` | Ftj1cMonitor | ftj1c |
 | `city3d` | City3dView | city3d |
 | `protocol_generator` | ProtocolGeneratorMonitor | protocol_generator |
+| `qgc` | QgcMonitor | qgc |
 
 角色注册表唯一源在后端 `src/roles.rs`（`ROLE_REGISTRY`），通过 `GET /api/meta/roles` 公开；前端运行时拉取 key/name/permissions（orval 生成 `RoleInfo` 类型），经 `packages/shared/src/roles.ts` 的 `loadRoleRegistry()` 缓存，`initAuth`/`login` 时自动加载。菜单（`MENU_CONFIG`）与 `ROLE_APP_URLS` 是纯前端 UI 概念，仍手写在 `packages/shared/src/roles.ts`。
 
@@ -119,7 +122,7 @@ npm run build      # vue-tsc && vite build
 npm run gen:api    # = cargo test export_openapi && orval
 ```
 
-- `cargo test export_openapi` → 生成 `openapi/openapi.json`（内置 paths/operationId 断言防漂移：49 路径 / 61 操作）
+- `cargo test export_openapi` → 生成 `openapi/openapi.json`（内置 paths/operationId 断言防漂移：59 路径 / 74 操作）
 - `orval` → 生成 `packages/shared/src/api/generated/`（按 tag 拆分的请求函数 + 类型，走统一 `customInstance`）
 - 各前端 `src/api/index.ts` 用生成函数组装对象 facade（如 `fj200c_informationApi.startService(...)`），视图层调用点不变
 - `openapi.json` 与 `generated/` 只由工具生成，**不手改**
@@ -165,7 +168,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 ## 构建与部署（Windows 一键）
 
 ```powershell
-deploy.bat   # 1) 8 个前端并行 npm run build（build-frontends.ps1）2) cargo build --release --features embedded 3) 组装 deploy/
+deploy.bat   # 1) 9 个前端并行 npm run build（build-frontends.ps1）2) cargo build --release --features embedded 3) 组装 deploy/
 ```
 
 顺序不可颠倒：前端 dist 在**编译期**内嵌进 exe，必须先构建前端再编译后端。
@@ -174,7 +177,7 @@ deploy.bat   # 1) 8 个前端并行 npm run build（build-frontends.ps1）2) car
 
 ```
 deploy/
-├── rust-web-backend.exe     # 单文件后端（内嵌 8 个前端 dist，双击即可启动）
+├── rust-web-backend.exe     # 单文件后端（内嵌 9 个前端 dist，双击即可启动）
 ├── .env                     # 运行时配置（不存在时自动生成）
 ├── config-fj200c_information.ini   # 发动机监控模块配置（随部署自动生成）
 ├── config-fj200c_main.ini   # 发动机测控模块配置（随部署自动生成）
@@ -182,13 +185,13 @@ deploy/
 └── csv/                     # CSV 数据目录
 ```
 
-- 访问：`http://localhost:3000`（8 个应用 SPA 深链接自动回退 index.html）
+- 访问：`http://localhost:3000`（9 个应用 SPA 深链接自动回退 index.html）
 - 数据迁移：拷贝 `deploy/rustweb.db` 即可
 - 服务绑定 `127.0.0.1`，如需外网访问修改 `src/main.rs` 为 `0.0.0.0` 后重新部署
 
 ## 数据库
 
-建表与种子数据由 `src/database.rs` 内建（无 sqlx 迁移文件）：首次启动自动创建 `users` / `user_settings` 等表并插入 8 个种子账号（admin、fj200c_information、fj200c_main、fw100、fw150、ftj1c、city3d、protocol_generator，邮箱 `@7304.com`）。**种子账号初始密码是随机生成的**，明文只存 `seed_passwords` 表，经 `GET /admin/pwd` 查询（admin 后端可在用户管理设置中停用该端点）。
+建表与种子数据由 `src/database.rs` 内建（无 sqlx 迁移文件）：首次启动自动创建 `users` / `user_settings` 等表并插入 9 个种子账号（admin、fj200c_information、fj200c_main、fw100、fw150、ftj1c、city3d、protocol_generator、qgc，邮箱 `@7304.com`）。**种子账号初始密码是随机生成的**，明文只存 `seed_passwords` 表，经 `GET /admin/pwd` 查询（admin 后端可在用户管理设置中停用该端点）。
 
 数据文件为运行目录下的 `rustweb.db`（开发在项目根，部署在 `deploy/`）。
 
@@ -198,7 +201,7 @@ deploy/
 
 1. `src/common/models.rs` 加 `Permission::XxxMonitor`；`src/roles.rs` 注册 `RoleDef`（key/name/permissions）
 2. 复制 `src/role_template/` 为 `src/xxx/`（一级骨架），角色专有子模块放入二级目录 `src/xxx/xxx/`，一级 `mod.rs` 用 `pub use` 再导出，`routes.rs` 挂载 `/api/xxx/*`（用 `permission_middleware`）
-3. handler 加 `#[utoipa::path]`（tags="xxx"）；`src/api_docs.rs` 追加 paths/schemas/tags，同步更新 `export_openapi` 测试里的路径/操作数量断言（当前 49 路径 / 61 操作）
+3. handler 加 `#[utoipa::path]`（tags="xxx"）；`src/api_docs.rs` 追加 paths/schemas/tags，同步更新 `export_openapi` 测试里的路径/操作数量断言（当前 59 路径 / 74 操作）
 4. `packages/shared/src/roles.ts` 的 `MENU_CONFIG` 加菜单、`ROLE_APP_URLS` 加应用地址（注册表数据无需手写，由 `/api/meta/roles` 同步）
 5. 复制现有前端为新应用 `frontend/xxx/`：改端口/base/workspaces，角色专有文件放 `src/xxx/` 二级目录，`api/index.ts` 组装 facade，`setApiInstance` 注入
 6. `npm run gen:api` 生成 `generated/api/xxx.ts`，前端 `npm run build` 通过

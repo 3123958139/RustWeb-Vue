@@ -3,7 +3,7 @@
  * @description 共享包入口文件 - 为所有 Vue 前端应用提供公共代码
  *
  * ## 架构说明
- * 本包是 RustWeb-Vue 项目的共享代码包，被全部 8 个 Vue 前端应用引用：
+ * 本包是 RustWeb-Vue 项目的共享代码包，被全部 9 个 Vue 前端应用引用：
  * - frontend/admin（管理后台）
  * - frontend/fj200c_information（发动机监控）
  * - frontend/fj200c_main（发动机测控）
@@ -12,6 +12,7 @@
  * - frontend/ftj1c（UDP 通信监控）
  * - frontend/city3d（城市 3D 展示）
  * - frontend/protocol_generator（通信协议生成）
+ * - frontend/qgc（飞控地面站）
  *
  * ## 设计原则
  * 1. **跨角色公共代码**：只包含所有角色共享的逻辑（会话管理、类型定义、角色注册表、工厂函数）
