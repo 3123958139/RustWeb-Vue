@@ -25,6 +25,7 @@
           <button class="mode-btn" :class="{ active: planMode === 'plan' }" @click="planMode = 'plan'">航线规划</button>
           <button class="mode-btn" :class="{ active: planMode === 'goto' }" @click="planMode = 'goto'">随点随行</button>
         </div>
+        <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
       </div>
       <div class="map-body">
         <div class="map-container" ref="mapEl"></div>
@@ -49,6 +50,11 @@
     <div class="map-sidebar">
       <MissionPanel ref="missionPanelRef" />
     </div>
+
+    <!-- 离线地图面板（瓦片离线保存 / 加载管理） -->
+    <el-dialog v-model="offlinePanelVisible" title="离线地图" width="560px" append-to-body class="offline-dialog">
+      <OfflineMapPanel :center="mapCenter" />
+    </el-dialog>
   </div>
 </template>
 
@@ -57,14 +63,27 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { getSessionToken } from "@shared";
 import { qgcApi } from "@/api";
 import { useQgcEvents } from "@/qgc/composables/useQgcEvents";
 import MissionPanel from "@/qgc/components/MissionPanel.vue";
+import OfflineMapPanel from "@/qgc/components/OfflineMapPanel.vue";
 
 /** 地图容器 DOM 引用 */
 const mapEl = ref<HTMLElement | null>(null);
 /** 任务面板引用（调用暴露方法） */
 const missionPanelRef = ref<InstanceType<typeof MissionPanel> | null>(null);
+/** 离线地图面板开关 */
+const offlinePanelVisible = ref(false);
+/** 离线面板初始中心（打开时取地图当前中心） */
+const mapCenter = ref<[number, number]>([31.2304, 121.4737]);
+
+/** 打开离线地图面板（中心点同步为地图当前中心） */
+function openOfflinePanel() {
+  const c = map?.getCenter();
+  if (c) mapCenter.value = [c.lat, c.lng];
+  offlinePanelVisible.value = true;
+}
 
 // ---------- 规划 / 随行模式与视角控制 ----------
 
@@ -234,7 +253,8 @@ onMounted(async () => {
     center: [31.2304, 121.4737],
     zoom: 15,
   });
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  // 瓦片经后端代理加载（磁盘缓存，离线可用）；token 经查询参数传递（img 无法带 Bearer 头）
+  L.tileLayer(`/api/qgc/tiles/{z}/{x}/{y}?token=${encodeURIComponent(getSessionToken() ?? "")}`, {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(map);
@@ -506,6 +526,18 @@ onUnmounted(() => {
   background: linear-gradient(180deg, #00b4d8, #0077b6);
   color: #ffffff;
   box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+}
+
+.offline-map-btn {
+  flex-shrink: 0;
+  border-color: rgba(0, 180, 216, 0.3);
+  color: var(--text-accent);
+  background: var(--btn-bg);
+}
+
+.offline-map-btn:hover {
+  background: var(--btn-hover-bg);
+  border-color: rgba(0, 180, 216, 0.6);
 }
 
 @keyframes brand-breathe {

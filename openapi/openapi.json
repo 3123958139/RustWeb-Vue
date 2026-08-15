@@ -1817,6 +1817,106 @@
         }
       }
     },
+    "/api/qgc/tiles/clear": {
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "清空瓦片缓存",
+        "description": "# HTTP 端点\n`POST /api/qgc/tiles/clear`\n\n# 说明\n删除 `tiles/` 缓存目录并重建，清空全部已保存瓦片。",
+        "operationId": "qgcClearTiles",
+        "responses": {
+          "200": {
+            "description": "清除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_SavedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/tiles/stats": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "查询瓦片缓存统计",
+        "description": "# HTTP 端点\n`GET /api/qgc/tiles/stats`\n\n# 说明\n返回磁盘缓存（`tiles/` 目录）中的瓦片数量与占用字节数，\n供前端「离线地图」面板展示保存进度与缓存占用。",
+        "operationId": "qgcGetTileStats",
+        "responses": {
+          "200": {
+            "description": "瓦片缓存统计",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TileStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/tiles/{z}/{x}/{y}": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "获取地图瓦片（代理 + 磁盘缓存）",
+        "description": "# HTTP 端点\n`GET /api/qgc/tiles/{z}/{x}/{y}?token=<JWT>`\n\n# 说明\nLeaflet 的 `<img>` 标签无法携带 Authorization 头，token 经 `?token=`\n查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。\n\n命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；\n未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OpenStreetMap）\n下载并落盘（**离线保存**：前端批量请求即可保存离线地图包）。\n`404` 表示缓存未命中且瓦片源不可达。",
+        "operationId": "qgcGetTile",
+        "parameters": [
+          {
+            "name": "z",
+            "in": "path",
+            "description": "缩放级别",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "description": "瓦片列号（Web Mercator）",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "y",
+            "in": "path",
+            "description": "瓦片行号（Web Mercator）",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "瓦片图片（PNG）",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "404": {
+            "description": "缓存未命中且瓦片源下载失败"
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -3300,6 +3400,47 @@
               "isDark": {
                 "type": "boolean",
                 "description": "是否深色主题"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_TileStats": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "瓦片缓存统计（`GET /api/qgc/tiles/stats` 响应）\n\n供前端「离线地图」面板展示缓存占用情况（磁盘 `tiles/` 目录）。",
+            "required": [
+              "count",
+              "bytes"
+            ],
+            "properties": {
+              "bytes": {
+                "type": "integer",
+                "format": "int64",
+                "description": "缓存占用磁盘字节数",
+                "minimum": 0
+              },
+              "count": {
+                "type": "integer",
+                "description": "已缓存瓦片数量",
+                "minimum": 0
               }
             }
           },
@@ -5977,6 +6118,27 @@
           "isDark": {
             "type": "boolean",
             "description": "是否深色主题"
+          }
+        }
+      },
+      "TileStats": {
+        "type": "object",
+        "description": "瓦片缓存统计（`GET /api/qgc/tiles/stats` 响应）\n\n供前端「离线地图」面板展示缓存占用情况（磁盘 `tiles/` 目录）。",
+        "required": [
+          "count",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "缓存占用磁盘字节数",
+            "minimum": 0
+          },
+          "count": {
+            "type": "integer",
+            "description": "已缓存瓦片数量",
+            "minimum": 0
           }
         }
       },

@@ -6,13 +6,14 @@
  */
 import {getQgc} from "@shared/api/generated";
 import type {QgcMissionItem, QgcTelemetry} from "@shared/api/generated";
-import {buildWebSocketUrl as sharedBuildWebSocketUrl} from "@shared";
+import {buildWebSocketUrl as sharedBuildWebSocketUrl, getSessionToken} from "@shared";
 
 /** 类型 re-export（与视图 import 路径兼容） */
 export type {
     QgcTelemetry,
     QgcMission,
     QgcMissionItem,
+    TileStats,
 } from "@shared/api/generated";
 
 /**
@@ -128,6 +129,29 @@ export function createQgcApi() {
         /** 获取帮助文档（help_doc.md） */
         async getHelp() {
             return api.qgcGetHelp();
+        },
+
+        /** 查询瓦片缓存统计（数量 + 磁盘字节） */
+        async getTileStats() {
+            return api.qgcGetTileStats();
+        },
+
+        /** 清空瓦片缓存（删除磁盘 tiles/ 目录） */
+        async clearTiles() {
+            return api.qgcClearTiles();
+        },
+
+        /**
+         * 构建地图瓦片 URL（经后端代理 + 磁盘缓存）
+         *
+         * Leaflet `<img>` 标签无法携带 Authorization 头，
+         * JWT token 通过 URL query 参数传递（同 WebSocket）。
+         * 命中后端磁盘缓存时无网络请求（离线加载），
+         * 未命中时由后端从瓦片源下载并落盘（离线保存）。
+         */
+        buildTileUrl(z: number, x: number, y: number): string {
+            const token = getSessionToken() || "";
+            return `/api/qgc/tiles/${z}/${x}/${y}?token=${encodeURIComponent(token)}`;
         },
 
         /**

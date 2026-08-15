@@ -55,6 +55,10 @@ rand = "0.8"
 # ftj1c 通信监控模块（从 demo-test3-ftj 迁移）：UDP 组播（SO_REUSEADDR / 1MB 接收缓冲）
 socket2 = "0.5"
 
+# qgc 地图瓦片代理：从瓦片源（默认 OSM）下载并缓存到磁盘，离线时直接读缓存
+# rustls-tls：纯 Rust TLS（与 sqlx 一致，避免 OpenSSL 依赖）；PNG 瓦片无需 gzip 特性
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
 # protocol_generator 协议生成模块（从 demo-protocol 迁移）：Excel 导出
 rust_xlsxwriter = "0.97.0"
 
@@ -64,3 +68,6 @@ utoipa = { version = "5", features = ["chrono", "uuid"] }
 # 单 exe 打包：编译期嵌入前端静态资源 + MIME 推断（仅 embedded feature 启用）
 rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

@@ -153,6 +153,19 @@ body,
   box-shadow: 0 0 16px rgba(0, 150, 210, 0.55);
 }
 
+/* ============ 离线地图入口按钮 ============ */
+
+.offline-map-btn {
+  border-color: rgba(0, 180, 216, 0.3) !important;
+  color: var(--text-accent) !important;
+  background: var(--btn-bg) !important;
+}
+
+.offline-map-btn:hover {
+  background: var(--btn-hover-bg) !important;
+  border-color: rgba(0, 180, 216, 0.6) !important;
+}
+
 /* ============ 状态标签 ============ */
 
 .qgc-state-tag {

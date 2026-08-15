@@ -35,10 +35,16 @@
       <span class="bar-chip"><i class="chip-dot time"></i>飞行 {{ flightTimeText }}</span>
       <div class="spacer"></div>
       <span class="bar-time">{{ currentTime }}</span>
+      <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
       <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
         {{ serviceRunning ? "停止服务" : "启动服务" }}
       </el-button>
     </div>
+
+    <!-- 离线地图面板（瓦片离线保存 / 加载管理） -->
+    <el-dialog v-model="offlinePanelVisible" title="离线地图" width="560px" append-to-body class="offline-dialog">
+      <OfflineMapPanel :center="offlineCenter" />
+    </el-dialog>
 
     <!-- 左上：飞行状态卡 -->
     <div class="overlay panel top-left">
@@ -169,11 +175,13 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { getSessionToken } from "@shared";
 import { qgcApi } from "@/api";
 import { useQgcEvents } from "@/qgc/composables/useQgcEvents";
 import AttitudeIndicator from "@/qgc/components/AttitudeIndicator.vue";
 import HeadingTape from "@/qgc/components/HeadingTape.vue";
 import AltitudeSpeedGauge from "@/qgc/components/AltitudeSpeedGauge.vue";
+import OfflineMapPanel from "@/qgc/components/OfflineMapPanel.vue";
 
 // ========== 地图 ==========
 
@@ -186,6 +194,17 @@ let missionLine: L.Polyline | null = null;
 let gotoMarker: L.Marker | null = null;
 const trailPoints: L.LatLngTuple[] = [];
 const followPlane = ref(false);
+
+/** 离线地图面板开关与初始中心 */
+const offlinePanelVisible = ref(false);
+const offlineCenter = ref<[number, number]>([31.2304, 121.4737]);
+
+/** 打开离线地图面板（中心点同步为地图当前中心） */
+function openOfflinePanel() {
+  const c = map?.getCenter();
+  if (c) offlineCenter.value = [c.lat, c.lng];
+  offlinePanelVisible.value = true;
+}
 
 /** 飞机 SVG 图标（按航向旋转） */
 function planeIcon(heading: number): L.DivIcon {
@@ -574,7 +593,8 @@ onMounted(async () => {
     zoom: 15,
     zoomControl: false,
   });
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  // 瓦片经后端代理加载（磁盘缓存，离线可用）；token 经查询参数传递（img 无法带 Bearer 头）
+  L.tileLayer(`/api/qgc/tiles/{z}/{x}/{y}?token=${encodeURIComponent(getSessionToken() ?? "")}`, {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(map);

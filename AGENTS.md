@@ -94,6 +94,7 @@ deploy.bat                   # 9 个前端并行 npm run build（build-frontends
 - `src/fw100/` / `src/fw150/` — 设备台账（handler + service）
 - `src/city3d/` — 城市区域/建筑/事件管理 + 概览聚合统计（二级目录含 `models.rs`）
 - `src/protocol_generator/` — 通信协议生成（从 demo-protocol 迁移）：参数表 CSV 读写/解析、协议 C# 代码生成、Excel/Markdown 导出（二级目录含 `generator.rs`）
+- `src/qgc/` — 飞控地面站（MAVLink v2 + 模拟飞控 + 地图瓦片代理）：二级目录含 mavlink/udp/simulator/mission/process、地图瓦片代理与磁盘缓存（`tiles.rs`，离线保存/加载），WebSocket 广播
 - `src/role_template/` — 新角色模块参考模板
 - `src/embedded_assets.rs` — 单 exe 打包：`--features embedded` 时用 rust-embed 将 9 个前端 dist 编译期内嵌，内存服务静态资源
 - `src/routes.rs` — 路由集中注册；`src/roles.rs` — 角色注册表；`src/api_docs.rs` — OpenAPI 聚合
@@ -112,6 +113,7 @@ deploy.bat                   # 9 个前端并行 npm run build（build-frontends
 | `/api/ftj1c/*` | Ftj1cMonitor | 服务启停/IP 配置/config.ini；`WS /api/ftj1c/ws?token=` |
 | `/api/city3d/*` | City3dView | 建筑/区域/事件/overview |
 | `/api/protocol_generator/*` | ProtocolGeneratorMonitor | 通信协议生成：参数表 CSV 读写/解析、协议 C# 代码生成、Excel/Markdown 导出 |
+| `/api/qgc/*` | QgcMonitor（瓦片端点 `?token=`） | 服务启停/遥测/命令/模式/任务规划/帮助；**地图瓦片代理 + 磁盘缓存**：`GET /api/qgc/tiles/{z}/{x}/{y}?token=`（命中 `tiles/` 缓存直接返回，未命中从 `[Tiles] Url` 瓦片源下载落盘，离线保存/加载）、`GET /tiles/stats`、`POST /tiles/clear`（Leaflet `<img>` 无法带 Bearer 头，瓦片端点走 `?token=` 同 WS）；`WS /api/qgc/ws?token=` |
 | `/api-docs/openapi.json` | 公开 | 实时 OpenAPI spec（配合 Swagger UI） |
 
 WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通过 `?token=` 查询参数，handler 内部校验。
@@ -123,6 +125,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 - **发动机模块**：`config-fj200c_information.ini`（`[Mock] InProcess = true` 开箱即用无需硬件；`[ConnectionN]` 串口；`[CSV]` 记录），**修改后立即生效**（服务运行时热加载）
 - **发动机测控模块**：`config-fj200c_main.ini`（`[COM] Count = 5` 五路串口 ECU/Adam4015/Adam4117/Dyno/Flux；`[MOCK] SimulationMenu = true` 模拟运行；`[REPORT] StatePoints` 报表状态点；`[CSV] Dir = csv`），**修改后需重启**
 - **通信模块**：`config-ftj1c.ini`（`[Udp] Mock = true`；`[IP]` 16 路组播地址），**修改后需重启**
+- **飞控地面站模块**：`config-qgc.ini`（`[Udp] Mock = true` 模拟飞控；`[Tiles] Url` 地图瓦片源模板，**修改后需重启**；瓦片经代理下载缓存到运行目录 `tiles/`，离线/内网直接从缓存加载）
 - **静态托管**（生产）：后端 `main.rs` 双模式——`embedded` feature 下 9 个前端已内嵌进 exe（`embedded_assets.rs` 内存服务，SPA 深链接回退 index.html）；默认 dev 模式仍读磁盘 `dist-*/` 目录；根路径 `/` 重定向到 `/admin`
 - **服务地址绑定**：`main.rs` 绑定 `127.0.0.1`，如需外网访问改为 `0.0.0.0`
 
@@ -134,7 +137,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 - **公共 item 文档**：Rust 用 `///`（`# 参数` / `# 返回值` / `# 示例` / `# 语法说明` 小节）；TS 用 JSDoc `/** ... */`。DTO 字段的 `///` 注释会被 utoipa 带入 openapi.json 成为 schema description，编写时按最终用户文档对待
 - **章节分隔**：`// ============ 章节名 ============` 用于分组 import 区、权限枚举、菜单配置、api_docs.rs 的 paths 注册等
 - **教学性 vs 业务性注释**：一级公共模块（common/、roles.rs、role_template/）承担新人向导角色，会对 Rust 语法（Option、闭包、derive、生命周期等）写「语法说明」；二级目录角色业务代码注释只写「做什么/为什么」，不解释语法
-- **数值类注释必须与实现一致**：防漂移。典型为 `src/api_docs.rs` 的 `export_openapi` 测试断言注释（当前 59 路径 / 74 操作，AGENTS.md 与 README.md 中同样数字需同步维护）与 `src/roles.rs` 模块头的角色列表——改注册表/新增角色后必须一并更新
+- **数值类注释必须与实现一致**：防漂移。典型为 `src/api_docs.rs` 的 `export_openapi` 测试断言注释（当前 62 路径 / 77 操作，AGENTS.md 与 README.md 中同样数字需同步维护）与 `src/roles.rs` 模块头的角色列表——改注册表/新增角色后必须一并更新
 - **生成代码不手写注释**：`openapi.json` 与 `packages/shared/src/api/generated/` 由工具生成，注释一律由源头（后端 `///`）产生
 - **禁止**：无意义的 `// 注释掉的死代码`、与实现不符的过时说明（发现时随手修正）
 
@@ -155,7 +158,9 @@ deploy/
 ├── config-fj200c_information.ini        # 发动机模块配置（随部署自动生成）
 ├── config-fj200c_main.ini   # 发动机测控模块配置（随部署自动生成）
 ├── config-ftj1c.ini         # 通信模块配置
-└── csv/                     # CSV 数据目录
+├── config-qgc.ini           # 飞控地面站模块配置（含 [Tiles] Url 瓦片源）
+├── csv/                     # CSV 数据目录
+└── tiles/                   # qgc 地图瓦片磁盘缓存（运行期自动生成，离线保存/加载）
 ```
 
 ## 常见陷阱
@@ -173,7 +178,7 @@ deploy/
 
 1. `src/common/models.rs` 加 `Permission::XxxMonitor`；`src/roles.rs` 注册 `RoleDef`（key/name/permissions）
 2. 复制 `src/role_template/` 为 `src/xxx/`（一级骨架），角色专有子模块放入二级目录 `src/xxx/xxx/`，实现 handler/service，一级 `mod.rs` 用 `pub use xxx::{...};` 再导出，`routes.rs` 挂载 `/api/xxx/*`（用 `permission_middleware`）
-3. handler 加 `#[utoipa::path]`（tags="xxx"）；`src/api_docs.rs` 追加 paths/schemas/tags，并同步更新 `export_openapi` 测试里的路径数量/操作数量断言（59 路径 / 74 操作，防漂移）
+3. handler 加 `#[utoipa::path]`（tags="xxx"）；`src/api_docs.rs` 追加 paths/schemas/tags，并同步更新 `export_openapi` 测试里的路径数量/操作数量断言（62 路径 / 77 操作，防漂移）
 4. `packages/shared/src/roles.ts` 的 `MENU_CONFIG` 加菜单、`ROLE_APP_URLS` 加应用地址（注册表数据无需手写，由 `/api/meta/roles` 同步）
 5. 复制现有前端为新应用 `frontend/xxx/`：改端口/base/workspaces，角色专有文件放 `src/xxx/` 二级目录，`api/index.ts` 组装 facade，`setApiInstance` 注入
 6. `npm run gen:api` 生成 `generated/api/xxx.ts`，前端 `npm run build` 通过

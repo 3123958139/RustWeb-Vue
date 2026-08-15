@@ -12,6 +12,7 @@ import type {
   ApiResponseQgcTelemetry,
   ApiResponseSavedResult,
   ApiResponseServiceStatus,
+  ApiResponseTileStats,
   ConfigContent,
   QgcCommandRequest,
   QgcMissionUploadRequest,
@@ -276,7 +277,65 @@ const qgcGetTelemetry = (
     },
       options);
     }
-  return {qgcSendCommand,qgcGetConfig,qgcSaveConfig,qgcGetHelp,qgcGetMission,qgcUploadMission,qgcClearMission,qgcDownloadMission,qgcSetMode,qgcStartService,qgcGetServiceStatus,qgcStopService,qgcGetTelemetry}};
+  /**
+ * # HTTP 端点
+ * `POST /api/qgc/tiles/clear`
+ *
+ * # 说明
+ * 删除 `tiles/` 缓存目录并重建，清空全部已保存瓦片。
+ * @summary 清空瓦片缓存
+ */
+const qgcClearTiles = (
+
+ options?: SecondParameter<typeof customInstance<ApiResponseSavedResult>>,) => {
+      return customInstance<ApiResponseSavedResult>(
+      {url: `/api/qgc/tiles/clear`, method: 'POST'
+    },
+      options);
+    }
+  /**
+ * # HTTP 端点
+ * `GET /api/qgc/tiles/stats`
+ *
+ * # 说明
+ * 返回磁盘缓存（`tiles/` 目录）中的瓦片数量与占用字节数，
+ * 供前端「离线地图」面板展示保存进度与缓存占用。
+ * @summary 查询瓦片缓存统计
+ */
+const qgcGetTileStats = (
+
+ options?: SecondParameter<typeof customInstance<ApiResponseTileStats>>,) => {
+      return customInstance<ApiResponseTileStats>(
+      {url: `/api/qgc/tiles/stats`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * # HTTP 端点
+ * `GET /api/qgc/tiles/{z}/{x}/{y}?token=<JWT>`
+ *
+ * # 说明
+ * Leaflet 的 `<img>` 标签无法携带 Authorization 头，token 经 `?token=`
+ * 查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。
+ *
+ * 命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；
+ * 未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OpenStreetMap）
+ * 下载并落盘（**离线保存**：前端批量请求即可保存离线地图包）。
+ * `404` 表示缓存未命中且瓦片源不可达。
+ * @summary 获取地图瓦片（代理 + 磁盘缓存）
+ */
+const qgcGetTile = (
+    z: number,
+    x: number,
+    y: number,
+ options?: SecondParameter<typeof customInstance<Blob>>,) => {
+      return customInstance<Blob>(
+      {url: `/api/qgc/tiles/${z}/${x}/${y}`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+  return {qgcSendCommand,qgcGetConfig,qgcSaveConfig,qgcGetHelp,qgcGetMission,qgcUploadMission,qgcClearMission,qgcDownloadMission,qgcSetMode,qgcStartService,qgcGetServiceStatus,qgcStopService,qgcGetTelemetry,qgcClearTiles,qgcGetTileStats,qgcGetTile}};
 export type QgcSendCommandResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSendCommand']>>>
 export type QgcGetConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetConfig']>>>
 export type QgcSaveConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSaveConfig']>>>
@@ -290,3 +349,6 @@ export type QgcStartServiceResult = NonNullable<Awaited<ReturnType<ReturnType<ty
 export type QgcGetServiceStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetServiceStatus']>>>
 export type QgcStopServiceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcStopService']>>>
 export type QgcGetTelemetryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetTelemetry']>>>
+export type QgcClearTilesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcClearTiles']>>>
+export type QgcGetTileStatsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetTileStats']>>>
+export type QgcGetTileResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetTile']>>>

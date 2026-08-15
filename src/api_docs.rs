@@ -106,6 +106,9 @@ use utoipa::OpenApi;
         crate::qgc::handlers::upload_mission_handler,
         crate::qgc::handlers::clear_mission_handler,
         crate::qgc::handlers::download_mission_handler,
+        crate::qgc::handlers::tile_handler,
+        crate::qgc::handlers::tile_stats_handler,
+        crate::qgc::handlers::clear_tiles_handler,
         crate::qgc::handlers::get_help_handler,
     ),
     components(
@@ -189,6 +192,7 @@ use utoipa::OpenApi;
             crate::qgc::models::QgcMissionItem,
             crate::qgc::models::QgcMission,
             crate::qgc::models::QgcMissionUploadRequest,
+            crate::qgc::models::TileStats,
         )
     ),
 )]
@@ -274,7 +278,7 @@ mod tests {
             "/api/protocol_generator/excel",
             "/api/protocol_generator/csv/parse",
             "/api/protocol_generator/csv/serialize",
-            // qgc：10 个唯一路径（mission 三方法共用 1 路径，mission/download 单独 1 路径）
+            // qgc：13 个唯一路径（mission 三方法共用 1 路径，mission/download 单独 1 路径，tiles 3 路径）
             "/api/qgc/service/start",
             "/api/qgc/service/stop",
             "/api/qgc/service/status",
@@ -284,14 +288,17 @@ mod tests {
             "/api/qgc/mode",
             "/api/qgc/mission",
             "/api/qgc/mission/download",
+            "/api/qgc/tiles/{z}/{x}/{y}",
+            "/api/qgc/tiles/stats",
+            "/api/qgc/tiles/clear",
             "/api/qgc/help",
         ] {
             assert!(paths.contains_key(path), "缺少路径: {}", path);
         }
 
         // 唯一路径数：auth 3 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
-        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 + qgc 10 = 59
-        assert_eq!(paths.len(), 59, "路径数量与预期不符");
+        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 + qgc 13 = 62
+        assert_eq!(paths.len(), 62, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -308,7 +315,7 @@ mod tests {
                 }
             }
         }
-        // 74 个 HTTP 操作（不含 WebSocket；qgc 新增 13：start/stop/status/config GET+PUT/telemetry/command/mode/mission GET+PUT+DELETE/mission/download/help）
-        assert_eq!(operations, 74, "操作数量与预期不符");
+        // 77 个 HTTP 操作（不含 WebSocket；qgc 新增 16：start/stop/status/config GET+PUT/telemetry/command/mode/mission GET+PUT+DELETE/mission/download/tile/stats/clear/help）
+        assert_eq!(operations, 77, "操作数量与预期不符");
     }
 }

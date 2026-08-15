@@ -39,7 +39,7 @@ pub mod routes;
 pub mod service;
 
 // 再导出二级目录子模块，保持既有 `crate::qgc::x` 路径不变
-pub use qgc::{config, mavlink, mission, models, process, simulator, state, udp};
+pub use qgc::{config, mavlink, mission, models, process, simulator, state, tiles, udp};
 
 use serde::Serialize;
 

@@ -211,3 +211,14 @@ pub struct QgcMissionUploadRequest {
     /// 航点列表（1~100 个）
     pub items: Vec<QgcMissionItem>,
 }
+
+/// 瓦片缓存统计（`GET /api/qgc/tiles/stats` 响应）
+///
+/// 供前端「离线地图」面板展示缓存占用情况（磁盘 `tiles/` 目录）。
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct TileStats {
+    /// 已缓存瓦片数量
+    pub count: usize,
+    /// 缓存占用磁盘字节数
+    pub bytes: u64,
+}

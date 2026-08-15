@@ -18,16 +18,17 @@
 
 use crate::common::dto::{ConfigContent, SavedResult, ServiceStatus};
 use crate::common::models::ApiResponse;
-use crate::common::ws::{serialize, ws_bridge_with_initial};
+use crate::common::ws::{serialize, verify_query_token, ws_bridge_with_initial};
 use crate::database::DatabaseConnection;
 use crate::qgc::models::{
-    QgcCommandRequest, QgcMission, QgcModeRequest, QgcMissionUploadRequest, QgcTelemetry,
+    QgcCommandRequest, QgcMission, QgcModeRequest, QgcMissionUploadRequest, QgcTelemetry, TileStats,
 };
 use crate::qgc::state::{self, Outbound};
 use crate::qgc::{qgc_tx, QgcEvent};
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
-use axum::response::Response;
+use axum::extract::{Path, Query, State};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use std::collections::HashMap;
 use std::fs;
@@ -444,6 +445,99 @@ pub async fn clear_mission_handler() -> Json<ApiResponse<bool>> {
     };
     let _ = tx.send(Outbound::MissionClear);
     Json(ApiResponse::success(true))
+}
+
+// ---------- 地图瓦片（离线缓存代理） ----------
+
+/// 获取地图瓦片（代理 + 磁盘缓存）
+///
+/// # HTTP 端点
+/// `GET /api/qgc/tiles/{z}/{x}/{y}?token=<JWT>`
+///
+/// # 说明
+/// Leaflet 的 `<img>` 标签无法携带 Authorization 头，token 经 `?token=`
+/// 查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。
+///
+/// 命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；
+/// 未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OpenStreetMap）
+/// 下载并落盘（**离线保存**：前端批量请求即可保存离线地图包）。
+/// `404` 表示缓存未命中且瓦片源不可达。
+#[utoipa::path(
+    tag = "qgc",
+    get,
+    path = "/api/qgc/tiles/{z}/{x}/{y}",
+    operation_id = "qgcGetTile",
+    params(
+        ("z" = u32, Path, description = "缩放级别"),
+        ("x" = u32, Path, description = "瓦片列号（Web Mercator）"),
+        ("y" = u32, Path, description = "瓦片行号（Web Mercator）"),
+    ),
+    responses(
+        (status = 200, description = "瓦片图片（PNG）", content_type = "image/png"),
+        (status = 404, description = "缓存未命中且瓦片源下载失败"),
+    ),
+)]
+pub async fn tile_handler(
+    Path((z, x, y)): Path<(u32, u32, u32)>,
+    Query(params): Query<HashMap<String, String>>,
+    State(_db): State<DatabaseConnection>,
+) -> Result<impl IntoResponse, StatusCode> {
+    verify_query_token(&params)?;
+    match crate::qgc::tiles::get_tile(z, x, y).await {
+        Ok(bytes) => Ok((
+            [(header::CONTENT_TYPE, header::HeaderValue::from_static("image/png"))],
+            bytes,
+        )),
+        Err(e) => {
+            tracing::warn!("[qgc] 瓦片 {z}/{x}/{y} 获取失败: {e}");
+            Err(StatusCode::NOT_FOUND)
+        }
+    }
+}
+
+/// 查询瓦片缓存统计
+///
+/// # HTTP 端点
+/// `GET /api/qgc/tiles/stats`
+///
+/// # 说明
+/// 返回磁盘缓存（`tiles/` 目录）中的瓦片数量与占用字节数，
+/// 供前端「离线地图」面板展示保存进度与缓存占用。
+#[utoipa::path(
+    tag = "qgc",
+    get,
+    path = "/api/qgc/tiles/stats",
+    operation_id = "qgcGetTileStats",
+    responses(
+        (status = 200, description = "瓦片缓存统计", body = ApiResponse<TileStats>),
+    ),
+)]
+pub async fn tile_stats_handler() -> Json<ApiResponse<TileStats>> {
+    let (count, bytes) = crate::qgc::tiles::stats();
+    Json(ApiResponse::success(TileStats { count, bytes }))
+}
+
+/// 清空瓦片缓存
+///
+/// # HTTP 端点
+/// `POST /api/qgc/tiles/clear`
+///
+/// # 说明
+/// 删除 `tiles/` 缓存目录并重建，清空全部已保存瓦片。
+#[utoipa::path(
+    tag = "qgc",
+    post,
+    path = "/api/qgc/tiles/clear",
+    operation_id = "qgcClearTiles",
+    responses(
+        (status = 200, description = "清除成功", body = ApiResponse<SavedResult>),
+    ),
+)]
+pub async fn clear_tiles_handler() -> Json<ApiResponse<SavedResult>> {
+    match crate::qgc::tiles::clear() {
+        Ok(()) => Json(ApiResponse::success(SavedResult { saved: true })),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
 // ---------- WebSocket / 帮助 ----------

@@ -113,14 +113,14 @@ frontend/qgc/
 ## 三、实施顺序与验证
 
 1. **后端骨架**：Permission/注册表/`src/qgc/` 全部模块（先 mavlink + udp + simulator + service）→ `cargo build` 通过
-2. **`npm run gen:api`** → 生成 `generated/api/qgc/qgc.ts` + model；断言 `59 路径 / 74 操作`
+2. **`npm run gen:api`** → 生成 `generated/api/qgc/qgc.ts` + model；断言 `62 路径 / 77 操作`
 3. **前端**：`frontend/qgc/` 全量（api facade → useQgcEvents → 组件 → 4 视图）→ `npm run build` 通过
 4. **联调**：dev 模式 `cargo run` + 启动 qgc 服务（Mock=true）→ 仪表盘/地图/航点上传飞行/命令按钮全链路验证
 5. **构建**：`cargo build --release --features embedded` 验证内嵌
 
 ## 注意事项
 
-- OSM 瓦片需运行时联网；如内网部署可后续换瓦片源
+- 瓦片支持**离线保存与加载**：后端代理（`GET /api/qgc/tiles/:z/:x/:y`，token 经 `?token=`）从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OSM）下载并落盘 `tiles/` 磁盘缓存；地图浏览自动缓存（离线加载），「离线地图」面板可区域批量保存（中心 + 半径 + 缩放级别）与清除。`[Tiles] Url` 支持自定义瓦片源（内网部署可换内网源）
 - CRC_EXTRA 值必须按官方 mavlink XML 核对，防校验错导致丢帧
 - 任务上传状态机放发送线程内，UDP 无确认时 3s 超时重置为 idle
-- 数值类注释（49/61 → 59/74）三处同步改（api_docs.rs 测试注释、AGENTS.md、README.md）
+- 数值类注释（49/61 → 62/77）三处同步改（api_docs.rs 测试注释、AGENTS.md、README.md）

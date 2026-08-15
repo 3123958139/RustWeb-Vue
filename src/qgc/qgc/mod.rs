@@ -7,4 +7,5 @@ pub mod models;
 pub mod process;
 pub mod simulator;
 pub mod state;
+pub mod tiles;
 pub mod udp;
