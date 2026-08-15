@@ -6,9 +6,9 @@
   ┌───────────┬─────────────────────────────────┬───────────┐
   │ 左上       │         顶中：状态条              │ 右上       │
   │ 飞行状态卡 │     Leaflet 全屏地图              │ 仪表盘     │
-  │           │ 飞机/轨迹/任务航线/返航点 H        │ 姿态+航向  │
-  │ 左下       │ 随点随行点击 + 视角控制按钮组      │ 速度+高度  │
-  │ 飞行控制   │                                 │ 弧线表     │
+  │           │ 飞机/轨迹/任务航线/返航点 H        │ 姿态/速度  │
+  │ 左下       │ 随点随行点击 + 视角控制按钮组      │ 高度弧线表 │
+  │ 飞行控制   │                                 │ 航向带     │
   └───────────┴─────────────────────────────────┴───────────┘
 
   功能：
@@ -92,11 +92,12 @@
     <!-- 右上：仪表盘 -->
     <div class="overlay panel top-right">
       <div class="panel-title">飞行仪表盘</div>
-      <div class="gauge-row">
+      <!-- 姿态仪 + 高度/速度表并排两列压缩高度，避免与右侧视角控制按钮组/右下任务面板干涉 -->
+      <div class="instr-grid">
         <AttitudeIndicator :roll="telemetry.roll ?? 0" :pitch="telemetry.pitch ?? 0" :connected="telemetry.connected" :roll-rate="telemetry.roll_rate ?? 0" :pitch-rate="telemetry.pitch_rate ?? 0" :yaw-rate="telemetry.yaw_rate ?? 0" />
+        <AltitudeSpeedGauge :relative-alt="telemetry.relative_alt ?? 0" :groundspeed="telemetry.groundspeed ?? 0" :climb="telemetry.climb ?? 0" :throttle="telemetry.throttle ?? 0" />
       </div>
       <HeadingTape :heading="telemetry.heading ?? 0" />
-      <AltitudeSpeedGauge :relative-alt="telemetry.relative_alt ?? 0" :groundspeed="telemetry.groundspeed ?? 0" :climb="telemetry.climb ?? 0" :throttle="telemetry.throttle ?? 0" />
     </div>
 
     <!-- 左下：飞行控制 -->
@@ -838,29 +839,29 @@ onUnmounted(() => {
 .top-right {
   top: 62px;
   right: 12px;
-  width: 300px;
+  width: 400px;
 }
 
-.gauge-row {
-  display: flex;
-  justify-content: center;
+/* 姿态仪 + 高度/速度表两列并排（原纵向堆叠导致面板过高，压住右侧视角控制按钮组） */
+.instr-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 8px;
+  align-items: center;
 }
 
-.top-right :deep(.attitude-root) {
-  transform: scale(0.82);
-  transform-origin: center top;
-  margin-bottom: -24px;
+/* 铺满列宽：去掉组件默认 max-width（组件根类名：attitude-indicator / gauge-row / heading-tape） */
+.top-right :deep(.attitude-indicator) {
+  max-width: none;
 }
 
-.top-right :deep(.heading-root) {
-  transform: scale(0.9);
-  transform-origin: center top;
+.top-right :deep(.gauge-row) {
+  max-width: none;
 }
 
-.top-right :deep(.altspd-root) {
-  transform: scale(0.85);
-  transform-origin: center top;
-  margin-top: -10px;
+/* 航向带占满整行 */
+.top-right :deep(.heading-tape) {
+  margin-top: 6px;
 }
 
 /* ============ 左下飞行控制 ============ */
