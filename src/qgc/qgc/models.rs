@@ -29,6 +29,12 @@ pub struct QgcTelemetry {
     pub pitch: f32,
     /// 航向（度，0-360）
     pub heading: f32,
+    /// 滚转速率（度/秒，ATTITUDE rollspeed）
+    pub roll_rate: f32,
+    /// 俯仰速率（度/秒，ATTITUDE pitchspeed）
+    pub pitch_rate: f32,
+    /// 偏航速率（度/秒，ATTITUDE yawspeed）
+    pub yaw_rate: f32,
     /// 纬度（度）
     pub lat: f64,
     /// 经度（度）
@@ -43,14 +49,22 @@ pub struct QgcTelemetry {
     pub airspeed: f32,
     /// 爬升率（m/s，正为上升）
     pub climb: f32,
+    /// 油门百分比（0~100，VFR_HUD）
+    pub throttle: f32,
+    /// 飞控 CPU 负载（%，SYS_STATUS load × 0.1）
+    pub cpu_load: f32,
     /// 电池电压（V）
     pub voltage: f32,
     /// 电池电流（A）
     pub current: f32,
     /// 电池剩余电量（%，-1 为未知）
     pub battery_remaining: i8,
+    /// 电池已消耗电量（mAh，BATTERY_STATUS current_consumed）
+    pub battery_consumed_mah: f32,
     /// GPS 定位类型（0=无定位, 2=2D, 3=3D, 4=3D 差分）
     pub gps_fix_type: u8,
+    /// GPS 水平定位精度（米，0 为未知）
+    pub gps_eph: f32,
     /// 可见卫星数
     pub satellites_visible: u8,
     /// 遥测帧速率（帧/秒，最近 2 秒平均）
@@ -71,6 +85,9 @@ impl Default for QgcTelemetry {
             roll: 0.0,
             pitch: 0.0,
             heading: 0.0,
+            roll_rate: 0.0,
+            pitch_rate: 0.0,
+            yaw_rate: 0.0,
             lat: 0.0,
             lon: 0.0,
             altitude: 0.0,
@@ -78,10 +95,14 @@ impl Default for QgcTelemetry {
             groundspeed: 0.0,
             airspeed: 0.0,
             climb: 0.0,
+            throttle: 0.0,
+            cpu_load: 0.0,
             voltage: 0.0,
             current: 0.0,
             battery_remaining: -1,
+            battery_consumed_mah: 0.0,
             gps_fix_type: 0,
+            gps_eph: 0.0,
             satellites_visible: 0,
             packet_rate: 0.0,
             last_heartbeat_ms: 0,

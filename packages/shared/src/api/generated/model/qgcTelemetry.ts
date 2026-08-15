@@ -19,14 +19,20 @@ export interface QgcTelemetry {
   altitude: number;
   /** 解锁状态（心跳 base_mode 的 SAFETY_ARMED 位） */
   armed: boolean;
+  /** 电池已消耗电量（mAh，BATTERY_STATUS current_consumed） */
+  battery_consumed_mah: number;
   /** 电池剩余电量（%，-1 为未知） */
   battery_remaining: number;
   /** 爬升率（m/s，正为上升） */
   climb: number;
   /** 飞控连接状态（收到心跳后为 true，超时 3 秒复位为 false） */
   connected: boolean;
+  /** 飞控 CPU 负载（%，SYS_STATUS load × 0.1） */
+  cpu_load: number;
   /** 电池电流（A） */
   current: number;
+  /** GPS 水平定位精度（米，0 为未知） */
+  gps_eph: number;
   /**
      * GPS 定位类型（0=无定位, 2=2D, 3=3D, 4=3D 差分）
      * @minimum 0
@@ -51,10 +57,14 @@ export interface QgcTelemetry {
   packet_rate: number;
   /** 俯仰角（度） */
   pitch: number;
+  /** 俯仰速率（度/秒，ATTITUDE pitchspeed） */
+  pitch_rate: number;
   /** 相对高度（米，相对起飞点） */
   relative_alt: number;
   /** 滚转角（度） */
   roll: number;
+  /** 滚转速率（度/秒，ATTITUDE rollspeed） */
+  roll_rate: number;
   /**
      * 可见卫星数
      * @minimum 0
@@ -65,6 +75,8 @@ export interface QgcTelemetry {
      * @minimum 0
      */
   sysid: number;
+  /** 油门百分比（0~100，VFR_HUD） */
+  throttle: number;
   /**
      * 飞行器类型（MAV_TYPE 枚举值，如 2=四旋翼）
      * @minimum 0
@@ -72,4 +84,6 @@ export interface QgcTelemetry {
   vehicle_type: number;
   /** 电池电压（V） */
   voltage: number;
+  /** 偏航速率（度/秒，ATTITUDE yawspeed） */
+  yaw_rate: number;
 }

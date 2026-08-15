@@ -142,6 +142,7 @@ fn run_receiver(
                         }
                         mavlink::msg::SYS_STATUS => {
                             let s = mavlink::decode_sys_status(&f.payload);
+                            t.cpu_load = s.load as f32 / 10.0;
                             t.voltage = s.voltage_battery as f32 / 1000.0;
                             t.current = s.current_battery as f32 / 100.0;
                             t.battery_remaining = s.battery_remaining;
@@ -153,10 +154,12 @@ fn run_receiver(
                             if b.battery_remaining >= 0 {
                                 t.battery_remaining = b.battery_remaining;
                             }
+                            t.battery_consumed_mah = b.current_consumed.max(0) as f32;
                         }
                         mavlink::msg::GPS_RAW_INT => {
                             let g = mavlink::decode_gps_raw_int(&f.payload);
                             t.gps_fix_type = g.fix_type;
+                            t.gps_eph = g.eph as f32 / 1000.0;
                             t.satellites_visible = g.satellites_visible;
                             if g.lat != 0 || g.lon != 0 {
                                 t.lat = g.lat as f64 / 1e7;
@@ -171,6 +174,9 @@ fn run_receiver(
                             t.roll = a.roll.to_degrees();
                             t.pitch = a.pitch.to_degrees();
                             t.heading = a.yaw.to_degrees().rem_euclid(360.0);
+                            t.roll_rate = a.rollspeed.to_degrees();
+                            t.pitch_rate = a.pitchspeed.to_degrees();
+                            t.yaw_rate = a.yawspeed.to_degrees();
                         }
                         mavlink::msg::GLOBAL_POSITION_INT => {
                             let g = mavlink::decode_global_position_int(&f.payload);
@@ -187,6 +193,7 @@ fn run_receiver(
                             t.airspeed = v.airspeed;
                             t.groundspeed = v.groundspeed;
                             t.climb = v.climb;
+                            t.throttle = v.throttle as f32;
                             if v.heading >= 0 {
                                 t.heading = v.heading as f32;
                             }

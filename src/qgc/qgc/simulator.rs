@@ -71,6 +71,8 @@ struct SimVehicle {
     voltage: f32,
     current: f32,
     remaining: i8,
+    /// 已消耗电量（mAh，2A × 0.1s ≈ 0.0556 mAh/拍）
+    consumed_mah: f32,
     takeoff_alt: f32,
     /// 当前目标（纬度, 经度, 相对高度）；None = 悬停
     target: Option<(f64, f64, f64)>,
@@ -113,6 +115,7 @@ impl SimVehicle {
             voltage: 15.8,
             current: 0.0,
             remaining: 100,
+            consumed_mah: 0.0,
             takeoff_alt: 0.0,
             target: None,
             home: (lat, lon),
@@ -142,6 +145,8 @@ impl SimVehicle {
             self.remaining = (self.remaining as i32 - 2).clamp(0, 100) as i8;
             self.voltage = 15.8 - (100 - self.remaining) as f32 * 0.012;
             self.current = 2.0 + self.rng.unit().abs() * 0.5;
+            // 2A × 0.1s ≈ 0.0556 mAh/拍
+            self.consumed_mah += 0.0556;
         }
         // 任务目标选择
         let mut moving = false;
@@ -484,13 +489,16 @@ pub fn run_simulator(local_port: u16, stop: Arc<AtomicBool>, mission: Arc<std::s
 /// 生成一组遥测帧（ATTITUDE / GLOBAL_POSITION_INT / GPS_RAW_INT / VFR_HUD / SYS_STATUS / BATTERY_STATUS）
 fn telemetry_frames(v: &mut SimVehicle) -> Vec<Vec<u8>> {
     let mut frames = Vec::with_capacity(6);
-    // ATTITUDE
+    // ATTITUDE（含角速率：滚转/俯仰小幅摆动，偏航恒 0）
     {
         let mut p = vec![0u8; 28];
         p[0..4].copy_from_slice(&v.time_boot_ms.to_le_bytes());
         p[4..8].copy_from_slice(&v.roll.to_radians().to_bits().to_le_bytes());
         p[8..12].copy_from_slice(&v.pitch.to_radians().to_bits().to_le_bytes());
         p[12..16].copy_from_slice(&v.heading.to_radians().to_bits().to_le_bytes());
+        p[16..20].copy_from_slice(&(0.15 * (v.time_boot_ms as f32 / 500.0).cos()).to_bits().to_le_bytes());
+        p[20..24].copy_from_slice(&(0.1 * (v.time_boot_ms as f32 / 700.0).cos()).to_bits().to_le_bytes());
+        p[24..28].copy_from_slice(&0f32.to_bits().to_le_bytes());
         frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::ATTITUDE, &p));
     }
     // GLOBAL_POSITION_INT
@@ -532,19 +540,20 @@ fn telemetry_frames(v: &mut SimVehicle) -> Vec<Vec<u8>> {
         p[16..20].copy_from_slice(&v.climb.to_bits().to_le_bytes());
         frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::VFR_HUD, &p));
     }
-    // SYS_STATUS
+    // SYS_STATUS（负载 32%~48% 波动）
     {
         let mut p = vec![0u8; 31];
         for o in [0usize, 4, 8] {
             p[o..o + 4].copy_from_slice(&0xFFFFu32.to_le_bytes());
         }
-        p[12..14].copy_from_slice(&500u16.to_le_bytes()); // load 5%
+        let load = (320.0 + v.rng.unit().abs() * 160.0) as u16;
+        p[12..14].copy_from_slice(&load.to_le_bytes());
         p[14..16].copy_from_slice(&((v.voltage * 1000.0) as u16).to_le_bytes());
         p[16..18].copy_from_slice(&((v.current * 100.0) as i16).to_le_bytes());
         p[18] = v.remaining as u8;
         frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::SYS_STATUS, &p));
     }
-    // BATTERY_STATUS（v2 布局：remaining@35，time_remaining@36..40，charge_state@40）
+    // BATTERY_STATUS（v2 布局：remaining@35，current_consumed@27..31，time_remaining@36..40，charge_state@40）
     {
         let mut p = vec![0u8; 41];
         p[0] = 0; // id
@@ -553,7 +562,7 @@ fn telemetry_frames(v: &mut SimVehicle) -> Vec<Vec<u8>> {
         p[3..5].copy_from_slice(&2000i16.to_le_bytes()); // 20°C
         p[5..7].copy_from_slice(&((v.voltage * 1000.0) as u16).to_le_bytes());
         p[25..27].copy_from_slice(&((v.current * 100.0) as i16).to_le_bytes());
-        p[27..31].copy_from_slice(&((v.current * 10.0) as i32).to_le_bytes()); // current_consumed (mAh)
+        p[27..31].copy_from_slice(&((v.consumed_mah * 10.0) as i32).to_le_bytes()); // current_consumed (mAh)
         p[35] = v.remaining as u8;
         p[36..40].copy_from_slice(&(-1i32).to_le_bytes()); // time_remaining 未知
         frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::BATTERY_STATUS, &p));

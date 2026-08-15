@@ -291,12 +291,15 @@ pub fn decode_heartbeat(p: &[u8]) -> Heartbeat {
     }
 }
 
-/// ATTITUDE 解码结果（弧度）
+/// ATTITUDE 解码结果（弧度，角速率为弧度/秒）
 #[derive(Debug, Clone)]
 pub struct Attitude {
     pub roll: f32,
     pub pitch: f32,
     pub yaw: f32,
+    pub rollspeed: f32,
+    pub pitchspeed: f32,
+    pub yawspeed: f32,
 }
 
 pub fn decode_attitude(p: &[u8]) -> Attitude {
@@ -304,6 +307,9 @@ pub fn decode_attitude(p: &[u8]) -> Attitude {
         roll: rd_f32(p, 4),
         pitch: rd_f32(p, 8),
         yaw: rd_f32(p, 12),
+        rollspeed: rd_f32(p, 16),
+        pitchspeed: rd_f32(p, 20),
+        yawspeed: rd_f32(p, 24),
     }
 }
 
@@ -336,6 +342,8 @@ pub struct GpsRawInt {
     pub lat: i32,
     pub lon: i32,
     pub alt: i32,
+    /// 水平定位精度（mm）
+    pub eph: u16,
     pub satellites_visible: u8,
 }
 
@@ -345,6 +353,7 @@ pub fn decode_gps_raw_int(p: &[u8]) -> GpsRawInt {
         lat: rd_i32(p, 9),
         lon: rd_i32(p, 13),
         alt: rd_i32(p, 17),
+        eph: rd_u16(p, 21),
         satellites_visible: rd_u8(p, 29),
     }
 }
@@ -357,6 +366,8 @@ pub struct VfrHud {
     pub heading: i16,
     pub alt: f32,
     pub climb: f32,
+    /// 油门百分比（0~100）
+    pub throttle: u16,
 }
 
 pub fn decode_vfr_hud(p: &[u8]) -> VfrHud {
@@ -366,12 +377,15 @@ pub fn decode_vfr_hud(p: &[u8]) -> VfrHud {
         heading: rd_i16(p, 8),
         alt: rd_f32(p, 12),
         climb: rd_f32(p, 16),
+        throttle: rd_u16(p, 10),
     }
 }
 
 /// SYS_STATUS 解码结果
 #[derive(Debug, Clone)]
 pub struct SysStatus {
+    /// 飞控负载（×0.1%）
+    pub load: u16,
     pub voltage_battery: u16,
     pub current_battery: i16,
     pub battery_remaining: i8,
@@ -379,6 +393,7 @@ pub struct SysStatus {
 
 pub fn decode_sys_status(p: &[u8]) -> SysStatus {
     SysStatus {
+        load: rd_u16(p, 12),
         voltage_battery: rd_u16(p, 14),
         current_battery: rd_i16(p, 16),
         battery_remaining: rd_i8(p, 18),
@@ -390,6 +405,8 @@ pub fn decode_sys_status(p: &[u8]) -> SysStatus {
 pub struct BatteryStatus {
     pub voltage: u16,
     pub current_battery: i16,
+    /// 已消耗电量（mAh）
+    pub current_consumed: i32,
     pub battery_remaining: i8,
 }
 
@@ -397,6 +414,7 @@ pub fn decode_battery_status(p: &[u8]) -> BatteryStatus {
     BatteryStatus {
         voltage: rd_u16(p, 5),
         current_battery: rd_i16(p, 25),
+        current_consumed: rd_i32(p, 27),
         battery_remaining: rd_i8(p, 35),
     }
 }
