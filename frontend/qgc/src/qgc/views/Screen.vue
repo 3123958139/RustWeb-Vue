@@ -63,10 +63,13 @@
           <OfflineMapPanel :center="offlineCenter" />
         </el-dialog>
 
-        <!-- 左上：仪表盘（姿态仪 / 高度速度表 / 航向带纵向排列） -->
-        <div class="overlay panel top-left area-top-left">
-          <div class="panel-title">飞行仪表盘</div>
-          <div class="instr-stack">
+        <!-- 左上：仪表盘（姿态仪 / 高度速度表 / 航向带纵向排列，点击标题栏收起/展开） -->
+        <div class="overlay panel top-left area-top-left" :class="{ collapsed: instrCollapsed }">
+          <div class="panel-title" @click="instrCollapsed = !instrCollapsed">
+            <span class="title-text">飞行仪表盘</span>
+            <span class="collapse-arrow">▾</span>
+          </div>
+          <div v-show="!instrCollapsed" class="instr-stack">
             <div class="instr-cell">
               <AttitudeIndicator :roll="telemetry.roll ?? 0" :pitch="telemetry.pitch ?? 0" :connected="telemetry.connected" :roll-rate="telemetry.roll_rate ?? 0" :pitch-rate="telemetry.pitch_rate ?? 0" :yaw-rate="telemetry.yaw_rate ?? 0" />
             </div>
@@ -79,10 +82,13 @@
           </div>
         </div>
 
-        <!-- 右上：状态变量表格（第一列变量名，第二列值） -->
-        <div class="overlay panel top-right area-top-right">
-          <div class="panel-title">状态变量</div>
-          <div class="stat-table">
+        <!-- 右上：状态变量表格（第一列变量名，第二列值，点击标题栏收起/展开） -->
+        <div class="overlay panel top-right area-top-right" :class="{ collapsed: statCollapsed }">
+          <div class="panel-title" @click="statCollapsed = !statCollapsed">
+            <span class="title-text">状态变量</span>
+            <span class="collapse-arrow">▾</span>
+          </div>
+          <div v-show="!statCollapsed" class="stat-table">
             <div class="st-row st-head">
               <span class="st-name">变量名</span>
               <span class="st-val">值</span>
@@ -170,10 +176,13 @@
           </div>
         </div>
 
-        <!-- 左下：飞行控制按钮组（解锁/起飞/返航 + 起飞高度/模式/键盘操控） -->
-        <div class="overlay panel bottom-left area-bottom-left">
-          <div class="panel-title">飞行控制</div>
-          <div class="ctrl-grid">
+        <!-- 左下：飞行控制按钮组（解锁/起飞/返航 + 起飞高度/模式/键盘操控，点击标题栏收起/展开） -->
+        <div class="overlay panel bottom-left area-bottom-left" :class="{ collapsed: ctrlCollapsed }">
+          <div class="panel-title" @click="ctrlCollapsed = !ctrlCollapsed">
+            <span class="title-text">飞行控制</span>
+            <span class="collapse-arrow">▾</span>
+          </div>
+          <div v-show="!ctrlCollapsed" class="ctrl-grid">
             <el-button size="small" class="g-arm" :loading="sending" :disabled="!telemetry.connected" @click="send('arm')">解锁</el-button>
             <el-button size="small" class="g-lock" :disabled="!telemetry.connected" @click="send('disarm')">锁定</el-button>
             <el-button size="small" class="g-takeoff" :loading="sending" :disabled="!telemetry.connected" @click="send('takeoff', takeoffAlt)">起飞</el-button>
@@ -192,10 +201,13 @@
           </div>
         </div>
 
-        <!-- 右下：任务控制按钮组（开始/暂停/继续 + 随点随行/上传/下载） -->
-        <div class="overlay panel bottom-right area-bottom-right">
-          <div class="panel-title">任务与航线</div>
-          <div class="mission-grid">
+        <!-- 右下：任务控制按钮组（开始/暂停/继续 + 随点随行/上传/下载，点击标题栏收起/展开） -->
+        <div class="overlay panel bottom-right area-bottom-right" :class="{ collapsed: missionCollapsed }">
+          <div class="panel-title" @click="missionCollapsed = !missionCollapsed">
+            <span class="title-text">任务与航线</span>
+            <span class="collapse-arrow">▾</span>
+          </div>
+          <div v-show="!missionCollapsed" class="mission-grid">
             <el-button size="small" class="g-start cmd-start" :disabled="!telemetry.connected" @click="send('start')">开始执行</el-button>
             <el-button size="small" class="g-pause" :disabled="!telemetry.connected" @click="send('pause')">暂停</el-button>
             <el-button size="small" class="g-resume" :disabled="!telemetry.connected" @click="send('resume')">继续</el-button>
@@ -239,6 +251,13 @@ import OfflineMapPanel from "@/qgc/components/OfflineMapPanel.vue";
 // ========== 分辨率缩放（1920×1080 设计稿，参照 fj200c_main 主界面） ==========
 
 const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale();
+
+// ========== 面板收起/展开（点击标题栏切换，收起后仅剩标题条，地图区域自动扩大） ==========
+
+const instrCollapsed = ref(false);
+const statCollapsed = ref(false);
+const ctrlCollapsed = ref(false);
+const missionCollapsed = ref(false);
 
 // ========== 地图 ==========
 
@@ -830,6 +849,34 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* 标题栏整体可点击：收起/展开面板 */
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 标题文字占满剩余宽度，箭头靠右 */
+.title-text {
+  flex: 1;
+}
+
+/* 收起/展开箭头：展开时 ▾ 朝下，收起时旋转 90° 变 ▸ */
+.collapse-arrow {
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: transform 0.2s ease;
+}
+
+.panel.collapsed .collapse-arrow {
+  transform: rotate(-90deg);
+}
+
+/* 收起后仅剩标题条：去掉底部间距，保持面板边框 */
+.panel.collapsed {
+  padding-bottom: 8px;
+}
+
+.panel.collapsed .panel-title {
+  margin-bottom: 0;
 }
 
 /* 面板透明后文字直接落在地图上，统一加深色描边保障可读性 */
