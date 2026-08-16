@@ -1,7 +1,11 @@
 <!--
   显控中心（qgc Screen，DJI PC 地面站风格）
 
-  以全屏地图为主视角，四角叠加面板（参考 DJI 地面站"人性化 3D 图形操作界面"）：
+  以全屏地图为主视角，整屏网格叠加六个面板（参考 DJI 地面站"人性化 3D 图形操作界面"）。
+  布局为 WPF Grid 风格相对定位：三列按比例（22fr/62fr/16fr）分配，六面板各占一个
+  grid-area，由父容器分配空间，任何分辨率都不会相互遮挡。
+  面板为透明线框风格：背景全透明，地图完整可见；各面板内部网格化（1px 网格线），
+  组件填充独立单元格且 max-width 兜底，绝不超出网格。
 
   ┌───────────┬─────────────────────────────────┬───────────┐
   │ 左上       │         顶中：状态条              │ 右上       │
@@ -20,25 +24,31 @@
 -->
 <template>
   <div class="qgc-screen-root">
-    <!-- 全屏地图 -->
+<!-- 全屏地图 -->
     <div class="screen-map" ref="mapEl"></div>
 
+    <!-- 整屏网格叠加层：六个面板各占一个 grid-area，互不遮挡干涉 -->
+    <div class="screen-grid">
+
     <!-- 顶中：状态条 -->
-    <div class="overlay top-bar">
-      <span class="bar-chip" :class="serviceRunning ? 'ok' : 'idle'"><i class="chip-dot"></i>{{ serviceRunning ? "服务运行中" : "服务已停止" }}</span>
-      <span class="bar-chip" :class="wsConnected ? 'ok' : 'pending'"><i class="chip-dot"></i>{{ wsConnected ? "遥测正常" : "遥测连接中…" }}</span>
-      <span class="bar-chip" :class="telemetry.connected ? 'ok' : 'idle'"><i class="chip-dot"></i>{{ telemetry.connected ? "飞控已连接" : "飞控未连接" }}</span>
-      <span class="bar-chip" :class="telemetry.armed ? 'warn' : 'idle'"><i class="chip-dot"></i>{{ telemetry.armed ? "已解锁" : "未解锁" }}</span>
-      <span class="bar-chip"><i class="chip-dot hz"></i>帧率 {{ (telemetry.packet_rate ?? 0).toFixed(0) }} Hz</span>
-      <span class="bar-chip"><i class="chip-dot rssi"></i>数传 {{ rssiText }}</span>
-      <span class="bar-chip"><i class="chip-dot batt"></i>电池 {{ telemetry.battery_remaining ?? 0 }}%</span>
-      <span class="bar-chip"><i class="chip-dot time"></i>飞行 {{ flightTimeText }}</span>
-      <div class="spacer"></div>
-      <span class="bar-time">{{ currentTime }}</span>
-      <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
-      <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
-        {{ serviceRunning ? "停止服务" : "启动服务" }}
-      </el-button>
+    <div class="overlay top-bar area-top-bar">
+      <div class="bar-grid">
+        <span class="bar-chip" :class="serviceRunning ? 'ok' : 'idle'"><i class="chip-dot"></i><span class="chip-text">{{ serviceRunning ? "服务运行中" : "服务已停止" }}</span></span>
+        <span class="bar-chip" :class="wsConnected ? 'ok' : 'pending'"><i class="chip-dot"></i><span class="chip-text">{{ wsConnected ? "遥测正常" : "遥测连接中…" }}</span></span>
+        <span class="bar-chip" :class="telemetry.connected ? 'ok' : 'idle'"><i class="chip-dot"></i><span class="chip-text">{{ telemetry.connected ? "飞控已连接" : "飞控未连接" }}</span></span>
+        <span class="bar-chip" :class="telemetry.armed ? 'warn' : 'idle'"><i class="chip-dot"></i><span class="chip-text">{{ telemetry.armed ? "已解锁" : "未解锁" }}</span></span>
+        <span class="bar-chip"><i class="chip-dot hz"></i><span class="chip-text">帧率 {{ (telemetry.packet_rate ?? 0).toFixed(0) }} Hz</span></span>
+        <span class="bar-chip"><i class="chip-dot rssi"></i><span class="chip-text">数传 {{ rssiText }}</span></span>
+        <span class="bar-chip"><i class="chip-dot batt"></i><span class="chip-text">电池 {{ telemetry.battery_remaining ?? 0 }}%</span></span>
+        <span class="bar-chip"><i class="chip-dot time"></i><span class="chip-text">飞行 {{ flightTimeText }}</span></span>
+      </div>
+      <div class="bar-side">
+        <span class="bar-time">{{ currentTime }}</span>
+        <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
+        <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
+          {{ serviceRunning ? "停止服务" : "启动服务" }}
+        </el-button>
+      </div>
     </div>
 
     <!-- 离线地图面板（瓦片离线保存 / 加载管理） -->
@@ -47,7 +57,7 @@
     </el-dialog>
 
     <!-- 左上：飞行状态卡 -->
-    <div class="overlay panel top-left">
+    <div class="overlay panel top-left area-top-left">
       <div class="panel-title">飞行状态</div>
       <div class="state-grid">
         <div class="state-item">
@@ -82,7 +92,7 @@
           <span class="state-label">返航方位</span>
           <span class="state-value">{{ (telemetry.bearing_home ?? 0).toFixed(0) }}°</span>
         </div>
-        <div class="state-item">
+        <div class="state-item wide">
           <span class="state-label">位置</span>
           <span class="state-value pos-val">{{ posText }}</span>
         </div>
@@ -90,83 +100,83 @@
     </div>
 
     <!-- 右上：仪表盘 -->
-    <div class="overlay panel top-right">
+    <div class="overlay panel top-right area-top-right">
       <div class="panel-title">飞行仪表盘</div>
-      <!-- 姿态仪 + 高度/速度表并排两列压缩高度，避免与右侧视角控制按钮组/右下任务面板干涉 -->
+      <!-- 姿态仪 / 高度速度表 / 航向带各占一格，网格线分隔，组件铺满单元格 -->
       <div class="instr-grid">
-        <AttitudeIndicator :roll="telemetry.roll ?? 0" :pitch="telemetry.pitch ?? 0" :connected="telemetry.connected" :roll-rate="telemetry.roll_rate ?? 0" :pitch-rate="telemetry.pitch_rate ?? 0" :yaw-rate="telemetry.yaw_rate ?? 0" />
-        <AltitudeSpeedGauge :relative-alt="telemetry.relative_alt ?? 0" :groundspeed="telemetry.groundspeed ?? 0" :climb="telemetry.climb ?? 0" :throttle="telemetry.throttle ?? 0" />
+        <div class="instr-cell">
+          <AttitudeIndicator :roll="telemetry.roll ?? 0" :pitch="telemetry.pitch ?? 0" :connected="telemetry.connected" :roll-rate="telemetry.roll_rate ?? 0" :pitch-rate="telemetry.pitch_rate ?? 0" :yaw-rate="telemetry.yaw_rate ?? 0" />
+        </div>
+        <div class="instr-cell">
+          <AltitudeSpeedGauge :relative-alt="telemetry.relative_alt ?? 0" :groundspeed="telemetry.groundspeed ?? 0" :climb="telemetry.climb ?? 0" :throttle="telemetry.throttle ?? 0" />
+        </div>
+        <div class="instr-cell instr-cell-wide">
+          <HeadingTape :heading="telemetry.heading ?? 0" />
+        </div>
       </div>
-      <HeadingTape :heading="telemetry.heading ?? 0" />
     </div>
 
-    <!-- 左下：飞行控制 -->
-    <div class="overlay panel bottom-left">
+    <!-- 左下：飞行控制（每个控件独立网格单元格，grid-column/row 相对位置定位） -->
+    <div class="overlay panel bottom-left area-bottom-left">
       <div class="panel-title">飞行控制</div>
-      <div class="ctrl-row">
-        <el-button size="small" class="cmd-arm" :loading="sending" :disabled="!telemetry.connected" @click="send('arm')">解锁</el-button>
-        <el-button size="small" :disabled="!telemetry.connected" @click="send('disarm')">锁定</el-button>
-        <el-button size="small" class="cmd-takeoff" :loading="sending" :disabled="!telemetry.connected" @click="send('takeoff', takeoffAlt)">起飞</el-button>
-        <el-button size="small" :disabled="!telemetry.connected" @click="send('land')">降落</el-button>
-        <el-button size="small" class="cmd-rtl" :disabled="!telemetry.connected" @click="send('rtl')">一键返航</el-button>
-        <el-input-number v-model="takeoffAlt" :min="1" :max="200" size="small" controls-position="right" style="width: 84px" />
-      </div>
-      <div class="ctrl-row">
-        <span class="ctrl-label">任务</span>
-        <el-button size="small" class="cmd-start" :disabled="!telemetry.connected" @click="send('start')">开始执行</el-button>
-        <el-button size="small" :disabled="!telemetry.connected" @click="send('pause')">暂停</el-button>
-        <el-button size="small" :disabled="!telemetry.connected" @click="send('resume')">继续</el-button>
-      </div>
-      <div class="ctrl-row">
-        <span class="ctrl-label">模式</span>
-        <el-select v-model="selectedMode" size="small" style="width: 130px" :disabled="!telemetry.connected" @change="onModeChange">
+      <div class="ctrl-grid">
+        <el-button size="small" class="g-arm" :loading="sending" :disabled="!telemetry.connected" @click="send('arm')">解锁</el-button>
+        <el-button size="small" class="g-lock" :disabled="!telemetry.connected" @click="send('disarm')">锁定</el-button>
+        <el-button size="small" class="g-takeoff" :loading="sending" :disabled="!telemetry.connected" @click="send('takeoff', takeoffAlt)">起飞</el-button>
+        <el-button size="small" class="g-land" :disabled="!telemetry.connected" @click="send('land')">降落</el-button>
+        <el-button size="small" class="g-rtl cmd-rtl" :disabled="!telemetry.connected" @click="send('rtl')">一键返航</el-button>
+        <span class="g-alt-label ctrl-label">起飞高度</span>
+        <el-input-number class="g-alt" v-model="takeoffAlt" :min="1" :max="200" size="small" controls-position="right" />
+        <span class="g-task-label ctrl-label">任务</span>
+        <el-button size="small" class="g-start cmd-start" :disabled="!telemetry.connected" @click="send('start')">开始执行</el-button>
+        <el-button size="small" class="g-pause" :disabled="!telemetry.connected" @click="send('pause')">暂停</el-button>
+        <el-button size="small" class="g-resume" :disabled="!telemetry.connected" @click="send('resume')">继续</el-button>
+        <span class="g-mode-label ctrl-label">模式</span>
+        <el-select class="g-mode" v-model="selectedMode" size="small" :disabled="!telemetry.connected" @change="onModeChange">
           <el-option v-for="m in copterModes" :key="m" :label="m.toUpperCase()" :value="m" />
         </el-select>
-        <span class="kbd-toggle-label">键盘操控</span>
-        <el-switch v-model="kbdEnabled" size="small" :disabled="!telemetry.connected" />
-        <span class="kbd-hint">W/S 前后 · A/D 左右 · 空格上升 · Shift 下降</span>
+        <span class="g-kbd-label kbd-toggle-label">键盘操控</span>
+        <el-switch class="g-kbd" v-model="kbdEnabled" size="small" :disabled="!telemetry.connected" />
+        <span class="g-kbd-hint kbd-hint">WASD 平移 · 空格↑ · Shift↓</span>
+        <div v-if="lastAckText" class="g-ack ack-cell">{{ lastAckText }}</div>
       </div>
-      <div v-if="lastAckText" class="ack-text">{{ lastAckText }}</div>
     </div>
 
-    <!-- 右下：任务控制 -->
-    <div class="overlay panel bottom-right">
+    <!-- 右下：任务控制（每个控件独立网格单元格 + 任务状态三列子网格） -->
+    <div class="overlay panel bottom-right area-bottom-right">
       <div class="panel-title">任务与航线</div>
-      <div class="ctrl-row">
-        <span class="ctrl-label">随点随行</span>
-        <el-switch v-model="clickToGo" size="small" :disabled="!telemetry.connected" />
-        <span class="kbd-hint">开启后点击地图即飞向目标</span>
-      </div>
-      <div class="ctrl-row">
-        <span class="ctrl-label">目标高度</span>
-        <el-input-number v-model="gotoAlt" :min="5" :max="300" size="small" controls-position="right" style="width: 84px" />
-      </div>
-      <div class="mission-state">
-        <div class="state-item">
-          <span class="state-label">任务状态</span>
-          <span class="state-value" :class="{ up: missionActive }">{{ missionStateText }}</span>
+      <div class="mission-grid">
+        <span class="g-click-label ctrl-label">随点随行</span>
+        <el-switch class="g-click" v-model="clickToGo" size="small" :disabled="!telemetry.connected" />
+        <span class="g-click-hint kbd-hint">点击地图即飞向目标</span>
+        <span class="g-goto-label ctrl-label">目标高度</span>
+        <el-input-number class="g-goto" v-model="gotoAlt" :min="5" :max="300" size="small" controls-position="right" />
+        <div class="g-mission mission-state">
+          <div class="ms-item">
+            <span class="state-label">任务状态</span>
+            <span class="state-value" :class="{ up: missionActive }">{{ missionStateText }}</span>
+          </div>
+          <div class="ms-item">
+            <span class="state-label">当前航点</span>
+            <span class="state-value">{{ missionCurrentSeq > 0 ? "#" + missionCurrentSeq : "—" }}</span>
+          </div>
+          <div class="ms-item">
+            <span class="state-label">航点数</span>
+            <span class="state-value">{{ missionCount }}</span>
+          </div>
         </div>
-        <div class="state-item">
-          <span class="state-label">当前航点</span>
-          <span class="state-value">{{ missionCurrentSeq > 0 ? "#" + missionCurrentSeq : "—" }}</span>
-        </div>
-        <div class="state-item">
-          <span class="state-label">航点数</span>
-          <span class="state-value">{{ missionCount }}</span>
-        </div>
-      </div>
-      <div class="ctrl-row">
-        <el-button size="small" :loading="uploading" :disabled="!telemetry.connected" @click="onUpload">上传任务</el-button>
-        <el-button size="small" :loading="downloading" :disabled="!telemetry.connected" @click="onDownload">下载任务</el-button>
+        <el-button size="small" class="g-upload" :loading="uploading" :disabled="!telemetry.connected" @click="onUpload">上传任务</el-button>
+        <el-button size="small" class="g-download" :loading="downloading" :disabled="!telemetry.connected" @click="onDownload">下载任务</el-button>
       </div>
     </div>
 
     <!-- 右侧：视角控制 -->
-    <div class="overlay view-ctrl">
+    <div class="overlay view-ctrl area-view-ctrl">
       <button class="vc-btn" :class="{ active: followPlane }" title="跟随飞机" @click="toggleFollow">◎</button>
       <button class="vc-btn" title="回中复位" @click="resetView">⌂</button>
       <button class="vc-btn" title="放大" @click="zoomBy(1)">+</button>
       <button class="vc-btn" title="缩小" @click="zoomBy(-1)">−</button>
+    </div>
     </div>
   </div>
 </template>
@@ -655,28 +665,92 @@ onUnmounted(() => {
   position: relative;
   overflow: hidden;
   background: var(--bg-page);
+  /* ============ 网格化面板通用变量 ============ */
+  /* 面板透明线框风格：容器底色只透出 1px 网格线，单元格全透明，地图完整可见 */
+  --grid-line: rgba(56, 110, 170, 0.8);
+  --cell-bg: transparent;
 }
 
 .screen-map {
   position: absolute;
   inset: 0;
+  z-index: 0;
+}
+
+/* ============ 整屏网格布局（WPF Grid 风格相对定位） ============
+   对应 WPF：Grid 行/列用星号（* 比例）与 Auto（内容），子元素经 Grid.Row/Column 定位。
+   - 三列按比例分配（22fr / 62fr / 16fr），面板 stretch 填满所在列，尺寸随窗口缩放
+   - 行 auto(顶面板) / 1fr(地图区) / auto(底面板)，高度由内容与剩余空间分配
+   - 面板位置由 grid-area 相对定位，由父容器分配空间，任何分辨率都不会相互遮挡；
+     容器穿透点击，地图（screen-map 全屏铺底）仍可操作 */
+.screen-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: minmax(210px, 22fr) minmax(0, 62fr) minmax(190px, 16fr);
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "top-left top-bar top-right"
+    ".        map     view-ctrl"
+    "bottom-left map  bottom-right";
+  gap: 8px;
+  padding: 12px;
+  pointer-events: none;
+}
+
+.screen-grid > * {
+  pointer-events: auto;
+}
+
+.area-top-bar {
+  grid-area: top-bar;
+  justify-self: center;
+  align-self: start;
+}
+
+.area-top-left {
+  grid-area: top-left;
+  justify-self: start;
+  align-self: start;
+}
+
+.area-top-right {
+  grid-area: top-right;
+  justify-self: end;
+  align-self: start;
+}
+
+.area-view-ctrl {
+  grid-area: view-ctrl;
+  justify-self: end;
+  align-self: center;
+}
+
+.area-bottom-left {
+  grid-area: bottom-left;
+  justify-self: start;
+  align-self: end;
+}
+
+.area-bottom-right {
+  grid-area: bottom-right;
+  justify-self: end;
+  align-self: end;
 }
 
 /* ============ 悬浮层通用 ============ */
 
+/* 面板定位由 .screen-grid 的 grid-area 决定（相对网格位置），此处仅保留外观 */
 .overlay {
-  position: absolute;
   z-index: 1000;
 }
 
 .panel {
-  background: rgba(10, 20, 40, 0.78);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: 1px solid var(--grid-line);
   border-radius: 10px;
   padding: 10px 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .panel-title {
@@ -689,6 +763,17 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+/* 面板透明后文字直接落在地图上，统一加深色描边保障可读性 */
+.panel-title,
+.state-label,
+.ctrl-label,
+.kbd-toggle-label,
+.kbd-hint,
+.bar-chip,
+.bar-time {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
 .panel-title::before {
   content: "";
   width: 4px;
@@ -698,32 +783,55 @@ onUnmounted(() => {
   box-shadow: 0 0 6px rgba(0, 180, 216, 0.8);
 }
 
-/* ============ 顶中状态条 ============ */
+/* ============ 顶中状态条（网格化：等宽单元格 + 网格线） ============ */
 
 .top-bar {
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
-  padding: 8px 14px;
+  width: max-content;
+  padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(10, 20, 40, 0.75);
-  border: 1px solid var(--border-color);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  max-width: calc(100% - 520px);
-  min-width: 560px;
+  background: transparent;
+  border: 1px solid var(--grid-line);
   white-space: nowrap;
 }
 
+/* 状态单元格网格：1px 间距透出网格线，单元格等宽填充 */
+.bar-grid {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1px;
+  background: var(--grid-line);
+  border: 1px solid var(--grid-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
 .bar-chip {
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
+  padding: 6px 10px;
   font-size: 12px;
   color: var(--text-primary);
+  background: var(--cell-bg);
+}
+
+.chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chip-dot {
@@ -769,10 +877,6 @@ onUnmounted(() => {
   animation: blink 1.2s ease-in-out infinite;
 }
 
-.spacer {
-  flex: 1;
-}
-
 .bar-time {
   font-family: "Consolas", "Courier New", monospace;
   font-size: 12px;
@@ -781,16 +885,20 @@ onUnmounted(() => {
 
 /* ============ 左上状态卡 ============ */
 
+/* 面板宽度不再固定：stretch 填满所在 grid 列（比例列宽随窗口缩放） */
 .top-left {
-  top: 62px;
-  left: 12px;
-  width: 232px;
+  width: 100%;
 }
 
+/* 状态网格：1px 间距透出网格线，每项独立单元格填充 */
 .state-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
+  gap: 1px;
+  background: var(--grid-line);
+  border: 1px solid var(--grid-line);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .state-item {
@@ -798,6 +906,10 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 6px 8px;
+  background: var(--cell-bg);
 }
 
 .state-item.wide {
@@ -837,47 +949,281 @@ onUnmounted(() => {
 /* ============ 右上仪表盘 ============ */
 
 .top-right {
-  top: 62px;
-  right: 12px;
-  width: 400px;
+  width: 100%;
 }
 
-/* 姿态仪 + 高度/速度表两列并排（原纵向堆叠导致面板过高，压住右侧视角控制按钮组） */
+/* 仪表网格：姿态仪 + 高度/速度表两列并排，航向带跨整行；1px 网格线分隔，组件铺满单元格 */
 .instr-grid {
   display: grid;
   grid-template-columns: 1fr 1.1fr;
-  gap: 8px;
+  gap: 1px;
+  background: var(--grid-line);
+  border: 1px solid var(--grid-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.instr-cell {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: var(--cell-bg);
+}
+
+.instr-cell > * {
+  max-width: 100%;
+}
+
+.instr-cell-wide {
+  grid-column: 1 / -1;
+  padding: 8px 10px;
 }
 
 /* 铺满列宽：去掉组件默认 max-width（组件根类名：attitude-indicator / gauge-row / heading-tape） */
 .top-right :deep(.attitude-indicator) {
   max-width: none;
+  width: 100%;
+}
+
+/* 限制仪表高度，避免面板过高挤压地图区域 */
+.top-right :deep(.attitude-svg) {
+  max-height: 150px;
+}
+
+/* 表盘限高后 ROLL/PITCH 绝对定位会压住角速率行，改为流内独立成行 */
+.top-right :deep(.attitude-values) {
+  position: static;
+  padding: 6px 8px 0;
+}
+
+.top-right :deep(.arc-svg) {
+  max-height: 130px;
 }
 
 .top-right :deep(.gauge-row) {
   max-width: none;
+  width: 100%;
 }
 
-/* 航向带占满整行 */
 .top-right :deep(.heading-tape) {
-  margin-top: 6px;
+  width: 100%;
 }
 
-/* ============ 左下飞行控制 ============ */
+/* 透明线框风格：组件内部深色底淡化，地图透出 */
+.top-right :deep(.tape-window) {
+  background: rgba(7, 13, 26, 0.5);
+}
+
+.top-right :deep(.rate-item),
+.top-right :deep(.throttle-row) {
+  background: rgba(7, 13, 26, 0.4);
+  border-color: rgba(56, 110, 170, 0.5);
+}
+
+/* ============ 左下飞行控制 / 右下任务控制：组件独立网格 ============ */
 
 .bottom-left {
-  bottom: 12px;
-  left: 12px;
-  width: 470px;
+  width: 100%;
 }
 
-.ctrl-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap;
+.bottom-right {
+  width: 100%;
+}
+
+/* 组件网格容器：1px 间距透出网格线，每个控件独占一个相对网格位置 */
+.ctrl-grid,
+.mission-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--grid-line);
+  border: 1px solid var(--grid-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ctrl-grid > *,
+.mission-grid > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--cell-bg);
+  align-self: center;
+}
+
+/* 按钮 / 数字输入 / 下拉选择填充所在单元格；按钮文字单行不换行，窄列时截断而非穿格 */
+.ctrl-grid :deep(.el-button),
+.mission-grid :deep(.el-button) {
+  width: 100%;
+  margin: 0;
+  padding: 5px 1px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ctrl-grid :deep(.el-input-number),
+.mission-grid :deep(.el-input-number),
+.ctrl-grid :deep(.el-select),
+.mission-grid :deep(.el-select) {
+  width: 100%;
+}
+
+/* 标签 / 提示在格内水平居中 */
+.ctrl-grid .ctrl-label,
+.mission-grid .ctrl-label {
+  justify-self: center;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.ctrl-grid .kbd-hint,
+.mission-grid .kbd-hint {
+  justify-self: start;
+  padding: 0 4px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ---- 飞行控制 8 列网格布局（相对网格位置） ---- */
+
+.ctrl-grid {
+  grid-template-columns: repeat(8, 1fr);
+}
+
+.g-arm {
+  grid-column: 1 / 2;
+  grid-row: 1;
+}
+
+.g-lock {
+  grid-column: 2 / 3;
+  grid-row: 1;
+}
+
+.g-takeoff {
+  grid-column: 3 / 4;
+  grid-row: 1;
+}
+
+.g-land {
+  grid-column: 4 / 5;
+  grid-row: 1;
+}
+
+.g-rtl {
+  grid-column: 5 / 6;
+  grid-row: 1;
+}
+
+.g-alt-label {
+  grid-column: 6 / 7;
+  grid-row: 1;
+}
+
+.g-alt {
+  grid-column: 7 / 9;
+  grid-row: 1;
+}
+
+.g-task-label {
+  grid-column: 1 / 2;
+  grid-row: 2;
+}
+
+.g-start {
+  grid-column: 2 / 4;
+  grid-row: 2;
+}
+
+.g-pause {
+  grid-column: 4 / 6;
+  grid-row: 2;
+}
+
+.g-resume {
+  grid-column: 6 / 8;
+  grid-row: 2;
+}
+
+.g-mode-label {
+  grid-column: 1 / 2;
+  grid-row: 3;
+}
+
+.g-mode {
+  grid-column: 2 / 4;
+  grid-row: 3;
+}
+
+.g-kbd-label {
+  grid-column: 4 / 5;
+  grid-row: 3;
+}
+
+.g-kbd {
+  grid-column: 5 / 6;
+  grid-row: 3;
+}
+
+.g-kbd-hint {
+  grid-column: 6 / 9;
+  grid-row: 3;
+}
+
+.g-ack {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
+/* ---- 任务控制 4 列网格布局（相对网格位置） ---- */
+
+.mission-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.g-click-label {
+  grid-column: 1 / 2;
+  grid-row: 1;
+}
+
+.g-click {
+  grid-column: 2 / 3;
+  grid-row: 1;
+  justify-self: center;
+}
+
+.g-click-hint {
+  grid-column: 3 / 5;
+  grid-row: 1;
+}
+
+.g-goto-label {
+  grid-column: 1 / 2;
+  grid-row: 2;
+}
+
+.g-goto {
+  grid-column: 2 / 4;
+  grid-row: 2;
+}
+
+.g-mission {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.g-upload {
+  grid-column: 1 / 3;
+  grid-row: 4;
+}
+
+.g-download {
+  grid-column: 3 / 5;
+  grid-row: 4;
 }
 
 .ctrl-label {
@@ -914,8 +1260,7 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 
-.ack-text {
-  margin-top: 8px;
+.ack-cell {
   font-family: "Consolas", "Courier New", monospace;
   font-size: 12px;
   color: var(--text-accent-green);
@@ -930,40 +1275,47 @@ onUnmounted(() => {
   width: 300px;
 }
 
+/* 任务状态三列子网格（作为网格项嵌入，1px 网格线分隔） */
 .mission-state {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: rgba(7, 13, 26, 0.6);
-  border: 1px solid rgba(30, 58, 95, 0.6);
-  border-radius: 6px;
+  gap: 1px;
+  background: var(--grid-line);
+  border-radius: 4px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.ms-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 6px 8px;
+  background: var(--cell-bg);
 }
 
 /* ============ 视角控制按钮组 ============ */
 
 .view-ctrl {
-  top: 50%;
-  right: 12px;
-  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  background: rgba(10, 20, 40, 0.75);
-  border: 1px solid var(--border-color);
+  gap: 1px;
+  width: max-content;
+  padding: 4px;
+  background: var(--grid-line);
+  border: 1px solid var(--grid-line);
   border-radius: 8px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .vc-btn {
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 180, 216, 0.3);
-  background: var(--btn-bg);
+  border: none;
+  background: var(--cell-bg);
   color: var(--btn-text);
   font-size: 15px;
   line-height: 1;
@@ -973,13 +1325,11 @@ onUnmounted(() => {
 
 .vc-btn:hover {
   background: var(--btn-hover-bg);
-  border-color: rgba(0, 180, 216, 0.6);
   box-shadow: 0 0 10px rgba(0, 180, 216, 0.3);
 }
 
 .vc-btn.active {
   background: linear-gradient(180deg, #00b4d8, #0077b6);
-  border-color: rgba(0, 180, 216, 0.8);
   color: #ffffff;
   box-shadow: 0 0 12px rgba(0, 180, 216, 0.5);
 }
@@ -991,6 +1341,24 @@ onUnmounted(() => {
   }
   50% {
     opacity: 0.3;
+  }
+}
+
+/* ============ 小屏兜底：加宽左右列比例、按钮字再缩小，组件始终不出格 ============ */
+@media (max-width: 1599px) {
+  .screen-grid {
+    grid-template-columns: minmax(240px, 28fr) minmax(0, 54fr) minmax(180px, 18fr);
+  }
+
+  .ctrl-grid :deep(.el-button),
+  .mission-grid :deep(.el-button) {
+    font-size: 10px;
+    padding: 5px 0;
+  }
+
+  .ctrl-grid .kbd-hint,
+  .mission-grid .kbd-hint {
+    font-size: 10px;
   }
 }
 </style>
