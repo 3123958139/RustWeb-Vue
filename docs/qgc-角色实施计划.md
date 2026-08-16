@@ -120,7 +120,7 @@ frontend/qgc/
 
 ## 注意事项
 
-- 瓦片支持**离线保存与加载**：后端代理（`GET /api/qgc/tiles/:z/:x/:y`，token 经 `?token=`）从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OSM）下载并落盘 `tiles/` 磁盘缓存；地图浏览自动缓存（离线加载），「离线地图」面板可区域批量保存（中心 + 半径 + 缩放级别）与清除。`[Tiles] Url` 支持自定义瓦片源（内网部署可换内网源）
+- 瓦片支持**离线保存与加载**：后端代理（`GET /api/qgc/tiles/:z/:x/:y`，token 经 `?token=`）从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认高德路网图，国内可直连）下载并落盘 `tiles/` 磁盘缓存；地图浏览自动缓存（离线加载），「离线地图」面板可区域批量保存（中心 + 半径 + 缩放级别）与清除。`[Tiles] Url` 支持自定义瓦片源（内网部署可换内网源）
 - CRC_EXTRA 值必须按官方 mavlink XML 核对，防校验错导致丢帧
 - 任务上传状态机放发送线程内，UDP 无确认时 3s 超时重置为 idle
 - 数值类注释（49/61 → 62/77）三处同步改（api_docs.rs 测试注释、AGENTS.md、README.md）

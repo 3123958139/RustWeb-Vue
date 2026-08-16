@@ -319,7 +319,7 @@ const qgcGetTileStats = (
  * 查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。
  *
  * 命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；
- * 未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OpenStreetMap）
+ * 未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认高德路网图）
  * 下载并落盘（**离线保存**：前端批量请求即可保存离线地图包）。
  * `404` 表示缓存未命中且瓦片源不可达。
  * @summary 获取地图瓦片（代理 + 磁盘缓存）

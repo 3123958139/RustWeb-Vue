@@ -1867,7 +1867,7 @@
           "qgc"
         ],
         "summary": "获取地图瓦片（代理 + 磁盘缓存）",
-        "description": "# HTTP 端点\n`GET /api/qgc/tiles/{z}/{x}/{y}?token=<JWT>`\n\n# 说明\nLeaflet 的 `<img>` 标签无法携带 Authorization 头，token 经 `?token=`\n查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。\n\n命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；\n未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认 OpenStreetMap）\n下载并落盘（**离线保存**：前端批量请求即可保存离线地图包）。\n`404` 表示缓存未命中且瓦片源不可达。",
+        "description": "# HTTP 端点\n`GET /api/qgc/tiles/{z}/{x}/{y}?token=<JWT>`\n\n# 说明\nLeaflet 的 `<img>` 标签无法携带 Authorization 头，token 经 `?token=`\n查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。\n\n命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；\n未命中则从瓦片源（`config-qgc.ini` `[Tiles] Url`，默认高德路网图）\n下载并落盘（**离线保存**：前端批量请求即可保存离线地图包）。\n`404` 表示缓存未命中且瓦片源不可达。",
         "operationId": "qgcGetTile",
         "parameters": [
           {

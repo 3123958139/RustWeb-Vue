@@ -1,6 +1,6 @@
 //! # 地图瓦片代理与磁盘缓存（离线保存 / 加载）
 //!
-//! 前端 Leaflet 不再直连瓦片源（默认 OpenStreetMap），改走
+//! 前端 Leaflet 不再直连瓦片源（默认高德路网图，`[Tiles] Url` 可换），改走
 //! `GET /api/qgc/tiles/{z}/{x}/{y}`：命中磁盘缓存（`tiles/`）直接返回，
 //! 未命中则从瓦片源下载并落盘。断网/内网环境下请求直接读缓存，
 //! 实现瓦片的**离线保存与加载**；「保存离线地图」= 前端批量请求瓦片端点
@@ -32,7 +32,7 @@ fn cache_path(z: u32, x: u32, y: u32) -> PathBuf {
         .join(format!("{y}.png"))
 }
 
-/// 瓦片源 URL（`[Tiles] Url` 模板替换占位符，缺省 OpenStreetMap 单子域）
+/// 瓦片源 URL（`[Tiles] Url` 模板替换占位符，缺省高德路网图）
 fn source_url(z: u32, x: u32, y: u32) -> String {
     crate::qgc::config::tiles_url()
         .replace("{z}", &z.to_string())
@@ -75,7 +75,7 @@ pub async fn get_tile(z: u32, x: u32, y: u32) -> Result<Vec<u8>, String> {
         .get(source_url(z, x, y))
         .send()
         .await
-        .map_err(|e| format!("瓦片源请求失败: {e}"))?;
+        .map_err(|e| format!("瓦片源请求失败: {e}（请检查网络或 config-qgc.ini 的 [Tiles] Url 瓦片源配置）"))?;
     if !resp.status().is_success() {
         return Err(format!("瓦片源返回 {}", resp.status()));
     }

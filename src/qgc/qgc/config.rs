@@ -49,8 +49,8 @@ pub fn udp_params() -> (bool, u16, String, u16, u8, u8, u64, u16) {
 /// 读取地图瓦片源 URL 模板（`[Tiles] Url`，支持 `{z}/{x}/{y}` 占位符）
 ///
 /// # 返回值
-/// 瓦片源 URL 模板字符串，缺省 OpenStreetMap 单子域地址
-/// （`https://a.tile.openstreetmap.org/{z}/{x}/{y}.png`）。
+/// 瓦片源 URL 模板字符串，缺省高德路网图地址（国内可直连；OpenStreetMap
+/// 在国内网络环境不可达，需内网部署时可在 `config-qgc.ini` 换成内网源）。
 /// 代理下载并缓存到磁盘 `tiles/` 目录，离线/内网环境下直接从缓存加载。
 pub fn tiles_url() -> String {
     ensure_loaded();
@@ -59,8 +59,8 @@ pub fn tiles_url() -> String {
             c.get_or(
                 "Tiles",
                 "Url",
-                "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
             )
         })
-        .unwrap_or_else(|| "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png".to_string())
+        .unwrap_or_else(|| "https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}".to_string())
 }

@@ -48,6 +48,7 @@
 | Gcs | CompId | 190 | 地面站组件 ID |
 | Gcs | HeartbeatMs | 1000 | 地面站心跳周期（毫秒） |
 | Gcs | TelemetryHz | 10 | 遥测推送频率（Hz） |
+| Tiles | Url | 高德路网图 | 地图瓦片源模板（`{z}/{x}/{y}` 占位符），代理下载缓存到 `tiles/`，内网部署可换内网源 |
 
 ## 协议说明
 

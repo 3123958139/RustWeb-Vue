@@ -180,6 +180,9 @@ if not exist config-qgc.ini (
     echo.>> config-qgc.ini
     echo [Gcs]>> config-qgc.ini
     echo TelemetryHz = 10>> config-qgc.ini
+    echo.>> config-qgc.ini
+    echo [Tiles]>> config-qgc.ini
+    echo Url = https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn^&size=1^&scale=1^&style=8^&x={x}^&y={y}^&z={z}>> config-qgc.ini
 )
 copy /y config-qgc.ini deploy\ >nul
 
