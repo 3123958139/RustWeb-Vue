@@ -23,184 +23,201 @@
   3. 随点随行（点击地图即飞，SET_POSITION_TARGET_GLOBAL_INT）
   4. 键盘操控（WASD + 空格/Shift，SET_POSITION_TARGET_LOCAL_NED）
   5. 任务航线叠加（上传后显示，金色虚线）
+
+   布局（参照 fj200c_main 主界面缩放自适应）：
+   - screen-root 撑满剩余视口（导航栏下方），scaled-stage 以 1920×1080 设计尺寸
+     做 CSS scale 缩放，任意分辨率下整体适配
+   - Leaflet 1.9 的鼠标坐标换算经 getScale（getBoundingClientRect/offsetWidth）
+     自动补偿祖先元素的 CSS transform scale，点击/拖拽落点天然正确
 -->
 <template>
-  <div class="qgc-screen-root">
+  <div ref="rootRef" class="screen-root">
+    <div
+      class="scaled-stage"
+      :style="{
+        width: DESIGN_W + 'px',
+        height: DESIGN_H + 'px',
+        transform: `scale(${scale.x}, ${scale.y})`,
+      }"
+    >
+      <div class="qgc-screen-root">
 <!-- 全屏地图 -->
-    <div class="screen-map" ref="mapEl"></div>
+        <div class="screen-map" ref="mapEl"></div>
 
-    <!-- 整屏网格叠加层：六个面板各占一个 grid-area，互不遮挡干涉 -->
-    <div class="screen-grid">
+        <!-- 整屏网格叠加层：六个面板各占一个 grid-area，互不遮挡干涉 -->
+        <div class="screen-grid">
 
-    <!-- 顶中：状态条（时钟 + 系统按钮，状态变量已并入右上表格） -->
-    <div class="overlay top-bar area-top-bar">
-      <div class="bar-side">
-        <span class="bar-time">{{ currentTime }}</span>
-        <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
-        <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
-          {{ serviceRunning ? "停止服务" : "启动服务" }}
-        </el-button>
+        <!-- 顶中：状态条（时钟 + 系统按钮，状态变量已并入右上表格） -->
+        <div class="overlay top-bar area-top-bar">
+          <div class="bar-side">
+            <span class="bar-time">{{ currentTime }}</span>
+            <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
+            <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
+              {{ serviceRunning ? "停止服务" : "启动服务" }}
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 离线地图面板（瓦片离线保存 / 加载管理） -->
+        <el-dialog v-model="offlinePanelVisible" title="离线地图" width="560px" append-to-body class="offline-dialog">
+          <OfflineMapPanel :center="offlineCenter" />
+        </el-dialog>
+
+        <!-- 左上：仪表盘（姿态仪 / 高度速度表 / 航向带纵向排列） -->
+        <div class="overlay panel top-left area-top-left">
+          <div class="panel-title">飞行仪表盘</div>
+          <div class="instr-stack">
+            <div class="instr-cell">
+              <AttitudeIndicator :roll="telemetry.roll ?? 0" :pitch="telemetry.pitch ?? 0" :connected="telemetry.connected" :roll-rate="telemetry.roll_rate ?? 0" :pitch-rate="telemetry.pitch_rate ?? 0" :yaw-rate="telemetry.yaw_rate ?? 0" />
+            </div>
+            <div class="instr-cell">
+              <AltitudeSpeedGauge :relative-alt="telemetry.relative_alt ?? 0" :groundspeed="telemetry.groundspeed ?? 0" :climb="telemetry.climb ?? 0" :throttle="telemetry.throttle ?? 0" />
+            </div>
+            <div class="instr-cell instr-cell-wide">
+              <HeadingTape :heading="telemetry.heading ?? 0" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 右上：状态变量表格（第一列变量名，第二列值） -->
+        <div class="overlay panel top-right area-top-right">
+          <div class="panel-title">状态变量</div>
+          <div class="stat-table">
+            <div class="st-row st-head">
+              <span class="st-name">变量名</span>
+              <span class="st-val">值</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">服务状态</span>
+              <span class="st-val" :class="serviceRunning ? 'ok' : 'dim'">{{ serviceRunning ? "运行中" : "已停止" }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">遥测连接</span>
+              <span class="st-val" :class="wsConnected ? 'ok' : 'pending'">{{ wsConnected ? "正常" : "连接中…" }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">飞控连接</span>
+              <span class="st-val" :class="telemetry.connected ? 'ok' : 'dim'">{{ telemetry.connected ? "已连接" : "未连接" }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">解锁状态</span>
+              <span class="st-val" :class="telemetry.armed ? 'warn' : 'dim'">{{ telemetry.armed ? "已解锁" : "未解锁" }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">模式</span>
+              <span class="st-val mode-val">{{ telemetry.mode || "—" }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">GPS</span>
+              <span class="st-val">{{ gpsText }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">卫星</span>
+              <span class="st-val">{{ telemetry.satellites_visible ?? 0 }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">高度</span>
+              <span class="st-val">{{ (telemetry.relative_alt ?? 0).toFixed(1) }} m</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">地速</span>
+              <span class="st-val">{{ (telemetry.groundspeed ?? 0).toFixed(1) }} m/s</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">爬升率</span>
+              <span class="st-val" :class="{ up: (telemetry.climb ?? 0) > 0.05, down: (telemetry.climb ?? 0) < -0.05 }">{{ (telemetry.climb ?? 0).toFixed(1) }} m/s</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">距返航点</span>
+              <span class="st-val">{{ ((telemetry.distance_home ?? 0) / 1000).toFixed(2) }} km</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">返航方位</span>
+              <span class="st-val">{{ (telemetry.bearing_home ?? 0).toFixed(0) }}°</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">位置</span>
+              <span class="st-val pos-val">{{ posText }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">帧率</span>
+              <span class="st-val">{{ (telemetry.packet_rate ?? 0).toFixed(0) }} Hz</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">数传</span>
+              <span class="st-val">{{ rssiText }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">电池</span>
+              <span class="st-val">{{ telemetry.battery_remaining ?? 0 }}%</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">飞行时间</span>
+              <span class="st-val">{{ flightTimeText }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">任务状态</span>
+              <span class="st-val" :class="{ up: missionActive }">{{ missionStateText }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">当前航点</span>
+              <span class="st-val">{{ missionCurrentSeq > 0 ? "#" + missionCurrentSeq : "—" }}</span>
+            </div>
+            <div class="st-row">
+              <span class="st-name">航点数</span>
+              <span class="st-val">{{ missionCount }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 左下：飞行控制按钮组（解锁/起飞/返航 + 起飞高度/模式/键盘操控） -->
+        <div class="overlay panel bottom-left area-bottom-left">
+          <div class="panel-title">飞行控制</div>
+          <div class="ctrl-grid">
+            <el-button size="small" class="g-arm" :loading="sending" :disabled="!telemetry.connected" @click="send('arm')">解锁</el-button>
+            <el-button size="small" class="g-lock" :disabled="!telemetry.connected" @click="send('disarm')">锁定</el-button>
+            <el-button size="small" class="g-takeoff" :loading="sending" :disabled="!telemetry.connected" @click="send('takeoff', takeoffAlt)">起飞</el-button>
+            <el-button size="small" class="g-land" :disabled="!telemetry.connected" @click="send('land')">降落</el-button>
+            <el-button size="small" class="g-rtl cmd-rtl" :disabled="!telemetry.connected" @click="send('rtl')">一键返航</el-button>
+            <span class="g-alt-label ctrl-label">起飞高度</span>
+            <el-input-number class="g-alt" v-model="takeoffAlt" :min="1" :max="200" size="small" controls-position="right" />
+            <span class="g-mode-label ctrl-label">模式</span>
+            <el-select class="g-mode" v-model="selectedMode" size="small" :disabled="!telemetry.connected" @change="onModeChange">
+              <el-option v-for="m in copterModes" :key="m" :label="m.toUpperCase()" :value="m" />
+            </el-select>
+            <span class="g-kbd-label kbd-toggle-label">键盘操控</span>
+            <el-switch class="g-kbd" v-model="kbdEnabled" size="small" :disabled="!telemetry.connected" />
+            <span class="g-kbd-hint kbd-hint">WASD 平移 · 空格↑ · Shift↓</span>
+            <div v-if="lastAckText" class="g-ack ack-cell">{{ lastAckText }}</div>
+          </div>
+        </div>
+
+        <!-- 右下：任务控制按钮组（开始/暂停/继续 + 随点随行/上传/下载） -->
+        <div class="overlay panel bottom-right area-bottom-right">
+          <div class="panel-title">任务与航线</div>
+          <div class="mission-grid">
+            <el-button size="small" class="g-start cmd-start" :disabled="!telemetry.connected" @click="send('start')">开始执行</el-button>
+            <el-button size="small" class="g-pause" :disabled="!telemetry.connected" @click="send('pause')">暂停</el-button>
+            <el-button size="small" class="g-resume" :disabled="!telemetry.connected" @click="send('resume')">继续</el-button>
+            <span class="g-click-label ctrl-label">随点随行</span>
+            <el-switch class="g-click" v-model="clickToGo" size="small" :disabled="!telemetry.connected" />
+            <span class="g-click-hint kbd-hint">点击地图即飞向目标</span>
+            <span class="g-goto-label ctrl-label">目标高度</span>
+            <el-input-number class="g-goto" v-model="gotoAlt" :min="5" :max="300" size="small" controls-position="right" />
+            <el-button size="small" class="g-upload" :loading="uploading" :disabled="!telemetry.connected" @click="onUpload">上传任务</el-button>
+            <el-button size="small" class="g-download" :loading="downloading" :disabled="!telemetry.connected" @click="onDownload">下载任务</el-button>
+          </div>
+        </div>
+
+        <!-- 右侧：视角控制 -->
+        <div class="overlay view-ctrl area-view-ctrl">
+          <button class="vc-btn" :class="{ active: followPlane }" title="跟随飞机" @click="toggleFollow">◎</button>
+          <button class="vc-btn" title="回中复位" @click="resetView">⌂</button>
+          <button class="vc-btn" title="放大" @click="zoomBy(1)">+</button>
+          <button class="vc-btn" title="缩小" @click="zoomBy(-1)">−</button>
+        </div>
+        </div>
       </div>
-    </div>
-
-    <!-- 离线地图面板（瓦片离线保存 / 加载管理） -->
-    <el-dialog v-model="offlinePanelVisible" title="离线地图" width="560px" append-to-body class="offline-dialog">
-      <OfflineMapPanel :center="offlineCenter" />
-    </el-dialog>
-
-    <!-- 左上：仪表盘（姿态仪 / 高度速度表 / 航向带纵向排列） -->
-    <div class="overlay panel top-left area-top-left">
-      <div class="panel-title">飞行仪表盘</div>
-      <div class="instr-stack">
-        <div class="instr-cell">
-          <AttitudeIndicator :roll="telemetry.roll ?? 0" :pitch="telemetry.pitch ?? 0" :connected="telemetry.connected" :roll-rate="telemetry.roll_rate ?? 0" :pitch-rate="telemetry.pitch_rate ?? 0" :yaw-rate="telemetry.yaw_rate ?? 0" />
-        </div>
-        <div class="instr-cell">
-          <AltitudeSpeedGauge :relative-alt="telemetry.relative_alt ?? 0" :groundspeed="telemetry.groundspeed ?? 0" :climb="telemetry.climb ?? 0" :throttle="telemetry.throttle ?? 0" />
-        </div>
-        <div class="instr-cell instr-cell-wide">
-          <HeadingTape :heading="telemetry.heading ?? 0" />
-        </div>
-      </div>
-    </div>
-
-    <!-- 右上：状态变量表格（第一列变量名，第二列值） -->
-    <div class="overlay panel top-right area-top-right">
-      <div class="panel-title">状态变量</div>
-      <div class="stat-table">
-        <div class="st-row st-head">
-          <span class="st-name">变量名</span>
-          <span class="st-val">值</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">服务状态</span>
-          <span class="st-val" :class="serviceRunning ? 'ok' : 'dim'">{{ serviceRunning ? "运行中" : "已停止" }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">遥测连接</span>
-          <span class="st-val" :class="wsConnected ? 'ok' : 'pending'">{{ wsConnected ? "正常" : "连接中…" }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">飞控连接</span>
-          <span class="st-val" :class="telemetry.connected ? 'ok' : 'dim'">{{ telemetry.connected ? "已连接" : "未连接" }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">解锁状态</span>
-          <span class="st-val" :class="telemetry.armed ? 'warn' : 'dim'">{{ telemetry.armed ? "已解锁" : "未解锁" }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">模式</span>
-          <span class="st-val mode-val">{{ telemetry.mode || "—" }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">GPS</span>
-          <span class="st-val">{{ gpsText }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">卫星</span>
-          <span class="st-val">{{ telemetry.satellites_visible ?? 0 }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">高度</span>
-          <span class="st-val">{{ (telemetry.relative_alt ?? 0).toFixed(1) }} m</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">地速</span>
-          <span class="st-val">{{ (telemetry.groundspeed ?? 0).toFixed(1) }} m/s</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">爬升率</span>
-          <span class="st-val" :class="{ up: (telemetry.climb ?? 0) > 0.05, down: (telemetry.climb ?? 0) < -0.05 }">{{ (telemetry.climb ?? 0).toFixed(1) }} m/s</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">距返航点</span>
-          <span class="st-val">{{ ((telemetry.distance_home ?? 0) / 1000).toFixed(2) }} km</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">返航方位</span>
-          <span class="st-val">{{ (telemetry.bearing_home ?? 0).toFixed(0) }}°</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">位置</span>
-          <span class="st-val pos-val">{{ posText }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">帧率</span>
-          <span class="st-val">{{ (telemetry.packet_rate ?? 0).toFixed(0) }} Hz</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">数传</span>
-          <span class="st-val">{{ rssiText }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">电池</span>
-          <span class="st-val">{{ telemetry.battery_remaining ?? 0 }}%</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">飞行时间</span>
-          <span class="st-val">{{ flightTimeText }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">任务状态</span>
-          <span class="st-val" :class="{ up: missionActive }">{{ missionStateText }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">当前航点</span>
-          <span class="st-val">{{ missionCurrentSeq > 0 ? "#" + missionCurrentSeq : "—" }}</span>
-        </div>
-        <div class="st-row">
-          <span class="st-name">航点数</span>
-          <span class="st-val">{{ missionCount }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 左下：飞行控制按钮组（解锁/起飞/返航 + 起飞高度/模式/键盘操控） -->
-    <div class="overlay panel bottom-left area-bottom-left">
-      <div class="panel-title">飞行控制</div>
-      <div class="ctrl-grid">
-        <el-button size="small" class="g-arm" :loading="sending" :disabled="!telemetry.connected" @click="send('arm')">解锁</el-button>
-        <el-button size="small" class="g-lock" :disabled="!telemetry.connected" @click="send('disarm')">锁定</el-button>
-        <el-button size="small" class="g-takeoff" :loading="sending" :disabled="!telemetry.connected" @click="send('takeoff', takeoffAlt)">起飞</el-button>
-        <el-button size="small" class="g-land" :disabled="!telemetry.connected" @click="send('land')">降落</el-button>
-        <el-button size="small" class="g-rtl cmd-rtl" :disabled="!telemetry.connected" @click="send('rtl')">一键返航</el-button>
-        <span class="g-alt-label ctrl-label">起飞高度</span>
-        <el-input-number class="g-alt" v-model="takeoffAlt" :min="1" :max="200" size="small" controls-position="right" />
-        <span class="g-mode-label ctrl-label">模式</span>
-        <el-select class="g-mode" v-model="selectedMode" size="small" :disabled="!telemetry.connected" @change="onModeChange">
-          <el-option v-for="m in copterModes" :key="m" :label="m.toUpperCase()" :value="m" />
-        </el-select>
-        <span class="g-kbd-label kbd-toggle-label">键盘操控</span>
-        <el-switch class="g-kbd" v-model="kbdEnabled" size="small" :disabled="!telemetry.connected" />
-        <span class="g-kbd-hint kbd-hint">WASD 平移 · 空格↑ · Shift↓</span>
-        <div v-if="lastAckText" class="g-ack ack-cell">{{ lastAckText }}</div>
-      </div>
-    </div>
-
-    <!-- 右下：任务控制按钮组（开始/暂停/继续 + 随点随行/上传/下载） -->
-    <div class="overlay panel bottom-right area-bottom-right">
-      <div class="panel-title">任务与航线</div>
-      <div class="mission-grid">
-        <el-button size="small" class="g-start cmd-start" :disabled="!telemetry.connected" @click="send('start')">开始执行</el-button>
-        <el-button size="small" class="g-pause" :disabled="!telemetry.connected" @click="send('pause')">暂停</el-button>
-        <el-button size="small" class="g-resume" :disabled="!telemetry.connected" @click="send('resume')">继续</el-button>
-        <span class="g-click-label ctrl-label">随点随行</span>
-        <el-switch class="g-click" v-model="clickToGo" size="small" :disabled="!telemetry.connected" />
-        <span class="g-click-hint kbd-hint">点击地图即飞向目标</span>
-        <span class="g-goto-label ctrl-label">目标高度</span>
-        <el-input-number class="g-goto" v-model="gotoAlt" :min="5" :max="300" size="small" controls-position="right" />
-        <el-button size="small" class="g-upload" :loading="uploading" :disabled="!telemetry.connected" @click="onUpload">上传任务</el-button>
-        <el-button size="small" class="g-download" :loading="downloading" :disabled="!telemetry.connected" @click="onDownload">下载任务</el-button>
-      </div>
-    </div>
-
-    <!-- 右侧：视角控制 -->
-    <div class="overlay view-ctrl area-view-ctrl">
-      <button class="vc-btn" :class="{ active: followPlane }" title="跟随飞机" @click="toggleFollow">◎</button>
-      <button class="vc-btn" title="回中复位" @click="resetView">⌂</button>
-      <button class="vc-btn" title="放大" @click="zoomBy(1)">+</button>
-      <button class="vc-btn" title="缩小" @click="zoomBy(-1)">−</button>
-    </div>
     </div>
   </div>
 </template>
@@ -213,10 +230,15 @@ import "leaflet/dist/leaflet.css";
 import { getSessionToken } from "@shared";
 import { qgcApi } from "@/api";
 import { useQgcEvents } from "@/qgc/composables/useQgcEvents";
+import { useWindowScale } from "@/qgc/composables/useWindowScale";
 import AttitudeIndicator from "@/qgc/components/AttitudeIndicator.vue";
 import HeadingTape from "@/qgc/components/HeadingTape.vue";
 import AltitudeSpeedGauge from "@/qgc/components/AltitudeSpeedGauge.vue";
 import OfflineMapPanel from "@/qgc/components/OfflineMapPanel.vue";
+
+// ========== 分辨率缩放（1920×1080 设计稿，参照 fj200c_main 主界面） ==========
+
+const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale();
 
 // ========== 地图 ==========
 
@@ -628,6 +650,8 @@ onMounted(async () => {
     zoom: 15,
     zoomControl: false,
   });
+  // Leaflet 1.9 的 mouseEventToContainerPoint 经 getScale（rect/offsetWidth）自动补偿
+  // 祖先元素的 CSS transform scale，鼠标落点天然正确，无需额外换算
   // 瓦片经后端代理加载（磁盘缓存，离线可用）；token 经查询参数传递（img 无法带 Bearer 头）
   L.tileLayer(`/api/qgc/tiles/{z}/{x}/{y}?token=${encodeURIComponent(getSessionToken() ?? "")}`, {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -683,10 +707,31 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.qgc-screen-root {
+/* ============ 缩放容器（参照 fj200c_main 主界面） ============ */
+
+/* screen-root 撑满剩余视口（导航栏下方），scaled-stage 以 1920×1080 设计尺寸居中缩放 */
+.screen-root {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.scaled-stage {
+  transform-origin: center center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* 1920×1080 设计稿舞台：地图铺底 + 面板网格叠加 */
+.qgc-screen-root {
   position: relative;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: var(--bg-page);
   /* ============ 网格化面板通用变量 ============ */
@@ -915,22 +960,26 @@ onUnmounted(() => {
   width: 100%;
 }
 
-/* 两列表格：1px 网格线分隔单元格，首行为表头；过高时纵向滚动 */
+/* 两列表格：行间 1px 网格线由容器 gap 透出，列间网格线由行自身 gap 透出；
+   首行为表头；过高时纵向滚动（舞台固定 1080px 高） */
 .stat-table {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
+  display: flex;
+  flex-direction: column;
   gap: 1px;
   background: var(--grid-line);
   border: 1px solid var(--grid-line);
   border-radius: 6px;
   overflow-y: auto;
   overflow-x: hidden;
-  max-height: calc(100vh - 400px);
+  max-height: 680px;
 }
 
-/* 行包装 display:contents，让 变量名/值 两格直接成为表格网格项 */
+/* 行包装为显式 2 列网格（不用 display:contents，滚动容器内网格线渲染更可靠） */
 .st-row {
-  display: contents;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 1px;
+  background: var(--grid-line);
 }
 
 .st-name,
