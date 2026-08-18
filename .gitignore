@@ -186,3 +186,4 @@ pnpm-debug.log*
 /csv
 /deploy
 **/csv
+**/tiles

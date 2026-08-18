@@ -149,7 +149,7 @@ function planeIcon(heading: number): L.DivIcon {
   return L.divIcon({
     className: "qgc-plane-icon",
     html: `<svg width="36" height="36" viewBox="0 0 36 36" style="transform: rotate(${heading}deg)">
-      <path d="M18 2 L22 18 L18 34 L14 18 Z" fill="#ffcc00" stroke="#000" stroke-width="1"/>
+      <path d="M18 2 L19.5 10 L28 13 L28 15.5 L19.5 14.5 L19.5 21 L24 24 L24 26.5 L18 25.5 L12 26.5 L12 24 L16.5 21 L16.5 14.5 L8 15.5 L8 13 L16.5 10 Z" fill="#ffcc00" stroke="#000" stroke-width="1"/>
     </svg>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],

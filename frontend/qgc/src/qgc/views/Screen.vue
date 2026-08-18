@@ -288,7 +288,7 @@ function planeIcon(heading: number): L.DivIcon {
     className: "screen-plane-icon",
     html: `<svg width="40" height="40" viewBox="0 0 40 40" style="transform: rotate(${heading}deg)">
       <circle cx="20" cy="20" r="17" fill="rgba(0,180,216,0.12)" stroke="rgba(0,180,216,0.5)" stroke-width="1"/>
-      <path d="M20 3 L24 21 L20 37 L16 21 Z" fill="#ffcc00" stroke="#0a1428" stroke-width="1.5"/>
+      <path d="M20 3 L21.5 12 L28 14.5 L28 16.5 L21.5 15.7 L21.5 22 L25.5 25 L25.5 27 L20 26.5 L14.5 27 L14.5 25 L18.5 22 L18.5 15.7 L12 16.5 L12 14.5 L18.5 12 Z" fill="#ffcc00" stroke="#0a1428" stroke-width="1.5"/>
       <circle cx="20" cy="20" r="2.5" fill="#ffcc00"/>
     </svg>`,
     iconSize: [40, 40],
