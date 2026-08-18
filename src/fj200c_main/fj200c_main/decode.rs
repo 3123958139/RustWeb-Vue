@@ -11,10 +11,12 @@
 //!
 //! 每个数据源都提供 `validate_*`（校验帧）与 `decode_*`（解码字段）两个函数，
 //! 由 `fj200c_main/fj200c_main/com.rs` 的帧处理线程调用。
+
 use crate::common::utils::format_hex;
 use crate::fj200c_main::types::{
     Adam4015Fields, Adam4117Fields, DynoFields, EcuFields, FaultCodeFlags, FluxFields,
 };
+use tracing::error;
 
 /// ECU 帧头（固定 3 字节）
 const ECU_HEADER: [u8; 3] = [0xEB, 0x90, 0x2A];
@@ -188,7 +190,55 @@ pub fn validate_adam4015(frame: &[u8]) -> bool {
     if frame[0] != b'>' {
         return false;
     }
+    error!("{:?}", frame.iter().map(|x| *x as char).collect::<String>());
     frame[frame.len() - 1] == b'\r'
+}
+
+fn parse_adam(input_str: &str) -> Vec<f64> {
+    // 目标片段长度
+    let chunk_size = 7;
+
+    // 验证输入长度是否为 7 的倍数（可选，防止报错）
+    if input_str.len() % chunk_size != 0 {
+        eprintln!(
+            "警告：输入字符串长度 ({}) 不是 {} 的倍数，尾部数据将被忽略。",
+            input_str.len(),
+            chunk_size
+        );
+    }
+
+    // 使用步进切片 (slicing with stride) 来每 7 个字符切分
+    // 从索引 0 开始，步长为 7
+    let chunks = input_str.chars().collect::<Vec<char>>();
+
+    // 更优雅的方法：直接使用 chars() 迭代，每 7 个一组，或者使用索引步长
+    // 这里我们手动构建切片逻辑，确保每个 chunk 是连续的 7 个字符
+    let mut floats: Vec<f64> = Vec::new();
+
+    // 计算总共有多少个完整的 chunk
+    let total_chars = input_str.len();
+    let num_chunks = total_chars / chunk_size;
+
+    for i in 0..num_chunks {
+        // 计算当前 chunk 的起始索引
+        let start = i * chunk_size;
+
+        // 提取当前 7 个字符
+        let chunk = &input_str[start..start + chunk_size];
+
+        // 尝试将字符串转换为 f64
+        match chunk.parse::<f64>() {
+            Ok(val) => {
+                println!("Chunk [{}]: '{}' -> {:.2}", i, chunk, val);
+                floats.push(val);
+            }
+            Err(e) => {
+                eprintln!("解析失败: '{}' 无法转换为浮点数，错误: {:?}", chunk, e);
+            }
+        }
+    }
+
+    floats
 }
 
 /// 解码 Adam4015 帧：`>ch1+ch2+...+ch8\r`，各通道 mV 值除以 1000 转 V
@@ -198,10 +248,15 @@ pub fn decode_adam4015(frame: &[u8]) -> Adam4015Fields {
 
     if s.starts_with('>') && s.ends_with('\r') {
         let inner = s.trim_start_matches('>').trim_end_matches('\r');
-        let parts: Vec<&str> = inner.split('+').filter(|p| !p.is_empty()).collect();
-        for (i, part) in parts.iter().enumerate().take(8) {
-            let raw: f64 = part.parse().unwrap_or(0.0);
-            channels[i] = raw / 1000.0;
+        // let parts: Vec<&str> = inner.split('+').filter(|p| !p.is_empty()).collect();
+        // for (i, part) in parts.iter().enumerate().take(8) {
+        //     let raw: f64 = part.parse().unwrap_or(0.0);
+        //     channels[i] = raw / 1000.0;
+        // }
+        let parsed_data = parse_adam(inner);
+        for i in 0..parsed_data.len() {
+            error!("i = {:?}", i);
+            channels[i] = parsed_data[i];
         }
     }
 
@@ -226,10 +281,15 @@ pub fn decode_adam4117(frame: &[u8]) -> Adam4117Fields {
 
     if s.starts_with('>') && s.ends_with('\r') {
         let inner = s.trim_start_matches('>').trim_end_matches('\r');
-        let parts: Vec<&str> = inner.split('+').filter(|p| !p.is_empty()).collect();
-        for (i, part) in parts.iter().enumerate().take(8) {
-            let raw: f64 = part.parse().unwrap_or(0.0);
-            channels[i] = raw / 1000.0;
+        // let parts: Vec<&str> = inner.split('+').filter(|p| !p.is_empty()).collect();
+        // for (i, part) in parts.iter().enumerate().take(8) {
+        //     let raw: f64 = part.parse().unwrap_or(0.0);
+        //     channels[i] = raw / 1000.0;
+        // }
+        let parsed_data = parse_adam(inner);
+        for i in 0..parsed_data.len() {
+            error!("i = {:?}", i);
+            channels[i] = parsed_data[i];
         }
     }
 
