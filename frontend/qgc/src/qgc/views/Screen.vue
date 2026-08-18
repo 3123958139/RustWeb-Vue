@@ -1,7 +1,7 @@
 <!--
   显控中心（qgc Screen，DJI PC 地面站风格）
 
-  以全屏地图为主视角，整屏网格叠加六个面板（参考 DJI 地面站"人性化 3D 图形操作界面"）。
+  以全屏 Cesium 3D 地图为主视角，整屏网格叠加六个面板（参考 DJI 地面站"人性化 3D 图形操作界面"）。
   布局为 WPF Grid 风格相对定位：三列按比例（22fr/62fr/16fr）分配，六面板各占一个
   grid-area，由父容器分配空间，任何分辨率都不会相互遮挡。
   面板为透明线框风格：背景全透明，地图完整可见；各面板内部网格化（1px 网格线），
@@ -9,7 +9,7 @@
 
   ┌───────────┬─────────────────────────────────┬───────────┐
   │ 左上       │         顶中：状态条              │ 右上       │
-  │ 仪表盘     │     Leaflet 全屏地图              │ 状态变量   │
+  │ 仪表盘     │     Cesium 3D 全屏地图            │ 状态变量   │
   │ 姿态/速度  │ 飞机/轨迹/任务航线/返航点 H        │ 表格       │
   │ 高度/航向  │ 随点随行点击 + 视角控制按钮组      │ 变量名 | 值│
   │ 左下       │                                 │ 右下       │
@@ -18,7 +18,7 @@
   └───────────┴─────────────────────────────────┴───────────┘
 
   功能：
-  1. 服务控制 + 遥测驱动（飞机 Marker 按航向旋转、轨迹、返航点 H）
+  1. 服务控制 + 遥测驱动（飞机 Billboard 按航向旋转、3D 轨迹、返航点 H）
   2. 飞行控制：解锁/起飞/降落/一键返航/任务开始/暂停/继续/模式
   3. 随点随行（点击地图即飞，SET_POSITION_TARGET_GLOBAL_INT）
   4. 键盘操控（WASD + 空格/Shift，SET_POSITION_TARGET_LOCAL_NED）
@@ -27,11 +27,16 @@
    布局（参照 fj200c_main 主界面缩放自适应）：
    - screen-root 撑满剩余视口（导航栏下方），scaled-stage 以 1920×1080 设计尺寸
      做 CSS scale 缩放，任意分辨率下整体适配
-   - Leaflet 1.9 的鼠标坐标换算经 getScale（getBoundingClientRect/offsetWidth）
-     自动补偿祖先元素的 CSS transform scale，点击/拖拽落点天然正确
+   - Cesium 全屏地图置于 scaled-stage 之外（原生尺寸无 transform），拾取坐标天然正确，
+     无需 2D 版那样的 getScale 补偿；scaled-stage 整层 pointer-events: none，
+     点击穿透到地图，只有面板子元素拦截事件
+   - 地图瓦片经后端代理加载（磁盘缓存，离线可用），token 经查询参数传递
 -->
 <template>
   <div ref="rootRef" class="screen-root">
+    <!-- 全屏 Cesium 3D 地图（置于缩放舞台之外，保持原生尺寸，transform 不影响拾取） -->
+    <div class="screen-map" ref="mapEl"></div>
+
     <div
       class="scaled-stage"
       :style="{
@@ -41,9 +46,6 @@
       }"
     >
       <div class="qgc-screen-root">
-<!-- 全屏地图 -->
-        <div class="screen-map" ref="mapEl"></div>
-
         <!-- 整屏网格叠加层：六个面板各占一个 grid-area，互不遮挡干涉 -->
         <div class="screen-grid">
 
@@ -237,8 +239,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import * as Cesium from "cesium";
+import "cesium/Build/Cesium/Widgets/widgets.css";
 import { getSessionToken } from "@shared";
 import { qgcApi } from "@/api";
 import { useQgcEvents } from "@/qgc/composables/useQgcEvents";
@@ -247,6 +249,10 @@ import AttitudeIndicator from "@/qgc/components/AttitudeIndicator.vue";
 import HeadingTape from "@/qgc/components/HeadingTape.vue";
 import AltitudeSpeedGauge from "@/qgc/components/AltitudeSpeedGauge.vue";
 import OfflineMapPanel from "@/qgc/components/OfflineMapPanel.vue";
+
+// Cesium 运行时资源（Workers/Assets）基址：dev 由 vite 中间件托管在 /cesium/，
+// 构建产物拷贝在 dist/cesium/（经 /qgc 静态托管映射），统一按 BASE_URL 计算
+(window as any).CESIUM_BASE_URL = `${import.meta.env.BASE_URL}cesium/`;
 
 // ========== 分辨率缩放（1920×1080 设计稿，参照 fj200c_main 主界面） ==========
 
@@ -259,17 +265,20 @@ const statCollapsed = ref(false);
 const ctrlCollapsed = ref(false);
 const missionCollapsed = ref(false);
 
-// ========== 地图 ==========
+// ========== 地图（Cesium 3D） ==========
 
 const mapEl = ref<HTMLElement | null>(null);
-let map: L.Map | null = null;
-let planeMarker: L.Marker | null = null;
-let trailLine: L.Polyline | null = null;
-let homeMarker: L.Marker | null = null;
-let missionLine: L.Polyline | null = null;
-let gotoMarker: L.Marker | null = null;
-const trailPoints: L.LatLngTuple[] = [];
+let viewer: Cesium.Viewer | null = null;
+let planeEntity: Cesium.Entity | null = null;
+let trailEntity: Cesium.Entity | null = null;
+let homeEntity: Cesium.Entity | null = null;
+let missionLineEntity: Cesium.Entity | null = null;
+let gotoEntity: Cesium.Entity | null = null;
+const trailPositions: Cesium.Cartesian3[] = [];
 const followPlane = ref(false);
+let clickHandler: Cesium.ScreenSpaceEventHandler | null = null;
+let mouseDown = false;
+let mouseMoved = false;
 
 /** 离线地图面板开关与初始中心 */
 const offlinePanelVisible = ref(false);
@@ -277,118 +286,146 @@ const offlineCenter = ref<[number, number]>([31.2304, 121.4737]);
 
 /** 打开离线地图面板（中心点同步为地图当前中心） */
 function openOfflinePanel() {
-  const c = map?.getCenter();
-  if (c) offlineCenter.value = [c.lat, c.lng];
+  const c = viewer?.camera.positionCartographic;
+  if (c) offlineCenter.value = [Cesium.Math.toDegrees(c.latitude), Cesium.Math.toDegrees(c.longitude)];
   offlinePanelVisible.value = true;
 }
 
-/** 飞机 SVG 图标（按航向旋转） */
-function planeIcon(heading: number): L.DivIcon {
-  return L.divIcon({
-    className: "screen-plane-icon",
-    html: `<svg width="40" height="40" viewBox="0 0 40 40" style="transform: rotate(${heading}deg)">
-      <circle cx="20" cy="20" r="17" fill="rgba(0,180,216,0.12)" stroke="rgba(0,180,216,0.5)" stroke-width="1"/>
-      <path d="M20 3 L21.5 12 L28 14.5 L28 16.5 L21.5 15.7 L21.5 22 L25.5 25 L25.5 27 L20 26.5 L14.5 27 L14.5 25 L18.5 22 L18.5 15.7 L12 16.5 L12 14.5 L18.5 12 Z" fill="#ffcc00" stroke="#0a1428" stroke-width="1.5"/>
-      <circle cx="20" cy="20" r="2.5" fill="#ffcc00"/>
-    </svg>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-  });
-}
+/** 飞机 SVG 图标（data URI，Billboard 按航向旋转） */
+const PLANE_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">` +
+    `<circle cx="20" cy="20" r="17" fill="rgba(0,180,216,0.12)" stroke="rgba(0,180,216,0.5)" stroke-width="1"/>` +
+    `<path d="M20 3 L21.5 12 L28 14.5 L28 16.5 L21.5 15.7 L21.5 22 L25.5 25 L25.5 27 L20 26.5 L14.5 27 L14.5 25 L18.5 22 L18.5 15.7 L12 16.5 L12 14.5 L18.5 12 Z" fill="#ffcc00" stroke="#0a1428" stroke-width="1.5"/>` +
+    `<circle cx="20" cy="20" r="2.5" fill="#ffcc00"/>`,
+)}`;
 
-/** 更新飞机位置（Marker + 轨迹 + 跟随） */
-function updatePlane(lat?: number, lon?: number, heading?: number) {
-  if (map === null || lat === undefined || lon === undefined) return;
-  const position: L.LatLngTuple = [lat, lon];
-  if (planeMarker) {
-    planeMarker.setLatLng(position);
-    planeMarker.setIcon(planeIcon(heading ?? 0));
+/** 返航点 H 图标 */
+const HOME_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="13" fill="rgba(0,180,216,0.2)" stroke="#00b4d8" stroke-width="2"/><text x="14" y="18" font-family="Consolas,monospace" font-weight="bold" font-size="13" fill="#00b4d8" text-anchor="middle">H</text></svg>`,
+)}`;
+
+/** 随行目标图标（▶） */
+const GOTO_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="11" fill="rgba(240,192,64,0.25)" stroke="#f0c040" stroke-width="2"/><text x="12" y="16" font-size="11" fill="#f0c040" text-anchor="middle">▶</text></svg>`,
+)}`;
+
+/** 更新飞机位置（Billboard + 3D 轨迹 + 跟随） */
+function updatePlane(lat?: number, lon?: number, heading?: number, alt?: number) {
+  if (viewer === null || lat === undefined || lon === undefined) return;
+  const height = Math.max(alt ?? 0, 3);
+  const position = new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(lon, lat, height));
+  if (planeEntity) {
+    planeEntity.position = position;
+    planeEntity.billboard!.rotation = new Cesium.ConstantProperty(-Cesium.Math.toRadians(heading ?? 0));
   } else {
-    planeMarker = L.marker(position, { icon: planeIcon(heading ?? 0) }).addTo(map);
+    planeEntity = viewer.entities.add({
+      position,
+      billboard: {
+        image: PLANE_SVG,
+        width: 40,
+        height: 40,
+        rotation: -Cesium.Math.toRadians(heading ?? 0),
+        alignedAxis: Cesium.Cartesian3.UNIT_Z,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
   }
-  const last = trailPoints[trailPoints.length - 1];
-  if (!last || distanceMeters(last, position) > 2) {
-    trailPoints.push(position);
-    if (trailLine) {
-      trailLine.setLatLngs(trailPoints);
+  // 轨迹追加（与上一点距离 > 2 米才记录，避免静止堆积）
+  const last = trailPositions[trailPositions.length - 1];
+  const point = position.getValue(undefined)!;
+  if (!last || Cesium.Cartesian3.distance(last, point) > 2) {
+    trailPositions.push(point);
+    if (trailEntity) {
+      trailEntity.polyline!.positions = new Cesium.CallbackProperty(() => trailPositions, false);
     } else {
-      trailLine = L.polyline(trailPoints, { color: "#ffcc00", weight: 2, opacity: 0.85 }).addTo(map);
+      trailEntity = viewer.entities.add({
+        polyline: {
+          positions: [...trailPositions],
+          width: 2,
+          material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString("#ffcc00").withAlpha(0.85)),
+          arcType: Cesium.ArcType.NONE,
+        },
+      });
     }
-    if (trailPoints.length > 600) trailPoints.shift();
-  }
-  if (followPlane.value) {
-    map.panTo(position);
+    if (trailPositions.length > 600) trailPositions.shift();
   }
 }
 
 /** 更新返航点 H */
 function updateHome(homeLat?: number, homeLon?: number) {
-  if (map === null || homeLat === undefined || homeLon === undefined || (homeLat === 0 && homeLon === 0)) return;
-  const position: L.LatLngTuple = [homeLat, homeLon];
-  if (homeMarker) {
-    homeMarker.setLatLng(position);
+  if (viewer === null || homeLat === undefined || homeLon === undefined || (homeLat === 0 && homeLon === 0)) return;
+  const position = new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(homeLon, homeLat, 5));
+  if (homeEntity) {
+    homeEntity.position = position;
   } else {
-    homeMarker = L.marker(position, {
-      icon: L.divIcon({
-        className: "screen-home-icon",
-        html: `<div class="home-badge">H</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      }),
-    }).addTo(map);
+    homeEntity = viewer.entities.add({
+      position,
+      billboard: {
+        image: HOME_SVG,
+        width: 28,
+        height: 28,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
   }
 }
 
-/** 更新任务航线（金色虚线） */
-function updateMissionLine(items: { lat: number; lon: number }[]) {
-  if (map === null) return;
-  const pts = items.map((i) => [i.lat, i.lon] as L.LatLngTuple);
-  if (missionLine) {
-    if (pts.length > 0) {
-      missionLine.setLatLngs(pts);
+/** 更新任务航线（青色虚线，按航点海拔在 3D 空间连线） */
+function updateMissionLine(items: { lat: number; lon: number; altitude?: number }[]) {
+  if (viewer === null) return;
+  if (items.length > 0) {
+    const positions = items.map((i) => Cesium.Cartesian3.fromDegrees(i.lon, i.lat, Math.max(i.altitude ?? 3, 3)));
+    if (missionLineEntity) {
+      missionLineEntity.polyline!.positions = new Cesium.CallbackProperty(() => positions, false);
     } else {
-      missionLine.remove();
-      missionLine = null;
+      missionLineEntity = viewer.entities.add({
+        polyline: {
+          positions,
+          width: 2,
+          material: new Cesium.PolylineDashMaterialProperty({
+            color: Cesium.Color.fromCssColorString("#00d4ff").withAlpha(0.8),
+            dashLength: 16,
+          }),
+          arcType: Cesium.ArcType.NONE,
+        },
+      });
     }
-  } else if (pts.length > 0) {
-    missionLine = L.polyline(pts, { color: "#00d4ff", weight: 2, opacity: 0.8, dashArray: "8 6" }).addTo(map);
+  } else if (missionLineEntity) {
+    viewer.entities.remove(missionLineEntity);
+    missionLineEntity = null;
   }
 }
 
-/** 两点间距离（米） */
-function distanceMeters(a: L.LatLngTuple, b: L.LatLngTuple): number {
-  const R = 6371000;
-  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
-  const dLon = ((b[1] - a[1]) * Math.PI) / 180;
-  const lat1 = (a[0] * Math.PI) / 180;
-  const lat2 = (b[0] * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-/** 跟随飞机开关 */
+/** 跟随飞机开关（trackedEntity 模式：相机自动跟随机体） */
 function toggleFollow() {
   followPlane.value = !followPlane.value;
-  if (followPlane.value && telemetry.value.lat !== undefined && telemetry.value.lon !== undefined) {
-    map?.panTo([telemetry.value.lat, telemetry.value.lon]);
+  if (!viewer) return;
+  if (followPlane.value && planeEntity) {
+    viewer.trackedEntity = planeEntity;
+  } else {
+    viewer.trackedEntity = undefined;
   }
 }
 
 /** 回中复位（有飞机则居中飞机，否则默认上海视野） */
 function resetView() {
+  if (!viewer) return;
   const lat = telemetry.value.lat;
   const lon = telemetry.value.lon;
-  if (lat !== undefined && lat !== 0 && lon !== undefined) {
-    map?.setView([lat, lon], 15);
-  } else {
-    map?.setView([31.2304, 121.4737], 15);
-  }
+  const hasPlane = lat !== undefined && lat !== 0 && lon !== undefined;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(hasPlane ? lon! : 121.4737, hasPlane ? lat! : 31.2304, 2200),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+    duration: 0.8,
+  });
 }
 
-/** 缩放 */
+/** 缩放（按当前相机高度比例进退） */
 function zoomBy(delta: number) {
-  const z = (map?.getZoom() ?? 15) + delta;
-  map?.setZoom(z);
+  if (!viewer) return;
+  const amount = Math.max(viewer.camera.positionCartographic.height * 0.55, 50);
+  if (delta > 0) viewer.camera.zoomIn(amount);
+  else viewer.camera.zoomOut(amount);
 }
 
 // ========== 服务 / 命令 ==========
@@ -471,15 +508,23 @@ const gotoAlt = ref(30);
 /** 随点随行：点击地图飞向目标 */
 async function onMapClick(lat: number, lon: number) {
   if (!clickToGo.value) return;
-  gotoMarker?.remove();
-  gotoMarker = L.marker([lat, lon], {
-    icon: L.divIcon({
-      className: "screen-goto-icon",
-      html: `<div class="goto-badge">▶</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    }),
-  }).addTo(map!);
+  // 目标点图标（浮在目标高度）
+  const position = new Cesium.ConstantPositionProperty(
+    Cesium.Cartesian3.fromDegrees(lon, lat, Math.max(gotoAlt.value, 3)),
+  );
+  if (gotoEntity) {
+    gotoEntity.position = position;
+  } else {
+    gotoEntity = viewer!.entities.add({
+      position,
+      billboard: {
+        image: GOTO_SVG,
+        width: 24,
+        height: 24,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+  }
   try {
     const response = await qgcApi.sendCommand("click_to_go", null, [lat, lon, gotoAlt.value]);
     if (!response.data) {
@@ -640,7 +685,7 @@ const flightTimeText = computed(() => {
 
 const { connected: wsConnected, telemetry, connect, disconnect } = useQgcEvents({
   onTelemetry: (t) => {
-    updatePlane(t.lat, t.lon, t.heading);
+    updatePlane(t.lat, t.lon, t.heading, t.relative_alt);
     updateHome(t.home_lat, t.home_lon);
   },
   onMissionProgress: (p) => {
@@ -663,32 +708,60 @@ const { connected: wsConnected, telemetry, connect, disconnect } = useQgcEvents(
 });
 
 onMounted(async () => {
-  // 初始化地图
-  map = L.map(mapEl.value!, {
-    center: [31.2304, 121.4737],
-    zoom: 15,
-    zoomControl: false,
+  // 初始化 Cesium 3D 地球（深色主题；瓦片经后端代理加载，磁盘缓存离线可用）
+  const token = encodeURIComponent(getSessionToken() ?? "");
+  viewer = new Cesium.Viewer(mapEl.value!, {
+    baseLayer: new Cesium.ImageryLayer(
+      new Cesium.UrlTemplateImageryProvider({
+        url: `/api/qgc/tiles/{z}/{x}/{y}?token=${token}`,
+        maximumLevel: 19,
+      }),
+    ),
+    baseLayerPicker: false,
+    geocoder: false,
+    homeButton: false,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    animation: false,
+    timeline: false,
+    fullscreenButton: false,
+    infoBox: false,
+    selectionIndicator: false,
+    skyBox: false,
+    skyAtmosphere: false,
   });
-  // Leaflet 1.9 的 mouseEventToContainerPoint 经 getScale（rect/offsetWidth）自动补偿
-  // 祖先元素的 CSS transform scale，鼠标落点天然正确，无需额外换算
-  // 瓦片经后端代理加载（磁盘缓存，离线可用）；token 经查询参数传递（img 无法带 Bearer 头）
-  L.tileLayer(`/api/qgc/tiles/{z}/{x}/{y}?token=${encodeURIComponent(getSessionToken() ?? "")}`, {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(map);
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#0a1428");
+  const cam = viewer.scene.screenSpaceCameraController;
+  cam.minimumZoomDistance = 5;
+  cam.maximumZoomDistance = 5000000;
 
-  // 随点随行点击
-  map.on("click", (e: L.LeafletMouseEvent) => {
-    onMapClick(e.latlng.lat, e.latlng.lng);
-  });
+  // 随点随行点击（左键按下+移动视为相机拖拽，不触发点击）
+  clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  clickHandler.setInputAction(() => {
+    mouseDown = true;
+    mouseMoved = false;
+  }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+  clickHandler.setInputAction(() => {
+    if (mouseDown) mouseMoved = true;
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+  clickHandler.setInputAction((e: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
+    if (mouseMoved || viewer === null) return;
+    const cart = viewer.camera.pickEllipsoid(e.position, viewer.scene.globe.ellipsoid);
+    if (!cart) return;
+    const c = Cesium.Cartographic.fromCartesian(cart);
+    onMapClick(Cesium.Math.toDegrees(c.latitude), Cesium.Math.toDegrees(c.longitude));
+  }, Cesium.ScreenSpaceEventType.LEFT_UP);
 
   // 初始遥测快照
   try {
     const response = await qgcApi.getTelemetry();
     const t = response.data;
     if (t && t.lat !== 0 && t.lon !== 0) {
-      map.setView([t.lat, t.lon], 15);
-      updatePlane(t.lat, t.lon, t.heading);
+      updatePlane(t.lat, t.lon, t.heading, t.relative_alt);
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(t.lon, t.lat, 2200),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+      });
     }
   } catch {
     // 忽略
@@ -715,13 +788,16 @@ onUnmounted(() => {
   window.removeEventListener("keyup", onKeyUp);
   if (kbdTimer !== null) clearInterval(kbdTimer);
   if (timerInterval !== null) clearInterval(timerInterval);
-  map?.remove();
-  map = null;
-  planeMarker = null;
-  trailLine = null;
-  homeMarker = null;
-  missionLine = null;
-  gotoMarker = null;
+  clickHandler?.destroy();
+  clickHandler = null;
+  viewer?.destroy();
+  viewer = null;
+  planeEntity = null;
+  trailEntity = null;
+  homeEntity = null;
+  missionLineEntity = null;
+  gotoEntity = null;
+  trailPositions.length = 0;
 });
 </script>
 
@@ -733,6 +809,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   width: 100%;
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -744,6 +821,10 @@ onUnmounted(() => {
   transform-origin: center center;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  /* 整层不拦截鼠标：点击穿透到下方的 Cesium 全屏地图，仅面板子元素拦截事件 */
+  pointer-events: none;
 }
 
 /* 1920×1080 设计稿舞台：地图铺底 + 面板网格叠加 */
@@ -752,13 +833,15 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-page);
+  background: transparent;
+  pointer-events: none;
   /* ============ 网格化面板通用变量 ============ */
   /* 面板透明线框风格：容器底色只透出 1px 网格线，单元格全透明，地图完整可见 */
   --grid-line: rgba(56, 110, 170, 0.8);
   --cell-bg: transparent;
 }
 
+/* 全屏 Cesium 地图（置于缩放舞台之外，原生尺寸无 transform，拾取坐标天然正确） */
 .screen-map {
   position: absolute;
   inset: 0;
@@ -1384,62 +1467,23 @@ onUnmounted(() => {
 </style>
 
 <style>
-/* Leaflet 覆盖层（非 scoped：divIcon 是字符串 HTML） */
-.screen-plane-icon {
-  background: transparent;
-  border: none;
+/* Cesium 深色主题适配（非 scoped：覆盖 Viewer 注入的 DOM） */
+.cesium-widget,
+.cesium-widget canvas {
+  width: 100%;
+  height: 100%;
 }
 
-.screen-home-icon {
-  background: transparent;
-  border: none;
-}
-
-.home-badge {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(0, 180, 216, 0.2);
-  border: 2px solid var(--text-accent, #00b4d8);
-  color: var(--text-accent, #00b4d8);
-  font-family: Consolas, monospace;
-  font-weight: 700;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 12px rgba(0, 180, 216, 0.6);
-}
-
-.screen-goto-icon {
-  background: transparent;
-  border: none;
-}
-
-.goto-badge {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(240, 192, 64, 0.25);
-  border: 2px solid var(--text-hex, #f0c040);
-  color: var(--text-hex, #f0c040);
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 10px rgba(240, 192, 64, 0.7);
-}
-
-.leaflet-container {
+.cesium-viewer {
   background: #0a1428;
 }
 
-.leaflet-control-attribution {
+/* 深色底图下隐藏默认底栏（无数据来源署名时不显示） */
+.cesium-viewer-bottom {
   background: rgba(7, 13, 26, 0.7);
-  color: var(--text-dim, #7d94b5);
 }
 
-.leaflet-control-attribution a {
-  color: var(--text-accent, #00b4d8);
+.cesium-viewer-bottom .cesium-credit-textContainer a {
+  color: var(--text-accent);
 }
 </style>

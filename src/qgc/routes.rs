@@ -72,7 +72,7 @@ pub fn qgc_router(db: DatabaseConnection) -> Router<DatabaseConnection> {
         ))
         .route_layer(auth);
 
-    // 瓦片代理：Leaflet <img> 无法携带 Bearer 头，token 经 ?token= 在 handler 内校验（同 /ws）
+    // 瓦片代理：Cesium 图片加载器无法携带 Bearer 头，token 经 ?token= 在 handler 内校验（同 /ws）
     // 注意：路径参数用 `:param` 冒号语法（matchit 0.7.3 的 `{param}` 花括号语法不工作；
     // OpenAPI 注解 / 文档中的 `{z}/{x}/{y}` 是 OpenAPI 标准写法，两者并行不受影响）
     let tiles = Router::<DatabaseConnection>::new()

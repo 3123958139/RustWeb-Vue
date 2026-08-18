@@ -144,7 +144,7 @@ export function createQgcApi() {
         /**
          * 构建地图瓦片 URL（经后端代理 + 磁盘缓存）
          *
-         * Leaflet `<img>` 标签无法携带 Authorization 头，
+         * Cesium/图片加载器无法携带 Authorization 头，
          * JWT token 通过 URL query 参数传递（同 WebSocket）。
          * 命中后端磁盘缓存时无网络请求（离线加载），
          * 未命中时由后端从瓦片源下载并落盘（离线保存）。

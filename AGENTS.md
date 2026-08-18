@@ -113,7 +113,7 @@ deploy.bat                   # 9 个前端并行 npm run build（build-frontends
 | `/api/ftj1c/*` | Ftj1cMonitor | 服务启停/IP 配置/config.ini；`WS /api/ftj1c/ws?token=` |
 | `/api/city3d/*` | City3dView | 建筑/区域/事件/overview |
 | `/api/protocol_generator/*` | ProtocolGeneratorMonitor | 通信协议生成：参数表 CSV 读写/解析、协议 C# 代码生成、Excel/Markdown 导出 |
-| `/api/qgc/*` | QgcMonitor（瓦片端点 `?token=`） | 服务启停/遥测/命令/模式/任务规划/帮助；**地图瓦片代理 + 磁盘缓存**：`GET /api/qgc/tiles/{z}/{x}/{y}?token=`（命中 `tiles/` 缓存直接返回，未命中从 `[Tiles] Url` 瓦片源下载落盘，离线保存/加载）、`GET /tiles/stats`、`POST /tiles/clear`（Leaflet `<img>` 无法带 Bearer 头，瓦片端点走 `?token=` 同 WS）；`WS /api/qgc/ws?token=` |
+| `/api/qgc/*` | QgcMonitor（瓦片端点 `?token=`） | 服务启停/遥测/命令/模式/任务规划/帮助；**地图瓦片代理 + 磁盘缓存**：`GET /api/qgc/tiles/{z}/{x}/{y}?token=`（命中 `tiles/` 缓存直接返回，未命中从 `[Tiles] Url` 瓦片源下载落盘，离线保存/加载）、`GET /tiles/stats`、`POST /tiles/clear`（Cesium 图片加载器无法带 Bearer 头，瓦片端点走 `?token=` 同 WS）；`WS /api/qgc/ws?token=` |
 | `/api-docs/openapi.json` | 公开 | 实时 OpenAPI spec（配合 Swagger UI） |
 
 WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通过 `?token=` 查询参数，handler 内部校验。

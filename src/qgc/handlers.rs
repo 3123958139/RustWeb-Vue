@@ -455,7 +455,7 @@ pub async fn clear_mission_handler() -> Json<ApiResponse<bool>> {
 /// `GET /api/qgc/tiles/{z}/{x}/{y}?token=<JWT>`
 ///
 /// # 说明
-/// Leaflet 的 `<img>` 标签无法携带 Authorization 头，token 经 `?token=`
+/// 浏览器地图引擎（Cesium 图片加载器）无法携带 Authorization 头，token 经 `?token=`
 /// 查询参数在 handler 内校验（同 `/ws`），因此该端点不挂认证中间件。
 ///
 /// 命中磁盘缓存（`tiles/{z}/{x}/{y}.png`）直接返回，无网络请求（**离线加载**）；
