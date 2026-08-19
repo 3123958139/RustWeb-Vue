@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
@@ -153,8 +153,8 @@ let viewer: Cesium.Viewer | null = null;
 let planeEntity: Cesium.Entity | null = null;
 /** 轨迹线实体 */
 let trailEntity: Cesium.Entity | null = null;
-/** 航点实体集合（首页 + 航点） */
-let waypointEntities: Cesium.EntityCollection | null = null;
+/** 航点实体列表（首页 + 航点，直接挂到 viewer.entities） */
+let waypointEntities: Cesium.Entity[] = [];
 /** 历史轨迹点（含海拔，3D 空间点） */
 const trailPositions: Cesium.Cartesian3[] = [];
 /** 点击事件处理器 */
@@ -181,7 +181,8 @@ const DIAMOND_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
 
 /** 更新飞机位置与航向（按遥测海拔悬浮在 3D 空间） */
 function updatePlane(lat?: number, lon?: number, heading?: number, alt?: number) {
-  if (viewer === null || lat === undefined || lon === undefined) return;
+  // (0,0) 视为无效坐标（服务未启动时的默认遥测），避免飞机画到几内亚湾
+  if (viewer === null || lat === undefined || lon === undefined || (lat === 0 && lon === 0)) return;
   const height = Math.max(alt ?? 0, 3);
   const position = new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(lon, lat, height));
   if (planeEntity) {
@@ -223,55 +224,62 @@ function updatePlane(lat?: number, lon?: number, heading?: number, alt?: number)
 
 /** 刷新航点实体（与任务面板列表同步） */
 function refreshWaypoints() {
-  if (viewer === null || waypointEntities === null || missionPanelRef.value === null) return;
-  waypointEntities.removeAll();
+  const v = viewer;
+  if (v === null || missionPanelRef.value === null) return;
+  // 先移除上一轮航点实体，再按当前列表重建（直接挂到 viewer.entities，保证被渲染）
+  waypointEntities.forEach((e) => v.entities.remove(e));
+  waypointEntities = [];
   const items = missionPanelRef.value.items;
   items.forEach((item) => {
-    waypointEntities!.add({
-      position: new Cesium.ConstantPositionProperty(
-        Cesium.Cartesian3.fromDegrees(item.lon, item.lat, Math.max(item.altitude, 3)),
-      ),
-      billboard: {
-        image: DIAMOND_SVG,
-        width: 12,
-        height: 12,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      label: {
-        text: `#${item.seq} 高 ${item.altitude}m`,
-        font: "11px Consolas, monospace",
-        fillColor: Cesium.Color.fromCssColorString("#a8d8ff"),
-        showBackground: true,
-        backgroundColor: Cesium.Color.fromCssColorString("#0a1428").withAlpha(0.65),
-        backgroundPadding: new Cesium.Cartesian2(4, 2),
-        pixelOffset: new Cesium.Cartesian2(0, -20),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-    });
+    waypointEntities.push(
+      v.entities.add({
+        position: new Cesium.ConstantPositionProperty(
+          Cesium.Cartesian3.fromDegrees(item.lon, item.lat, Math.max(item.altitude, 3)),
+        ),
+        billboard: {
+          image: DIAMOND_SVG,
+          width: 12,
+          height: 12,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: `#${item.seq} 高 ${item.altitude}m`,
+          font: "11px Consolas, monospace",
+          fillColor: Cesium.Color.fromCssColorString("#a8d8ff"),
+          showBackground: true,
+          backgroundColor: Cesium.Color.fromCssColorString("#0a1428").withAlpha(0.65),
+          backgroundPadding: new Cesium.Cartesian2(4, 2),
+          pixelOffset: new Cesium.Cartesian2(0, -20),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      }),
+    );
   });
   // 首页（当前位置）在下载任务后由后端返回，刷新遥测时若任务列表含 seq=0 同步绘制
   const lat = telemetry.value.lat;
   const lon = telemetry.value.lon;
   if (lat !== undefined && lon !== undefined && (lat !== 0 || lon !== 0)) {
-    waypointEntities.add({
-      position: new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(lon, lat, 3)),
-      billboard: {
-        image: HOME_SVG,
-        width: 14,
-        height: 14,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      label: {
-        text: "首页",
-        font: "11px Consolas, monospace",
-        fillColor: Cesium.Color.fromCssColorString("#ffd766"),
-        showBackground: true,
-        backgroundColor: Cesium.Color.fromCssColorString("#0a1428").withAlpha(0.65),
-        backgroundPadding: new Cesium.Cartesian2(4, 2),
-        pixelOffset: new Cesium.Cartesian2(0, -18),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-    });
+    waypointEntities.push(
+      v.entities.add({
+        position: new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(lon, lat, 3)),
+        billboard: {
+          image: HOME_SVG,
+          width: 14,
+          height: 14,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: "首页",
+          font: "11px Consolas, monospace",
+          fillColor: Cesium.Color.fromCssColorString("#ffd766"),
+          showBackground: true,
+          backgroundColor: Cesium.Color.fromCssColorString("#0a1428").withAlpha(0.65),
+          backgroundPadding: new Cesium.Cartesian2(4, 2),
+          pixelOffset: new Cesium.Cartesian2(0, -18),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      }),
+    );
   }
 }
 
@@ -322,9 +330,12 @@ onMounted(async () => {
   cam.minimumZoomDistance = 5;
   cam.maximumZoomDistance = 5000000;
 
-  // 航点实体集合挂到地球实体层
-  waypointEntities = new Cesium.EntityCollection();
-  viewer.entities.add(waypointEntities);
+  // 航点实体直接挂到 viewer.entities（见 refreshWaypoints），此处无需初始化集合
+  // 默认视野定位到上海（模拟器/默认任务区域），保证地图可见、点击添加航点立即可见
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(121.4737, 31.2304, 2200),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+  });
 
   // 点击地球：规划模式添加航点 / 随行模式下达飞行指令
   // 左键按下+移动视为相机拖拽，不触发点击（pickEllipsoid 坐标经椭圆体求交）
@@ -374,13 +385,22 @@ onUnmounted(() => {
   disconnect();
   clickHandler?.destroy();
   clickHandler = null;
+  // 移除航点实体并销毁地球（viewer.destroy 会清理其余实体）
+  waypointEntities.forEach((e) => viewer?.entities.remove(e));
+  waypointEntities = [];
   viewer?.destroy();
   viewer = null;
   planeEntity = null;
   trailEntity = null;
-  waypointEntities = null;
   trailPositions.length = 0;
 });
+
+// 任务面板列表变化（增删/模板/导入/上传下载/地图点击）时同步刷新地图航点实体
+watch(
+  () => missionPanelRef.value?.items,
+  () => refreshWaypoints(),
+  { deep: true },
+);
 </script>
 
 <style scoped>
