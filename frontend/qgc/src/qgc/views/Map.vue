@@ -26,6 +26,10 @@
           <button class="mode-btn" :class="{ active: planMode === 'plan' }" @click="planMode = 'plan'">航线规划</button>
           <button class="mode-btn" :class="{ active: planMode === 'goto' }" @click="planMode = 'goto'">随点随行</button>
         </div>
+        <span class="svc-chip" :class="serviceRunning ? 'ok' : 'idle'"><i class="chip-dot"></i>{{ serviceRunning ? "服务运行中" : "服务已停止" }}</span>
+        <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
+          {{ serviceRunning ? "停止服务" : "启动服务" }}
+        </el-button>
         <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
       </div>
       <div class="map-body">
@@ -88,6 +92,51 @@ function openOfflinePanel() {
   const c = viewer?.camera.positionCartographic;
   if (c) mapCenter.value = [Cesium.Math.toDegrees(c.latitude), Cesium.Math.toDegrees(c.longitude)];
   offlinePanelVisible.value = true;
+}
+
+// ---------- 服务控制（模拟飞控遥测驱动飞机显示，需先启动服务） ----------
+
+/** 飞控通信服务运行中 */
+const serviceRunning = ref(false);
+/** 启动中 / 停止中 */
+const starting = ref(false);
+const stopping = ref(false);
+
+/** 查询服务运行状态 */
+async function loadServiceStatus() {
+  try {
+    const response = await qgcApi.getServiceStatus();
+    serviceRunning.value = response.data?.running ?? false;
+  } catch {
+    // 忽略错误
+  }
+}
+
+/** 切换服务状态（启动后模拟飞控遥测经 WebSocket 到达，飞机开始移动） */
+async function onToggleService() {
+  if (serviceRunning.value) {
+    stopping.value = true;
+    try {
+      await qgcApi.stopService();
+      serviceRunning.value = false;
+      ElMessage.success("服务已停止");
+    } catch (e: any) {
+      ElMessage.error(e?.response?.data?.message || "停止服务失败");
+    } finally {
+      stopping.value = false;
+    }
+  } else {
+    starting.value = true;
+    try {
+      await qgcApi.startService();
+      serviceRunning.value = true;
+      ElMessage.success("服务已启动");
+    } catch (e: any) {
+      ElMessage.error(e?.response?.data?.message || "启动服务失败");
+    } finally {
+      starting.value = false;
+    }
+  }
 }
 
 // ---------- 规划 / 随行模式与视角控制 ----------
@@ -181,8 +230,12 @@ const DIAMOND_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
 
 /** 更新飞机位置与航向（按遥测海拔悬浮在 3D 空间） */
 function updatePlane(lat?: number, lon?: number, heading?: number, alt?: number) {
-  // (0,0) 视为无效坐标（服务未启动时的默认遥测），避免飞机画到几内亚湾
-  if (viewer === null || lat === undefined || lon === undefined || (lat === 0 && lon === 0)) return;
+  if (viewer === null) return;
+  // (0,0) 视为无效坐标（服务未启动时的默认遥测），回落到默认起飞点（上海），保证机体始终可见
+  if (lat === undefined || lon === undefined || (lat === 0 && lon === 0)) {
+    lat = 31.2304;
+    lon = 121.4737;
+  }
   const height = Math.max(alt ?? 0, 3);
   const position = new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(lon, lat, height));
   if (planeEntity) {
@@ -362,21 +415,24 @@ onMounted(async () => {
     }
   }, Cesium.ScreenSpaceEventType.LEFT_UP);
 
-  // 初始遥测快照（未启动服务时保持默认视野）
+  // 初始遥测快照（无有效遥测时飞机落在默认起飞点，相机保持上海视野）
   try {
     const response = await qgcApi.getTelemetry();
     const t = response.data;
-    if (t && t.lat !== 0 && t.lon !== 0) {
+    if (t) {
       updatePlane(t.lat, t.lon, t.heading, t.relative_alt);
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(t.lon, t.lat, 2200),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
-      });
+      if (t.lat !== 0 && t.lon !== 0) {
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(t.lon, t.lat, 2200),
+          orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+        });
+      }
     }
   } catch {
     // 忽略错误
   }
 
+  await loadServiceStatus();
   connect();
   refreshWaypoints();
 });
@@ -633,6 +689,45 @@ watch(
   background: linear-gradient(180deg, #00b4d8, #0077b6);
   color: #ffffff;
   box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+}
+
+/* 服务状态 chip */
+.svc-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--btn-bg);
+  white-space: nowrap;
+}
+
+.svc-chip .chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.svc-chip.ok {
+  color: var(--text-success);
+  border-color: rgba(0, 230, 118, 0.4);
+}
+
+.svc-chip.ok .chip-dot {
+  background: var(--text-success);
+  box-shadow: 0 0 6px rgba(0, 230, 118, 0.8);
+}
+
+.svc-chip.idle {
+  color: var(--text-dim);
+}
+
+.svc-chip.idle .chip-dot {
+  background: var(--text-dim);
 }
 
 .offline-map-btn {

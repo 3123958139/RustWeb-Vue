@@ -311,7 +311,12 @@ const GOTO_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
 
 /** 更新飞机位置（Billboard + 3D 轨迹 + 跟随） */
 function updatePlane(lat?: number, lon?: number, heading?: number, alt?: number) {
-  if (viewer === null || lat === undefined || lon === undefined) return;
+  if (viewer === null) return;
+  // (0,0) 视为无效坐标（服务未启动时的默认遥测），回落到默认起飞点（上海），保证机体始终可见
+  if (lat === undefined || lon === undefined || (lat === 0 && lon === 0)) {
+    lat = 31.2304;
+    lon = 121.4737;
+  }
   const height = Math.max(alt ?? 0, 3);
   const position = new Cesium.ConstantPositionProperty(Cesium.Cartesian3.fromDegrees(lon, lat, height));
   if (planeEntity) {
@@ -735,6 +740,12 @@ onMounted(async () => {
   cam.minimumZoomDistance = 5;
   cam.maximumZoomDistance = 5000000;
 
+  // 默认视野定位到上海（模拟器/默认任务区域），保证地图可见、机体立即可见
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(121.4737, 31.2304, 2200),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+  });
+
   // 随点随行点击（左键按下+移动视为相机拖拽，不触发点击）
   clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   clickHandler.setInputAction(() => {
@@ -752,16 +763,18 @@ onMounted(async () => {
     onMapClick(Cesium.Math.toDegrees(c.latitude), Cesium.Math.toDegrees(c.longitude));
   }, Cesium.ScreenSpaceEventType.LEFT_UP);
 
-  // 初始遥测快照
+  // 初始遥测快照（无有效遥测时机体落在默认起飞点，相机保持上海视野）
   try {
     const response = await qgcApi.getTelemetry();
     const t = response.data;
-    if (t && t.lat !== 0 && t.lon !== 0) {
+    if (t) {
       updatePlane(t.lat, t.lon, t.heading, t.relative_alt);
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(t.lon, t.lat, 2200),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
-      });
+      if (t.lat !== 0 && t.lon !== 0) {
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(t.lon, t.lat, 2200),
+          orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+        });
+      }
     }
   } catch {
     // 忽略
