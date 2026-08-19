@@ -215,7 +215,7 @@ let mouseMoved = false;
 /** 飞机 SVG 图标（data URI，Billboard 按航向旋转，正北 0°） */
 const PLANE_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">` +
-    `<path d="M18 2 L19.5 10 L28 13 L28 15.5 L19.5 14.5 L19.5 21 L24 24 L24 26.5 L18 25.5 L12 26.5 L12 24 L16.5 21 L16.5 14.5 L8 15.5 L8 13 L16.5 10 Z" fill="#ffcc00" stroke="#000" stroke-width="1"/>`,
+    `<path d="M18 2 L19.5 10 L28 13 L28 15.5 L19.5 14.5 L19.5 21 L24 24 L24 26.5 L18 25.5 L12 26.5 L12 24 L16.5 21 L16.5 14.5 L8 15.5 L8 13 L16.5 10 Z" fill="#ffcc00" stroke="#000" stroke-width="1"/></svg>`,
 )}`;
 
 /** 首页图标（金色圆点） */
