@@ -91,7 +91,7 @@ pub fn cmd_exec_str(code: u8) -> &'static str {
 /// 帧内各字段按固定偏移读取（小端 u16），温度类字段需减去 273.0（开尔文转摄氏），
 /// 故障码拆分为两位（fc1/fc2）按位展开为 `FaultCodeFlags` 布尔位。
 pub fn decode_ecu(frame: &[u8]) -> EcuFields {
-    tracing::error!("{}", &format_hex(frame));
+    tracing::trace!("{}", &format_hex(frame));
     // 读取小端 u16 的便捷闭包
     let u16_le = |i: usize| -> u16 { (frame[i + 1] as u16) | ((frame[i] as u16) << 8) };
 

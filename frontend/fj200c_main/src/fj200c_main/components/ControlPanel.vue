@@ -44,10 +44,10 @@ function buildBaseFrame(cmd: number): number[] {
     0xEB, 0x90, 0x10, 0,
     MachNumber,
     WheelLoad,
-    Altitude & 0xFF, (Altitude >> 8) & 0xFF,
+    (Altitude >> 8) & 0xFF, Altitude & 0xFF,
     0,
     cmd,
-    ThrottleDuty & 0xFF, (ThrottleDuty >> 8) & 0xFF,
+    (ThrottleDuty >> 8) & 0xFF, ThrottleDuty & 0xFF,
     0, 0, 0, 0,
   ]
 }
@@ -85,7 +85,7 @@ function sendAltitude() {
 }
 
 function sendThrottleDuty() {
-  sendConfig(buildBaseFrame(0x00), '恒定油门占空比')
+  sendConfig(buildBaseFrame(0xD1), '恒定油门占空比')
 }
 
 function sendWheelLoad() {
