@@ -122,7 +122,7 @@ npm run build      # vue-tsc && vite build
 npm run gen:api    # = cargo test export_openapi && orval
 ```
 
-- `cargo test export_openapi` → 生成 `openapi/openapi.json`（内置 paths/operationId 断言防漂移：62 路径 / 77 操作）
+- `cargo test export_openapi` → 生成 `openapi/openapi.json`（内置 paths/operationId 断言防漂移：66 路径 / 83 操作）
 - `orval` → 生成 `packages/shared/src/api/generated/`（按 tag 拆分的请求函数 + 类型，走统一 `customInstance`）
 - 各前端 `src/api/index.ts` 用生成函数组装对象 facade（如 `fj200c_informationApi.startService(...)`），视图层调用点不变
 - `openapi.json` 与 `generated/` 只由工具生成，**不手改**
@@ -201,7 +201,7 @@ deploy/
 
 1. `src/common/models.rs` 加 `Permission::XxxMonitor`；`src/roles.rs` 注册 `RoleDef`（key/name/permissions）
 2. 复制 `src/role_template/` 为 `src/xxx/`（一级骨架），角色专有子模块放入二级目录 `src/xxx/xxx/`，一级 `mod.rs` 用 `pub use` 再导出，`routes.rs` 挂载 `/api/xxx/*`（用 `permission_middleware`）
-3. handler 加 `#[utoipa::path]`（tags="xxx"）；`src/api_docs.rs` 追加 paths/schemas/tags，同步更新 `export_openapi` 测试里的路径/操作数量断言（当前 62 路径 / 77 操作）
+3. handler 加 `#[utoipa::path]`（tags="xxx"）；`src/api_docs.rs` 追加 paths/schemas/tags，同步更新 `export_openapi` 测试里的路径/操作数量断言（当前 66 路径 / 83 操作）
 4. `packages/shared/src/roles.ts` 的 `MENU_CONFIG` 加菜单、`ROLE_APP_URLS` 加应用地址（注册表数据无需手写，由 `/api/meta/roles` 同步）
 5. 复制现有前端为新应用 `frontend/xxx/`：改端口/base/workspaces，角色专有文件放 `src/xxx/` 二级目录，`api/index.ts` 组装 facade，`setApiInstance` 注入
 6. `npm run gen:api` 生成 `generated/api/xxx.ts`，前端 `npm run build` 通过

@@ -35,6 +35,19 @@ export type ApiResponseQgcTelemetryData = {
   current: number;
   /** 距返航点水平距离（米） */
   distance_home: number;
+  /** EKF 罗盘方差 */
+  ekf_compass_variance?: number;
+  /**
+     * EKF 状态标志位（位掩码，来自 EKF_STATUS_REPORT.flags；各 bit 表示对应估计器是否健康）
+     * @minimum 0
+     */
+  ekf_flags?: number;
+  /** EKF 水平位置方差 */
+  ekf_pos_horiz_variance?: number;
+  /** EKF 垂直位置方差 */
+  ekf_pos_vert_variance?: number;
+  /** EKF 速度方差（越小越健康） */
+  ekf_vel_variance?: number;
   /** 飞行时长（秒，解锁起累计） */
   flight_time_s: number;
   /** GPS 水平定位精度（米，0 为未知） */
@@ -75,6 +88,16 @@ export type ApiResponseQgcTelemetryData = {
   radio_rssi: number;
   /** 数传链路远端信号强度（dBm，127 为未知） */
   radio_rssi_remote: number;
+  /**
+     * RC 接收机通道原始值（PWM 微秒，chan1 起，长度最多 18；未连接或无遥控为 0）
+     * @items.minimum 0
+     */
+  rc_channels?: number[];
+  /**
+     * RC 接收机信号强度（0-100，0 表示遥控器丢失）
+     * @minimum 0
+     */
+  rc_rssi?: number;
   /** 相对高度（米，相对起飞点） */
   relative_alt: number;
   /** 滚转角（度） */
@@ -98,6 +121,12 @@ export type ApiResponseQgcTelemetryData = {
      * @minimum 0
      */
   vehicle_type: number;
+  /** 振动 X 轴（m/s/s RMS） */
+  vibration_x?: number;
+  /** 振动 Y 轴（m/s/s RMS） */
+  vibration_y?: number;
+  /** 振动 Z 轴（m/s/s RMS） */
+  vibration_z?: number;
   /** 电池电压（V） */
   voltage: number;
   /** 偏航速率（度/秒，ATTITUDE yawspeed） */

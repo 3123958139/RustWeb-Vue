@@ -87,6 +87,36 @@ pub struct QgcTelemetry {
     pub radio_rssi_remote: i8,
     /// 飞行时长（秒，解锁起累计）
     pub flight_time_s: f32,
+    /// EKF 状态标志位（位掩码，来自 EKF_STATUS_REPORT.flags；各 bit 表示对应估计器是否健康）
+    #[serde(default)]
+    pub ekf_flags: u32,
+    /// EKF 速度方差（越小越健康）
+    #[serde(default)]
+    pub ekf_vel_variance: f32,
+    /// EKF 水平位置方差
+    #[serde(default)]
+    pub ekf_pos_horiz_variance: f32,
+    /// EKF 垂直位置方差
+    #[serde(default)]
+    pub ekf_pos_vert_variance: f32,
+    /// EKF 罗盘方差
+    #[serde(default)]
+    pub ekf_compass_variance: f32,
+    /// 振动 X 轴（m/s/s RMS）
+    #[serde(default)]
+    pub vibration_x: f32,
+    /// 振动 Y 轴（m/s/s RMS）
+    #[serde(default)]
+    pub vibration_y: f32,
+    /// 振动 Z 轴（m/s/s RMS）
+    #[serde(default)]
+    pub vibration_z: f32,
+    /// RC 接收机通道原始值（PWM 微秒，chan1 起，长度最多 18；未连接或无遥控为 0）
+    #[serde(default)]
+    pub rc_channels: Vec<u16>,
+    /// RC 接收机信号强度（0-100，0 表示遥控器丢失）
+    #[serde(default)]
+    pub rc_rssi: u8,
 }
 
 impl Default for QgcTelemetry {
@@ -130,6 +160,16 @@ impl Default for QgcTelemetry {
             radio_rssi: 127,
             radio_rssi_remote: 127,
             flight_time_s: 0.0,
+            ekf_flags: 0,
+            ekf_vel_variance: 0.0,
+            ekf_pos_horiz_variance: 0.0,
+            ekf_pos_vert_variance: 0.0,
+            ekf_compass_variance: 0.0,
+            vibration_x: 0.0,
+            vibration_y: 0.0,
+            vibration_z: 0.0,
+            rc_channels: Vec::new(),
+            rc_rssi: 0,
         }
     }
 }
@@ -172,13 +212,14 @@ pub struct QgcModeRequest {
 
 /// 航点（任务条目）
 ///
-/// 对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT），
-/// 经纬度为 WGS84 十进制度，高度为相对高度（米）。
+/// 对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT 或 DO 动作命令），
+/// 经纬度为 WGS84 十进制度，高度为相对高度（米）。动作条目（action 非 none）
+/// 由服务端在航点后自动追加 DO 命令条目（MAV_CMD_DO_SET_SERVO / DO_SET_CAM_TRIGG_INTERVAL）。
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct QgcMissionItem {
-    /// 序号（上传时由服务端自动重排，从 1 开始）
+    /// 序号（上传时由服务端自动重排，从 1 开始；0 = 首页）
     pub seq: u16,
-    /// 命令（16 = NAV_WAYPOINT）
+    /// 命令（16 = NAV_WAYPOINT，183 = DO_SET_SERVO，20001 = DO_SET_CAM_TRIGG_INTERVAL）
     pub command: u16,
     /// 纬度（度）
     pub lat: f64,
@@ -186,6 +227,15 @@ pub struct QgcMissionItem {
     pub lon: f64,
     /// 相对高度（米）
     pub altitude: f32,
+    /// 停留时间（秒，NAV_WAYPOINT param1；航点悬停时长）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold_time: Option<f32>,
+    /// 转弯模式：fixed 定点 / coordinated 协调 / adaptive 自适应（NAV_WAYPOINT param2 转弯半径）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_mode: Option<String>,
+    /// 航点动作：none / camera 拍照 / servo 舵机（自动追加 DO 命令条目）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
 }
 
 /// 任务快照（`GET /api/qgc/mission` 响应）
@@ -221,4 +271,49 @@ pub struct TileStats {
     pub count: usize,
     /// 缓存占用磁盘字节数
     pub bytes: u64,
+}
+
+/// 数据流频率设置请求体（`POST /api/qgc/stream`）
+///
+/// 设置遥测广播频率（Hz），模拟器下一拍生效，限幅 1~50Hz。
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct QgcStreamRequest {
+    /// 遥测频率（Hz，1~50）
+    pub hz: u16,
+}
+
+/// 数据流频率响应（`GET/POST /api/qgc/stream`）
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct QgcStreamResponse {
+    /// 当前遥测频率（Hz）
+    pub hz: u16,
+}
+
+/// 遥测 CSV 文件元信息（`GET /api/qgc/telemetry/csv` 列表元素）
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct QgcCsvFile {
+    /// 文件名（如 qgc_telemetry_20260821.csv）
+    pub name: String,
+    /// 文件大小（字节）
+    pub size: u64,
+    /// 修改时间（Unix 秒）
+    pub modified: i64,
+}
+
+/// 单个参数项（`GET /api/qgc/param` 列表元素）
+///
+/// 对应 MAVLink `PARAM_VALUE`，name 为参数名（如 `RTL_ALT`），value 为单精度浮点值。
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct QgcParam {
+    /// 参数名（最多 16 字节 ASCII，ArduPilot 约定全大写）
+    pub id: String,
+    /// 参数值（单精度浮点）
+    pub value: f32,
+}
+
+/// 参数表列表响应（`GET /api/qgc/param`）
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct QgcParamList {
+    /// 参数列表（模拟器维护的 ArduCopter 精简子集）
+    pub params: Vec<QgcParam>,
 }

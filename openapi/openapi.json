@@ -1729,6 +1729,56 @@
         }
       }
     },
+    "/api/qgc/param": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "读取参数表（模拟器维护的 ArduCopter 精简子集）",
+        "operationId": "qgcGetParams",
+        "responses": {
+          "200": {
+            "description": "参数表列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_QgcParamList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "写入单个参数（直达全局参数表，模拟器与 HTTP 共享同一表）",
+        "operationId": "qgcSetParam",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QgcParam"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "参数已更新",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_QgcParam"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/qgc/service/start": {
       "post": {
         "tags": [
@@ -1795,6 +1845,56 @@
         }
       }
     },
+    "/api/qgc/stream": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "读取当前遥测数据流频率（Hz）",
+        "operationId": "qgcGetStream",
+        "responses": {
+          "200": {
+            "description": "当前遥测频率",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_QgcStreamResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "设置遥测数据流频率（Hz，运行时调速，模拟器下一拍生效）",
+        "operationId": "qgcSetStream",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QgcStreamRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "已更新遥测频率",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_QgcStreamResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/qgc/telemetry": {
       "get": {
         "tags": [
@@ -1813,6 +1913,58 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/qgc/telemetry/csv": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "列出遥测 CSV 记录文件（按天分割，位于 `[CSV] Dir` 目录）",
+        "operationId": "qgcListCsv",
+        "responses": {
+          "200": {
+            "description": "CSV 文件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_QgcCsvFile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qgc/telemetry/csv/{name}": {
+      "get": {
+        "tags": [
+          "qgc"
+        ],
+        "summary": "下载单个遥测 CSV 文件内容（纯文本）",
+        "operationId": "qgcGetCsv",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "CSV 文件名",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV 文本内容",
+            "content": {
+              "text/plain": {}
+            }
+          },
+          "404": {
+            "description": "文件不存在"
           }
         }
       }
@@ -2867,6 +3019,116 @@
           }
         }
       },
+      "ApiResponse_QgcParam": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "单个参数项（`GET /api/qgc/param` 列表元素）\n\n对应 MAVLink `PARAM_VALUE`，name 为参数名（如 `RTL_ALT`），value 为单精度浮点值。",
+            "required": [
+              "id",
+              "value"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "参数名（最多 16 字节 ASCII，ArduPilot 约定全大写）"
+              },
+              "value": {
+                "type": "number",
+                "format": "float",
+                "description": "参数值（单精度浮点）"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_QgcParamList": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "参数表列表响应（`GET /api/qgc/param`）",
+            "required": [
+              "params"
+            ],
+            "properties": {
+              "params": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QgcParam"
+                },
+                "description": "参数列表（模拟器维护的 ArduCopter 精简子集）"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_QgcStreamResponse": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "数据流频率响应（`GET/POST /api/qgc/stream`）",
+            "required": [
+              "hz"
+            ],
+            "properties": {
+              "hz": {
+                "type": "integer",
+                "format": "int32",
+                "description": "当前遥测频率（Hz）",
+                "minimum": 0
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
       "ApiResponse_QgcTelemetry": {
         "type": "object",
         "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
@@ -2970,6 +3232,32 @@
                 "format": "float",
                 "description": "距返航点水平距离（米）"
               },
+              "ekf_compass_variance": {
+                "type": "number",
+                "format": "float",
+                "description": "EKF 罗盘方差"
+              },
+              "ekf_flags": {
+                "type": "integer",
+                "format": "int32",
+                "description": "EKF 状态标志位（位掩码，来自 EKF_STATUS_REPORT.flags；各 bit 表示对应估计器是否健康）",
+                "minimum": 0
+              },
+              "ekf_pos_horiz_variance": {
+                "type": "number",
+                "format": "float",
+                "description": "EKF 水平位置方差"
+              },
+              "ekf_pos_vert_variance": {
+                "type": "number",
+                "format": "float",
+                "description": "EKF 垂直位置方差"
+              },
+              "ekf_vel_variance": {
+                "type": "number",
+                "format": "float",
+                "description": "EKF 速度方差（越小越健康）"
+              },
               "flight_time_s": {
                 "type": "number",
                 "format": "float",
@@ -3056,6 +3344,21 @@
                 "format": "int32",
                 "description": "数传链路远端信号强度（dBm，127 为未知）"
               },
+              "rc_channels": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                },
+                "description": "RC 接收机通道原始值（PWM 微秒，chan1 起，长度最多 18；未连接或无遥控为 0）"
+              },
+              "rc_rssi": {
+                "type": "integer",
+                "format": "int32",
+                "description": "RC 接收机信号强度（0-100，0 表示遥控器丢失）",
+                "minimum": 0
+              },
               "relative_alt": {
                 "type": "number",
                 "format": "float",
@@ -3093,6 +3396,21 @@
                 "format": "int32",
                 "description": "飞行器类型（MAV_TYPE 枚举值，如 2=四旋翼）",
                 "minimum": 0
+              },
+              "vibration_x": {
+                "type": "number",
+                "format": "float",
+                "description": "振动 X 轴（m/s/s RMS）"
+              },
+              "vibration_y": {
+                "type": "number",
+                "format": "float",
+                "description": "振动 Y 轴（m/s/s RMS）"
+              },
+              "vibration_z": {
+                "type": "number",
+                "format": "float",
+                "description": "振动 Z 轴（m/s/s RMS）"
               },
               "voltage": {
                 "type": "number",
@@ -3741,6 +4059,55 @@
                 "unit": {
                   "type": "string",
                   "description": "单位"
+                }
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_Vec_QgcCsvFile": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "遥测 CSV 文件元信息（`GET /api/qgc/telemetry/csv` 列表元素）",
+              "required": [
+                "name",
+                "size",
+                "modified"
+              ],
+              "properties": {
+                "modified": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "修改时间（Unix 秒）"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "文件名（如 qgc_telemetry_20260821.csv）"
+                },
+                "size": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "文件大小（字节）",
+                  "minimum": 0
                 }
               }
             }
@@ -4761,7 +5128,10 @@
           "fc2StartVoltageAbnormal",
           "fc2GenVoltageAbnormal",
           "fc2InFlightFlameout",
-          "fc2CommDisconnected"
+          "fc2CommDisconnectedFuel",
+          "fc2CommDisconnectedControl",
+          "fc2ThrottleFault",
+          "fc2StartFault"
         ],
         "properties": {
           "fc1ColdStartAbnormal": {
@@ -4828,9 +5198,13 @@
             "type": "boolean",
             "description": "起动超时"
           },
-          "fc2CommDisconnected": {
+          "fc2CommDisconnectedControl": {
             "type": "boolean",
-            "description": "通信断开"
+            "description": "控制通信断开"
+          },
+          "fc2CommDisconnectedFuel": {
+            "type": "boolean",
+            "description": "燃气通信断开"
           },
           "fc2ExhaustTempFault": {
             "type": "boolean",
@@ -4864,9 +5238,17 @@
             "type": "boolean",
             "description": "滑温故障"
           },
+          "fc2StartFault": {
+            "type": "boolean",
+            "description": "起动错误"
+          },
           "fc2StartVoltageAbnormal": {
             "type": "boolean",
             "description": "起动电压异常"
+          },
+          "fc2ThrottleFault": {
+            "type": "boolean",
+            "description": "油门错误"
           },
           "fc2VoltageAbnormal": {
             "type": "boolean",
@@ -5501,6 +5883,32 @@
           }
         }
       },
+      "QgcCsvFile": {
+        "type": "object",
+        "description": "遥测 CSV 文件元信息（`GET /api/qgc/telemetry/csv` 列表元素）",
+        "required": [
+          "name",
+          "size",
+          "modified"
+        ],
+        "properties": {
+          "modified": {
+            "type": "integer",
+            "format": "int64",
+            "description": "修改时间（Unix 秒）"
+          },
+          "name": {
+            "type": "string",
+            "description": "文件名（如 qgc_telemetry_20260821.csv）"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "文件大小（字节）",
+            "minimum": 0
+          }
+        }
+      },
       "QgcMission": {
         "type": "object",
         "description": "任务快照（`GET /api/qgc/mission` 响应）\n\n任务协议（MISSION_COUNT / MISSION_ITEM_INT / MISSION_ACK）为异步交互，\n上传/下载/清除期间状态为 `uploading` / `downloading` / `clearing`，\n完成后回到 `idle`；进度经 WebSocket `mission_progress` 事件实时推送。",
@@ -5530,7 +5938,7 @@
       },
       "QgcMissionItem": {
         "type": "object",
-        "description": "航点（任务条目）\n\n对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT），\n经纬度为 WGS84 十进制度，高度为相对高度（米）。",
+        "description": "航点（任务条目）\n\n对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT 或 DO 动作命令），\n经纬度为 WGS84 十进制度，高度为相对高度（米）。动作条目（action 非 none）\n由服务端在航点后自动追加 DO 命令条目（MAV_CMD_DO_SET_SERVO / DO_SET_CAM_TRIGG_INTERVAL）。",
         "required": [
           "seq",
           "command",
@@ -5539,6 +5947,13 @@
           "altitude"
         ],
         "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "航点动作：none / camera 拍照 / servo 舵机（自动追加 DO 命令条目）"
+          },
           "altitude": {
             "type": "number",
             "format": "float",
@@ -5547,8 +5962,16 @@
           "command": {
             "type": "integer",
             "format": "int32",
-            "description": "命令（16 = NAV_WAYPOINT）",
+            "description": "命令（16 = NAV_WAYPOINT，183 = DO_SET_SERVO，20001 = DO_SET_CAM_TRIGG_INTERVAL）",
             "minimum": 0
+          },
+          "hold_time": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "停留时间（秒，NAV_WAYPOINT param1；航点悬停时长）"
           },
           "lat": {
             "type": "number",
@@ -5563,8 +5986,15 @@
           "seq": {
             "type": "integer",
             "format": "int32",
-            "description": "序号（上传时由服务端自动重排，从 1 开始）",
+            "description": "序号（上传时由服务端自动重排，从 1 开始；0 = 首页）",
             "minimum": 0
+          },
+          "turn_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "转弯模式：fixed 定点 / coordinated 协调 / adaptive 自适应（NAV_WAYPOINT param2 转弯半径）"
           }
         }
       },
@@ -5594,6 +6024,71 @@
           "mode": {
             "type": "string",
             "description": "模式名或数字模式 ID"
+          }
+        }
+      },
+      "QgcParam": {
+        "type": "object",
+        "description": "单个参数项（`GET /api/qgc/param` 列表元素）\n\n对应 MAVLink `PARAM_VALUE`，name 为参数名（如 `RTL_ALT`），value 为单精度浮点值。",
+        "required": [
+          "id",
+          "value"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "参数名（最多 16 字节 ASCII，ArduPilot 约定全大写）"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "description": "参数值（单精度浮点）"
+          }
+        }
+      },
+      "QgcParamList": {
+        "type": "object",
+        "description": "参数表列表响应（`GET /api/qgc/param`）",
+        "required": [
+          "params"
+        ],
+        "properties": {
+          "params": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QgcParam"
+            },
+            "description": "参数列表（模拟器维护的 ArduCopter 精简子集）"
+          }
+        }
+      },
+      "QgcStreamRequest": {
+        "type": "object",
+        "description": "数据流频率设置请求体（`POST /api/qgc/stream`）\n\n设置遥测广播频率（Hz），模拟器下一拍生效，限幅 1~50Hz。",
+        "required": [
+          "hz"
+        ],
+        "properties": {
+          "hz": {
+            "type": "integer",
+            "format": "int32",
+            "description": "遥测频率（Hz，1~50）",
+            "minimum": 0
+          }
+        }
+      },
+      "QgcStreamResponse": {
+        "type": "object",
+        "description": "数据流频率响应（`GET/POST /api/qgc/stream`）",
+        "required": [
+          "hz"
+        ],
+        "properties": {
+          "hz": {
+            "type": "integer",
+            "format": "int32",
+            "description": "当前遥测频率（Hz）",
+            "minimum": 0
           }
         }
       },
@@ -5693,6 +6188,32 @@
             "format": "float",
             "description": "距返航点水平距离（米）"
           },
+          "ekf_compass_variance": {
+            "type": "number",
+            "format": "float",
+            "description": "EKF 罗盘方差"
+          },
+          "ekf_flags": {
+            "type": "integer",
+            "format": "int32",
+            "description": "EKF 状态标志位（位掩码，来自 EKF_STATUS_REPORT.flags；各 bit 表示对应估计器是否健康）",
+            "minimum": 0
+          },
+          "ekf_pos_horiz_variance": {
+            "type": "number",
+            "format": "float",
+            "description": "EKF 水平位置方差"
+          },
+          "ekf_pos_vert_variance": {
+            "type": "number",
+            "format": "float",
+            "description": "EKF 垂直位置方差"
+          },
+          "ekf_vel_variance": {
+            "type": "number",
+            "format": "float",
+            "description": "EKF 速度方差（越小越健康）"
+          },
           "flight_time_s": {
             "type": "number",
             "format": "float",
@@ -5779,6 +6300,21 @@
             "format": "int32",
             "description": "数传链路远端信号强度（dBm，127 为未知）"
           },
+          "rc_channels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "RC 接收机通道原始值（PWM 微秒，chan1 起，长度最多 18；未连接或无遥控为 0）"
+          },
+          "rc_rssi": {
+            "type": "integer",
+            "format": "int32",
+            "description": "RC 接收机信号强度（0-100，0 表示遥控器丢失）",
+            "minimum": 0
+          },
           "relative_alt": {
             "type": "number",
             "format": "float",
@@ -5816,6 +6352,21 @@
             "format": "int32",
             "description": "飞行器类型（MAV_TYPE 枚举值，如 2=四旋翼）",
             "minimum": 0
+          },
+          "vibration_x": {
+            "type": "number",
+            "format": "float",
+            "description": "振动 X 轴（m/s/s RMS）"
+          },
+          "vibration_y": {
+            "type": "number",
+            "format": "float",
+            "description": "振动 Y 轴（m/s/s RMS）"
+          },
+          "vibration_z": {
+            "type": "number",
+            "format": "float",
+            "description": "振动 Z 轴（m/s/s RMS）"
           },
           "voltage": {
             "type": "number",

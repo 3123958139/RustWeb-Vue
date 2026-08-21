@@ -19,6 +19,7 @@
 //! | `models` | 二级 | DTO（进 OpenAPI，utoipa `ToSchema`） |
 //! | `mavlink` | 二级 | MAVLink v2 帧编解码（消息子集 + CRC 表） |
 //! | `config` | 二级 | config-qgc.ini 解析（复用公共 INI 封装） |
+//! | `csv` | 二级 | 遥测 CSV 录制（按天分割，`[CSV] Dir` 配置） |
 //! | `state` | 二级 | 全局状态（运行标志、停止信号、遥测/任务快照、下行通道） |
 //! | `udp` | 二级 | UDP 链路（监听 + 对端学习 + 命令回退目标） |
 //! | `mission` | 二级 | 任务协议状态机（上传/下载/清除） |
@@ -39,7 +40,7 @@ pub mod routes;
 pub mod service;
 
 // 再导出二级目录子模块，保持既有 `crate::qgc::x` 路径不变
-pub use qgc::{config, mavlink, mission, models, process, simulator, state, tiles, udp};
+pub use qgc::{config, csv, mavlink, mission, models, process, simulator, state, tiles, udp};
 
 use serde::Serialize;
 

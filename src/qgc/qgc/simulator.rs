@@ -82,16 +82,22 @@ struct SimVehicle {
     paused: bool,
     /// 键盘/摇杆速度指令（机体 vx/vy/vz，m/s）；None = 无
     kbd_vel: Option<(f32, f32, f32)>,
+    /// 最近一次键盘速度指令时刻（time_boot_ms，超时后清零防止持续飞行）
+    last_kbd_ms: u32,
     home: (f64, f64),
     mission: Vec<QgcMissionItem>,
     /// 正在执行的航点下标（1..=n，0 为首页不飞）
     wp_index: usize,
+    /// 当前航点剩余悬停毫秒（到达后按 hold_time 递减，为 0 才前往下一航点）
+    wp_hold_ms: u32,
     /// 任务上传：期望接收的序号（0 起）
     upload_next: Option<u16>,
     upload_count: u16,
     seq: u8,
     time_boot_ms: u32,
     rng: XorShift,
+    /// 参数回传队列（收到 PARAM_REQUEST_LIST 后填入全表，主循环每拍弹出发 PARAM_VALUE）
+    param_queue: Vec<(String, f32)>,
 }
 
 impl SimVehicle {
@@ -127,14 +133,17 @@ impl SimVehicle {
             target: None,
             paused: false,
             kbd_vel: None,
+            last_kbd_ms: 0,
             home: (lat, lon),
             mission: Vec::new(),
             wp_index: 1,
+            wp_hold_ms: 0,
             upload_next: None,
             upload_count: 0,
             seq: 0,
             time_boot_ms: 0,
             rng: XorShift::new(0x12345678),
+            param_queue: Vec::new(),
         }
     }
 
@@ -151,10 +160,12 @@ impl SimVehicle {
         self.time_boot_ms += 100;
         // 电量放电（悬停电流 2A，满电电压 15.8V）
         if self.armed {
-            self.remaining = (self.remaining as i32 - 2).clamp(0, 100) as i8;
-            self.voltage = 15.8 - (100 - self.remaining) as f32 * 0.012;
+            // remaining 为演示速率线性下降：1%/s（每拍 100ms 减 0.1），约 100 秒从满电耗尽；
+            // consumed_mah 按真实电流积分（2A × 0.1s ≈ 0.0556 mAh/拍），两者不严格对应
+            self.remaining = ((self.remaining as f32 - 0.1).clamp(0.0, 100.0)) as i8;
+            // 电压随剩余电量线性下降：满电 15.8V，耗尽 12.5V（4S 锂电截止电压）
+            self.voltage = 15.8 - (100 - self.remaining) as f32 * 0.033;
             self.current = 2.0 + self.rng.unit().abs() * 0.5;
-            // 2A × 0.1s ≈ 0.0556 mAh/拍
             self.consumed_mah += 0.0556;
             self.flight_time_s += 0.1;
         }
@@ -175,10 +186,22 @@ impl SimVehicle {
                         moving = true;
                     } else if self.wp_index < self.mission.len() {
                         let wp = &self.mission[self.wp_index];
-                        tx = wp.lat;
-                        ty = wp.lon;
-                        tz = wp.altitude as f64;
-                        moving = true;
+                        if wp.command == mavlink::cmd::NAV_WAYPOINT {
+                            // 悬停计时中（hold_time）不选目标，原地悬停
+                            if self.wp_hold_ms == 0 {
+                                tx = wp.lat;
+                                ty = wp.lon;
+                                tz = wp.altitude as f64;
+                                moving = true;
+                            }
+                        } else {
+                            // DO 动作条目（拍照/舵机）：不移动，随上一航点执行后立即推进
+                            self.wp_index += 1;
+                            info!(
+                                "[qgc] 模拟器执行动作条目 seq={} cmd={}",
+                                wp.seq, wp.command
+                            );
+                        }
                     }
                 }
                 "RTL" => {
@@ -207,8 +230,18 @@ impl SimVehicle {
                 let d_h = haversine(self.lat, self.lon, lt, ln);
                 let d_a = (self.alt_rel - az).abs();
                 if d_h < 2.0 && d_a < 0.5 {
-                    self.target = None;
-                    self.wp_index = (self.wp_index + 1).min(self.mission.len().max(1) + 1);
+                    // 到达航点：按 hold_time 悬停计时（hold_time 秒内不推进）
+                    let hold = self.mission[self.wp_index].hold_time.unwrap_or(0.0);
+                    if self.wp_hold_ms == 0 {
+                        self.wp_hold_ms = (hold * 1000.0) as u32;
+                    }
+                    if self.wp_hold_ms > 0 {
+                        self.wp_hold_ms = self.wp_hold_ms.saturating_sub(100);
+                        self.target = None;
+                    } else {
+                        self.target = None;
+                        self.wp_index = (self.wp_index + 1).min(self.mission.len().max(1) + 1);
+                    }
                 }
             } else {
                 self.target = Some((tx, ty, tz));
@@ -216,17 +249,21 @@ impl SimVehicle {
         } else {
             self.target = None;
         }
-        // 键盘/摇杆速度指令（机体坐标系：前/右/下）
+        // 键盘/摇杆速度指令（机体坐标系：前/右/下；500ms 无新指令自动清零停止）
         if self.armed && !self.paused {
             if let Some((vx, vy, vz)) = self.kbd_vel {
-                let dt = 0.1;
-                let rad = self.heading.to_radians();
-                // 机体前方（vx）→ 纬度方向（0° 朝北），机体右方（vy）→ 经度方向
-                let dlat = (vx * rad.cos() - vy * rad.sin()) as f64 * dt / 111320.0;
-                let dlon = (vx * rad.sin() + vy * rad.cos()) as f64 * dt / (111320.0 * self.lat.to_radians().cos().max(0.01));
-                self.lat += dlat;
-                self.lon += dlon;
-                self.alt_rel = (self.alt_rel - (vz as f64) * dt).max(0.0);
+                if self.time_boot_ms.wrapping_sub(self.last_kbd_ms) > 500 {
+                    self.kbd_vel = None;
+                } else {
+                    let dt = 0.1;
+                    let rad = self.heading.to_radians();
+                    // 机体前方（vx）→ 纬度方向（0° 朝北），机体右方（vy）→ 经度方向
+                    let dlat = (vx * rad.cos() - vy * rad.sin()) as f64 * dt / 111320.0;
+                    let dlon = (vx * rad.sin() + vy * rad.cos()) as f64 * dt / (111320.0 * self.lat.to_radians().cos().max(0.01));
+                    self.lat += dlat;
+                    self.lon += dlon;
+                    self.alt_rel = (self.alt_rel - (vz as f64) * dt).max(0.0);
+                }
             }
         }
         // 位置噪声（悬停抖动 ±0.000005°）
@@ -269,7 +306,7 @@ impl SimVehicle {
     }
 
     /// 任务上传：GCS 发来 MISSION_ITEM_INT(seq)
-    fn on_mission_item(&mut self, seq: u16, lat: f64, lon: f64, alt: f32) -> Option<Vec<u8>> {
+    fn on_mission_item(&mut self, seq: u16, command: u16, param1: f32, lat: f64, lon: f64, alt: f32) -> Option<Vec<u8>> {
         let Some(next) = self.upload_next else { return None };
         if seq != next {
             return None;
@@ -282,14 +319,21 @@ impl SimVehicle {
                 lat: 0.0,
                 lon: 0.0,
                 altitude: 0.0,
+                hold_time: None,
+                turn_mode: None,
+                action: None,
             });
         }
         self.mission[seq as usize] = QgcMissionItem {
             seq,
-            command: mavlink::cmd::NAV_WAYPOINT,
+            command,
             lat,
             lon,
             altitude: alt,
+            // 悬停时间（NAV_WAYPOINT param1）→ hold_time；DO 动作条目无悬停
+            hold_time: if command == mavlink::cmd::NAV_WAYPOINT { Some(param1) } else { None },
+            turn_mode: None,
+            action: None,
         };
         self.upload_next = Some(next + 1);
         let count = self.upload_count;
@@ -370,8 +414,9 @@ impl SimVehicle {
                 let m = mavlink::decode_set_mode(payload);
                 if m.base_mode & mavlink::consts::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED != 0 {
                     self.mode = m.custom_mode;
-                    // 模式切换时重置目标（新模式下按 tick 逻辑重新选目标）
+                    // 模式切换时重置目标并停止键盘速度指令（新模式下按 tick 逻辑重新选目标）
                     self.target = None;
+                    self.kbd_vel = None;
                     if m.custom_mode == 6 || m.custom_mode == 9 {
                         self.takeoff_alt = 0.0;
                     }
@@ -394,6 +439,7 @@ impl SimVehicle {
                 // 键盘/摇杆速度控制（机体坐标系）
                 let v = mavlink::decode_set_position_local(payload);
                 self.kbd_vel = Some((v.vx, v.vy, v.vz));
+                self.last_kbd_ms = self.time_boot_ms;
                 None
             }
             mavlink::msg::MISSION_COUNT => {
@@ -405,7 +451,7 @@ impl SimVehicle {
             }
             mavlink::msg::MISSION_ITEM_INT => {
                 let it = mavlink::decode_mission_item_int(payload);
-                return self.on_mission_item(it.seq, it.x as f64 / 1e7, it.y as f64 / 1e7, it.z);
+                return self.on_mission_item(it.seq, it.command, it.param1, it.x as f64 / 1e7, it.y as f64 / 1e7, it.z);
             }
             mavlink::msg::MISSION_REQUEST_LIST => {
                 let n = self.mission.len() as u16;
@@ -415,6 +461,13 @@ impl SimVehicle {
                 let r = mavlink::decode_mission_request_int(payload);
                 if let Some(item) = self.mission.get(r.seq as usize) {
                     let (lat, lon, alt) = (item.lat, item.lon, item.altitude);
+                    let (command, param1, param2, param4) = (
+                        item.command,
+                        item.hold_time.unwrap_or(0.0),
+                        // 转弯模式下载时不回传（模拟器未存储 param2），保持 0
+                        0.0,
+                        0.0,
+                    );
                     return Some(mavlink::encode_mission_item_int(
                         self.sysid,
                         self.compid,
@@ -422,9 +475,13 @@ impl SimVehicle {
                         255,
                         190,
                         r.seq,
+                        command,
                         lat,
                         lon,
                         alt,
+                        param1,
+                        param2,
+                        param4,
                     ));
                 }
                 None
@@ -435,6 +492,21 @@ impl SimVehicle {
                 self.upload_next = None;
                 info!("[qgc] 模拟器任务已清除");
                 return Some(mavlink::encode_mission_ack(self.sysid, self.compid, self.next_seq(), 255, 190, mavlink::consts::MAV_MISSION_ACCEPTED));
+            }
+            mavlink::msg::PARAM_REQUEST_LIST => {
+                // 将全局参数表快照填入回传队列，主循环每拍弹出一个发 PARAM_VALUE
+                let tbl = crate::qgc::state::param_table().lock().unwrap_or_else(|e| e.into_inner());
+                self.param_queue = tbl.iter().map(|(k, v)| (k.clone(), *v)).collect();
+                None
+            }
+            mavlink::msg::PARAM_SET => {
+                let ps = mavlink::decode_param_set(payload);
+                crate::qgc::state::set_param(&ps.param_id, ps.param_value);
+                info!("[qgc] 模拟器参数写入 {} = {}", ps.param_id, ps.param_value);
+                Some(mavlink::encode_param_value(
+                    self.sysid, self.compid, self.next_seq(),
+                    &ps.param_id, ps.param_value, 0, 0,
+                ))
             }
             _ => None,
         }
@@ -487,6 +559,11 @@ pub fn run_simulator(local_port: u16, stop: Arc<AtomicBool>, mission: Arc<std::s
     let target: SocketAddr = format!("127.0.0.1:{}", local_port).parse().unwrap();
     info!("[qgc] 模拟飞控已启动（{} → 地面站 {}）", socket.local_addr().unwrap(), target);
 
+    // 启动模拟器时重置参数表为默认（避免跨会话残留）
+    crate::qgc::state::reset_param_table();
+    // 初始化遥测频率（运行时可经 /api/qgc/stream 调速）
+    crate::qgc::state::init_telemetry_hz(crate::qgc::config::udp_params().7);
+
     let mut vehicle = SimVehicle::new();
     let mut extractor = FrameExtractor::new();
     let mut last_hb = 0u32;
@@ -527,6 +604,13 @@ pub fn run_simulator(local_port: u16, stop: Arc<AtomicBool>, mission: Arc<std::s
         for frame in &payload {
             let _ = socket.send_to(frame, target);
         }
+        // 参数回传队列（收到 PARAM_REQUEST_LIST 后逐条发 PARAM_VALUE，每拍 1 个避免刷屏）
+        if !vehicle.param_queue.is_empty() {
+            let (id, val) = vehicle.param_queue.remove(0);
+            let count = crate::qgc::state::param_table().lock().unwrap_or_else(|e| e.into_inner()).len() as u16;
+            let frame = mavlink::encode_param_value(vehicle.sysid, vehicle.compid, vehicle.next_seq(), &id, val, count, 0);
+            let _ = socket.send_to(&frame, target);
+        }
         // 心跳（1Hz）
         if vehicle.time_boot_ms >= last_hb + 1000 {
             last_hb = vehicle.time_boot_ms;
@@ -542,7 +626,9 @@ pub fn run_simulator(local_port: u16, stop: Arc<AtomicBool>, mission: Arc<std::s
             );
             let _ = socket.send_to(&hb, target);
         }
-        std::thread::sleep(Duration::from_millis(100));
+        // 主循环拍间隔按当前遥测频率（运行时可调），下限 10ms
+        let interval = (1000 / crate::qgc::state::telemetry_hz() as u64).max(10);
+        std::thread::sleep(Duration::from_millis(interval));
     }
     info!("[qgc] 模拟飞控已退出");
 }
@@ -645,6 +731,41 @@ fn telemetry_frames(v: &mut SimVehicle) -> Vec<Vec<u8>> {
         p[8..12].copy_from_slice(&((v.home.1 * 1e7) as i32).to_le_bytes());
         p[12..16].copy_from_slice(&((v.alt_msl * 1000.0) as i32).to_le_bytes());
         frames.push(mavlink::encode_v2(v.sysid, v.compid, v.next_seq(), mavlink::msg::HOME_POSITION, &p));
+    }
+    // EKF_STATUS_REPORT（传感器健康度：估计器标志位 + 核心方差）
+    {
+        // 位 0~11 置 1 表示姿态/速度/位置/罗盘等估计器健康
+        let flags = (1u32 << 12) - 1;
+        frames.push(mavlink::encode_ekf_status_report(
+            v.sysid, v.compid, v.next_seq(), flags, 0.02, 0.05, 0.02, 0.03,
+        ));
+    }
+    // VIBRATION（振动 xyz，轻微波动）
+    {
+        let t = v.time_boot_ms as u64 * 1000;
+        let vx = 0.04 + v.rng.unit().abs() * 0.02;
+        let vy = 0.03 + v.rng.unit().abs() * 0.02;
+        let vz = 0.05 + v.rng.unit().abs() * 0.03;
+        frames.push(mavlink::encode_vibration(v.sysid, v.compid, v.next_seq(), t, vx, vy, vz));
+    }
+    // RC_CHANNELS（8 通道 + rssi；遥控器丢失时 rssi 掉 0 触发失控告警）
+    {
+        let mut ch = [0u16; 18];
+        ch[1] = (1500.0 + v.rng.unit() * 60.0) as u16; // 横滚
+        ch[2] = (1500.0 + v.rng.unit() * 60.0) as u16; // 俯仰
+        ch[3] = if v.armed { 1600 } else { 1000 }; // 油门（未解锁为低位）
+        ch[4] = (1500.0 + v.rng.unit() * 60.0) as u16; // 偏航
+        ch[5] = match v.mode {
+            0..=3 => 1000,    // 自稳类
+            4..=9 => 1500,    // 定高/定点/自动等
+            _ => 2000,
+        }; // 模式开关
+        ch[6] = 1500;
+        ch[7] = 1500;
+        ch[8] = 1500;
+        // rssi 正常 88~96；极低概率（0.3%）模拟遥控器丢失（rssi=0）
+        let rssi = if v.rng.unit().abs() > 0.997 { 0 } else { (88 + (v.rng.unit().abs() * 8.0) as u8) as u8 };
+        frames.push(mavlink::encode_rc_channels(v.sysid, v.compid, v.next_seq(), v.time_boot_ms, &ch, rssi));
     }
     frames
 }

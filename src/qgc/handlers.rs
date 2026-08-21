@@ -20,9 +20,12 @@ use crate::common::dto::{ConfigContent, SavedResult, ServiceStatus};
 use crate::common::models::ApiResponse;
 use crate::common::ws::{serialize, verify_query_token, ws_bridge_with_initial};
 use crate::database::DatabaseConnection;
+use crate::qgc::config;
 use crate::qgc::models::{
     QgcCommandRequest, QgcMission, QgcModeRequest, QgcMissionUploadRequest, QgcTelemetry, TileStats,
+    QgcParam, QgcParamList, QgcStreamRequest, QgcStreamResponse, QgcCsvFile,
 };
+use std::path::PathBuf;
 use crate::qgc::state::{self, Outbound};
 use crate::qgc::{qgc_tx, QgcEvent};
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
@@ -36,7 +39,7 @@ use std::fs;
 /// 飞控命令参数表（MAV_CMD_COMPONENT_ARM_DISARM 等）
 ///
 /// 参数含义按 COMMAND_LONG 规范：params[0..6] 对应 param1..param7。
-fn command_params(command: &str, altitude: Option<f32>) -> Option<(u16, [f32; 7])> {
+fn command_params(command: &str, altitude: Option<f32>, extra: Option<&[f32]>) -> Option<(u16, [f32; 7])> {
     let mut params = [0.0f32; 7];
     match command {
         "arm" => Some((crate::qgc::mavlink::cmd::COMPONENT_ARM_DISARM, {
@@ -57,6 +60,11 @@ fn command_params(command: &str, altitude: Option<f32>) -> Option<(u16, [f32; 7]
         })),
         "resume" => Some((crate::qgc::mavlink::cmd::DO_PAUSE_CONTINUE, {
             params[0] = 1.0;
+            params
+        })),
+        "calibrate" => Some((crate::qgc::mavlink::cmd::PREFLIGHT_CALIBRATION, {
+            // param1：校准类型（1=陀螺仪 2=磁力计 3=加速度计 4=水平 5=加速度计+磁力计）
+            params[0] = extra.and_then(|p| p.first().copied()).unwrap_or(1.0);
             params
         })),
         _ => None,
@@ -243,6 +251,144 @@ pub async fn telemetry_handler() -> Json<ApiResponse<QgcTelemetry>> {
     Json(ApiResponse::success(t))
 }
 
+/// 读取参数表（模拟器维护的 ArduCopter 精简子集）
+#[utoipa::path(
+    tag = "qgc",
+    get,
+    path = "/api/qgc/param",
+    operation_id = "qgcGetParams",
+    responses(
+        (status = 200, description = "参数表列表", body = ApiResponse<QgcParamList>),
+    ),
+)]
+pub async fn get_params_handler() -> Json<ApiResponse<QgcParamList>> {
+    let tbl = state::param_table().lock().unwrap_or_else(|e| e.into_inner());
+    let mut params: Vec<QgcParam> = tbl.iter().map(|(k, v)| QgcParam { id: k.clone(), value: *v }).collect();
+    drop(tbl);
+    params.sort_by(|a, b| a.id.cmp(&b.id));
+    Json(ApiResponse::success(QgcParamList { params }))
+}
+
+/// 写入单个参数（直达全局参数表，模拟器与 HTTP 共享同一表）
+#[utoipa::path(
+    tag = "qgc",
+    put,
+    path = "/api/qgc/param",
+    operation_id = "qgcSetParam",
+    request_body = QgcParam,
+    responses(
+        (status = 200, description = "参数已更新", body = ApiResponse<QgcParam>),
+    ),
+)]
+pub async fn set_param_handler(Json(req): Json<QgcParam>) -> Json<ApiResponse<QgcParam>> {
+    if state::set_param(&req.id, req.value) {
+        Json(ApiResponse::success(req))
+    } else {
+        Json(ApiResponse::error(format!("未知参数名: {}", req.id)))
+    }
+}
+
+/// 读取当前遥测数据流频率（Hz）
+#[utoipa::path(
+    tag = "qgc",
+    get,
+    path = "/api/qgc/stream",
+    operation_id = "qgcGetStream",
+    responses(
+        (status = 200, description = "当前遥测频率", body = ApiResponse<QgcStreamResponse>),
+    ),
+)]
+pub async fn get_stream_handler() -> Json<ApiResponse<QgcStreamResponse>> {
+    Json(ApiResponse::success(QgcStreamResponse { hz: state::telemetry_hz() }))
+}
+
+/// 设置遥测数据流频率（Hz，运行时调速，模拟器下一拍生效）
+#[utoipa::path(
+    tag = "qgc",
+    post,
+    path = "/api/qgc/stream",
+    operation_id = "qgcSetStream",
+    request_body = QgcStreamRequest,
+    responses(
+        (status = 200, description = "已更新遥测频率", body = ApiResponse<QgcStreamResponse>),
+    ),
+)]
+pub async fn set_stream_handler(Json(req): Json<QgcStreamRequest>) -> Json<ApiResponse<QgcStreamResponse>> {
+    state::set_telemetry_hz(req.hz);
+    Json(ApiResponse::success(QgcStreamResponse { hz: state::telemetry_hz() }))
+}
+
+/// 列出遥测 CSV 记录文件（按天分割，位于 `[CSV] Dir` 目录）
+#[utoipa::path(
+    tag = "qgc",
+    get,
+    path = "/api/qgc/telemetry/csv",
+    operation_id = "qgcListCsv",
+    responses(
+        (status = 200, description = "CSV 文件列表", body = ApiResponse<Vec<QgcCsvFile>>),
+    ),
+)]
+pub async fn list_csv_handler() -> Json<ApiResponse<Vec<QgcCsvFile>>> {
+    let dir = PathBuf::from(config::csv_dir());
+    let mut files: Vec<QgcCsvFile> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            let path = e.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("csv") {
+                if let Ok(meta) = e.metadata() {
+                    let modified = meta
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0);
+                    if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                        files.push(QgcCsvFile {
+                            name: name.to_string(),
+                            size: meta.len(),
+                            modified,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    files.sort_by(|a, b| b.modified.cmp(&a.modified));
+    Json(ApiResponse::success(files))
+}
+
+/// 下载单个遥测 CSV 文件内容（纯文本）
+#[utoipa::path(
+    tag = "qgc",
+    get,
+    path = "/api/qgc/telemetry/csv/{name}",
+    operation_id = "qgcGetCsv",
+    params(("name" = String, Path, description = "CSV 文件名")),
+    responses(
+        (status = 200, description = "CSV 文本内容", content_type = "text/plain"),
+        (status = 404, description = "文件不存在"),
+    ),
+)]
+pub async fn get_csv_handler(Path(name): Path<String>) -> impl axum::response::IntoResponse {
+    // 防路径穿越：仅允许纯文件名
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        return (StatusCode::BAD_REQUEST, "非法文件名").into_response();
+    }
+    let path = PathBuf::from(config::csv_dir()).join(&name);
+    match fs::read_to_string(&path) {
+        Ok(content) => {
+            let body = content;
+            (
+                StatusCode::OK,
+                [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+                body,
+            )
+                .into_response()
+        }
+        Err(_) => (StatusCode::NOT_FOUND, "文件不存在").into_response(),
+    }
+}
+
 /// 发送飞控命令
 ///
 /// # HTTP 端点
@@ -280,9 +426,11 @@ pub async fn command_handler(Json(req): Json<QgcCommandRequest>) -> Json<ApiResp
     let frame = if let Some(f) = send_special_command(&req, sysid, compid) {
         f
     } else {
-        let Some((command, params)) = command_params(&req.command, req.altitude) else {
+        let Some((command, params)) = command_params(&req.command, req.altitude, req.params.as_deref()) else {
             return Json(ApiResponse::error(format!("不支持的命令: {}", req.command)));
         };
+        // 登记待回执命令（COMMAND_LONG 经飞控 COMMAND_ACK 回执，超时重传）
+        crate::qgc::state::set_pending(command, params);
         crate::qgc::mavlink::encode_command_long(sysid, compid, state::next_seq(), 1, 1, command, params)
     };
     let _ = tx.send(Outbound::Frame(frame));
@@ -513,7 +661,7 @@ pub async fn tile_handler(
     ),
 )]
 pub async fn tile_stats_handler() -> Json<ApiResponse<TileStats>> {
-    let (count, bytes) = crate::qgc::tiles::stats();
+    let (count, bytes) = crate::qgc::tiles::stats().await;
     Json(ApiResponse::success(TileStats { count, bytes }))
 }
 
@@ -534,7 +682,7 @@ pub async fn tile_stats_handler() -> Json<ApiResponse<TileStats>> {
     ),
 )]
 pub async fn clear_tiles_handler() -> Json<ApiResponse<SavedResult>> {
-    match crate::qgc::tiles::clear() {
+    match crate::qgc::tiles::clear().await {
         Ok(()) => Json(ApiResponse::success(SavedResult { saved: true })),
         Err(e) => Json(ApiResponse::error(e)),
     }

@@ -46,6 +46,25 @@ pub fn udp_params() -> (bool, u16, String, u16, u8, u8, u64, u16) {
     )
 }
 
+/// 读取遥测 CSV 录制目录（`[CSV] Dir`，缺省 `csv/qgc`）
+///
+/// # 返回值
+/// 录制目录相对路径，缺省 `csv/qgc`（与瓦片缓存 `tiles/`、根目录 `csv/` 平级）。
+pub fn csv_dir() -> String {
+    ensure_loaded();
+    global()
+        .map(|c| c.get_or("CSV", "Dir", "csv/qgc"))
+        .unwrap_or_else(|| "csv/qgc".to_string())
+}
+
+/// 遥测 CSV 录制开关（`[CSV] Enabled`，缺省开启）
+pub fn csv_enabled() -> bool {
+    ensure_loaded();
+    global()
+        .map(|c| c.get_or("CSV", "Enabled", "true") == "true")
+        .unwrap_or(true)
+}
+
 /// 读取地图瓦片源 URL 模板（`[Tiles] Url`，支持 `{z}/{x}/{y}` 占位符）
 ///
 /// # 返回值

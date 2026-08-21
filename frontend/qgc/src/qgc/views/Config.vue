@@ -36,7 +36,7 @@
             class="config-editor"
             placeholder="加载中…"
           />
-          <p class="config-hint">修改保存后需重启服务生效（服务运行时修改立即生效的仅 [Mock] 开关）。</p>
+          <p class="config-hint">修改保存后需重启服务生效（服务端仅校验语法，运行中的服务不热加载）。</p>
         </div>
       </div>
     </div>

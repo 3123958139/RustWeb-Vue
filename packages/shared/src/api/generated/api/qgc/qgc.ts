@@ -9,14 +9,20 @@ import type {
   ApiResponseBool,
   ApiResponseConfigContent,
   ApiResponseQgcMission,
+  ApiResponseQgcParam,
+  ApiResponseQgcParamList,
+  ApiResponseQgcStreamResponse,
   ApiResponseQgcTelemetry,
   ApiResponseSavedResult,
   ApiResponseServiceStatus,
   ApiResponseTileStats,
+  ApiResponseVecQgcCsvFile,
   ConfigContent,
   QgcCommandRequest,
   QgcMissionUploadRequest,
-  QgcModeRequest
+  QgcModeRequest,
+  QgcParam,
+  QgcStreamRequest
 } from '../../model';
 
 import { customInstance } from '../../../custom-instance';
@@ -215,6 +221,30 @@ const qgcSetMode = (
       options);
     }
   /**
+ * @summary 读取参数表（模拟器维护的 ArduCopter 精简子集）
+ */
+const qgcGetParams = (
+
+ options?: SecondParameter<typeof customInstance<ApiResponseQgcParamList>>,) => {
+      return customInstance<ApiResponseQgcParamList>(
+      {url: `/api/qgc/param`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * @summary 写入单个参数（直达全局参数表，模拟器与 HTTP 共享同一表）
+ */
+const qgcSetParam = (
+    qgcParam: BodyType<QgcParam>,
+ options?: SecondParameter<typeof customInstance<ApiResponseQgcParam>>,) => {
+      return customInstance<ApiResponseQgcParam>(
+      {url: `/api/qgc/param`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: qgcParam
+    },
+      options);
+    }
+  /**
  * # HTTP 端点
  * `POST /api/qgc/service/start`
  *
@@ -261,6 +291,30 @@ const qgcStopService = (
       options);
     }
   /**
+ * @summary 读取当前遥测数据流频率（Hz）
+ */
+const qgcGetStream = (
+
+ options?: SecondParameter<typeof customInstance<ApiResponseQgcStreamResponse>>,) => {
+      return customInstance<ApiResponseQgcStreamResponse>(
+      {url: `/api/qgc/stream`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * @summary 设置遥测数据流频率（Hz，运行时调速，模拟器下一拍生效）
+ */
+const qgcSetStream = (
+    qgcStreamRequest: BodyType<QgcStreamRequest>,
+ options?: SecondParameter<typeof customInstance<ApiResponseQgcStreamResponse>>,) => {
+      return customInstance<ApiResponseQgcStreamResponse>(
+      {url: `/api/qgc/stream`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: qgcStreamRequest
+    },
+      options);
+    }
+  /**
  * # HTTP 端点
  * `GET /api/qgc/telemetry`
  *
@@ -274,6 +328,28 @@ const qgcGetTelemetry = (
  options?: SecondParameter<typeof customInstance<ApiResponseQgcTelemetry>>,) => {
       return customInstance<ApiResponseQgcTelemetry>(
       {url: `/api/qgc/telemetry`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * @summary 列出遥测 CSV 记录文件（按天分割，位于 `[CSV] Dir` 目录）
+ */
+const qgcListCsv = (
+
+ options?: SecondParameter<typeof customInstance<ApiResponseVecQgcCsvFile>>,) => {
+      return customInstance<ApiResponseVecQgcCsvFile>(
+      {url: `/api/qgc/telemetry/csv`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * @summary 下载单个遥测 CSV 文件内容（纯文本）
+ */
+const qgcGetCsv = (
+    name: string,
+ options?: SecondParameter<typeof customInstance<unknown>>,) => {
+      return customInstance<unknown>(
+      {url: `/api/qgc/telemetry/csv/${name}`, method: 'GET'
     },
       options);
     }
@@ -335,7 +411,7 @@ const qgcGetTile = (
     },
       options);
     }
-  return {qgcSendCommand,qgcGetConfig,qgcSaveConfig,qgcGetHelp,qgcGetMission,qgcUploadMission,qgcClearMission,qgcDownloadMission,qgcSetMode,qgcStartService,qgcGetServiceStatus,qgcStopService,qgcGetTelemetry,qgcClearTiles,qgcGetTileStats,qgcGetTile}};
+  return {qgcSendCommand,qgcGetConfig,qgcSaveConfig,qgcGetHelp,qgcGetMission,qgcUploadMission,qgcClearMission,qgcDownloadMission,qgcSetMode,qgcGetParams,qgcSetParam,qgcStartService,qgcGetServiceStatus,qgcStopService,qgcGetStream,qgcSetStream,qgcGetTelemetry,qgcListCsv,qgcGetCsv,qgcClearTiles,qgcGetTileStats,qgcGetTile}};
 export type QgcSendCommandResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSendCommand']>>>
 export type QgcGetConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetConfig']>>>
 export type QgcSaveConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSaveConfig']>>>
@@ -345,10 +421,16 @@ export type QgcUploadMissionResult = NonNullable<Awaited<ReturnType<ReturnType<t
 export type QgcClearMissionResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcClearMission']>>>
 export type QgcDownloadMissionResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcDownloadMission']>>>
 export type QgcSetModeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSetMode']>>>
+export type QgcGetParamsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetParams']>>>
+export type QgcSetParamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSetParam']>>>
 export type QgcStartServiceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcStartService']>>>
 export type QgcGetServiceStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetServiceStatus']>>>
 export type QgcStopServiceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcStopService']>>>
+export type QgcGetStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetStream']>>>
+export type QgcSetStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcSetStream']>>>
 export type QgcGetTelemetryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetTelemetry']>>>
+export type QgcListCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcListCsv']>>>
+export type QgcGetCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetCsv']>>>
 export type QgcClearTilesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcClearTiles']>>>
 export type QgcGetTileStatsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetTileStats']>>>
 export type QgcGetTileResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getQgc>['qgcGetTile']>>>

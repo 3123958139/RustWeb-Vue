@@ -37,8 +37,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
-/// 遥测广播节流间隔（100ms = 10Hz，与 `[Gcs] TelemetryHz` 默认一致）
-const TELEMETRY_EMIT_INTERVAL: Duration = Duration::from_millis(100);
 /// 连接超时（距上次心跳超过该时间判定为断开）
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 /// 数据流请求间隔（5 秒，请求飞控以 10Hz 发送遥测）
@@ -85,7 +83,7 @@ pub fn start_all(
     }
     {
         let (stop3, tx3, link3) = (stop.clone(), tx.clone(), link.clone());
-        handles.push(thread::spawn(move || run_sender(stop3, tx3, link3, out_rx, gcs_sysid, gcs_compid, heartbeat_ms)));
+        handles.push(thread::spawn(move || run_sender(stop3, tx3, link3, out_rx, gcs_sysid, gcs_compid, heartbeat_ms, telemetry_hz)));
     }
     if mock {
         let (stop4, mission) = (stop.clone(), state::mission());
@@ -105,8 +103,10 @@ fn run_receiver(
     stop: Arc<AtomicBool>,
     tx: broadcast::Sender<EventPayload>,
     link: Arc<UdpLink>,
-    _telemetry_hz: u16,
+    telemetry_hz: u16,
 ) {
+    // 遥测广播节流间隔（由 `[Gcs] TelemetryHz` 配置，默认 10Hz）
+    let emit_interval = Duration::from_millis(1000 / telemetry_hz.max(1) as u64);
     let mut extractor = FrameExtractor::new();
     let mut buf = vec![0u8; 4096];
     let mut last_emit = Instant::now();
@@ -138,7 +138,18 @@ fn run_receiver(
                             t.armed = hb.base_mode & mavlink::consts::MAV_MODE_FLAG_SAFETY_ARMED != 0;
                             t.mode = mavlink::mode_name(hb.custom_mode);
                             t.vehicle_type = hb.vehicle_type;
-                            last_heartbeat = Instant::now();
+                            // 飞行时长：解锁期间按心跳间隔累计（心跳约 1Hz，间隔即实际耗时；
+                            // 失联重连后的首个间隔钳制到 2s，避免跳变）
+                            let now = Instant::now();
+                            if t.armed {
+                                t.flight_time_s += now
+                                    .duration_since(last_heartbeat)
+                                    .as_secs_f32()
+                                    .min(2.0);
+                            } else {
+                                t.flight_time_s = 0.0;
+                            }
+                            last_heartbeat = now;
                         }
                         mavlink::msg::SYS_STATUS => {
                             let s = mavlink::decode_sys_status(&f.payload);
@@ -218,13 +229,24 @@ fn run_receiver(
                                 t.home_alt = h.alt as f32 / 1000.0;
                             }
                         }
-                        mavlink::msg::HEARTBEAT => {
-                            // 飞行时长累计（解锁期间以 100ms 步进，按帧到达近似）
-                            if t.armed {
-                                t.flight_time_s += 0.1;
-                            } else {
-                                t.flight_time_s = 0.0;
-                            }
+                        mavlink::msg::EKF_STATUS_REPORT => {
+                            let e = mavlink::decode_ekf_status_report(&f.payload);
+                            t.ekf_flags = e.flags;
+                            t.ekf_vel_variance = e.vel_var;
+                            t.ekf_pos_horiz_variance = e.pos_h_var;
+                            t.ekf_pos_vert_variance = e.pos_v_var;
+                            t.ekf_compass_variance = e.compass_var;
+                        }
+                        mavlink::msg::VIBRATION => {
+                            let v = mavlink::decode_vibration(&f.payload);
+                            t.vibration_x = v.x;
+                            t.vibration_y = v.y;
+                            t.vibration_z = v.z;
+                        }
+                        mavlink::msg::RC_CHANNELS => {
+                            let r = mavlink::decode_rc_channels(&f.payload);
+                            t.rc_channels = r.channels.to_vec();
+                            t.rc_rssi = r.rssi;
                         }
                         // ── 任务协议（仅接受常规任务 MISSION_TYPE_MISSION） ──
                         mavlink::msg::MISSION_REQUEST_INT => {
@@ -285,6 +307,9 @@ fn run_receiver(
                                     lat: it.x as f64 / 1e7,
                                     lon: it.y as f64 / 1e7,
                                     altitude: it.z,
+                                    hold_time: Some(it.param1),
+                                    turn_mode: None,
+                                    action: None,
                                 });
                                 m.received += 1;
                                 if m.received >= m.total {
@@ -295,6 +320,8 @@ fn run_receiver(
                         }
                         mavlink::msg::COMMAND_ACK => {
                             let a = mavlink::decode_command_ack(&f.payload);
+                            // 收到回执：清除待重传记录
+                            crate::qgc::state::clear_pending(a.command);
                             let name = match a.result {
                                 0 => "ACCEPTED",
                                 1 => "TEMPORARILY_REJECTED",
@@ -341,9 +368,11 @@ fn run_receiver(
                 }
                 *state::telemetry().write().unwrap_or_else(|e| e.into_inner()) = t;
                 // 10Hz 节流广播
-                if since_hb <= CONNECTION_TIMEOUT.as_millis() as u64 && last_emit.elapsed() >= TELEMETRY_EMIT_INTERVAL {
+                if since_hb <= CONNECTION_TIMEOUT.as_millis() as u64 && last_emit.elapsed() >= emit_interval {
                     last_emit = Instant::now();
                     let snapshot = state::telemetry().read().unwrap_or_else(|e| e.into_inner()).clone();
+                    // 遥测 CSV 录制（按天分割，[CSV] Dir/Enabled 配置）
+                    crate::qgc::csv::record(&snapshot);
                     if let Ok(json) = serialize(&QgcEvent::Telemetry(snapshot)) {
                         let _ = tx.send(json);
                     }
@@ -389,6 +418,7 @@ fn run_sender(
     gcs_sysid: u8,
     gcs_compid: u8,
     heartbeat_ms: u64,
+    telemetry_hz: u16,
 ) {
     // 独立发送套接字（临时端口，避免与接收线程争用）
     let sock = match UdpSocket::bind(("0.0.0.0", 0)) {
@@ -420,11 +450,37 @@ fn run_sender(
                         lat: home.lat,
                         lon: home.lon,
                         altitude: 0.0,
+                        hold_time: None,
+                        turn_mode: None,
+                        action: None,
                     });
-                    for (i, mut it) in items.into_iter().enumerate() {
-                        it.seq = (i + 1) as u16;
+                    for mut it in items {
                         it.command = mavlink::cmd::NAV_WAYPOINT;
+                        let (lat, lon, alt) = (it.lat, it.lon, it.altitude);
+                        let action = it.action.take();
                         all.push(it);
+                        // 动作条目：在航点后自动追加 DO 命令（拍照/舵机），随该航点执行
+                        let do_cmd = match action.as_deref() {
+                            Some("camera") => Some(mavlink::cmd::DO_SET_CAM_TRIGG_INTERVAL),
+                            Some("servo") => Some(mavlink::cmd::DO_SET_SERVO),
+                            _ => None,
+                        };
+                        if let Some(do_cmd) = do_cmd {
+                            all.push(QgcMissionItem {
+                                seq: 0,
+                                command: do_cmd,
+                                lat,
+                                lon,
+                                altitude: alt,
+                                hold_time: None,
+                                turn_mode: None,
+                                action: None,
+                            });
+                        }
+                    }
+                    // 统一重排序号（0 = 首页）
+                    for (i, it) in all.iter_mut().enumerate() {
+                        it.seq = i as u16;
                     }
                     let count = all.len() as u16;
                     let ms = state::mission();
@@ -460,6 +516,20 @@ fn run_sender(
             }
         }
 
+        // 1.5 命令回执超时重传（3s 内无 COMMAND_ACK 重发，最多 3 次）
+        if let Some(re) = crate::qgc::state::take_expired_pending() {
+            let frame = mavlink::encode_command_long(gcs_sysid, gcs_compid, state::next_seq(), 1, 1, re.command, re.params);
+            let _ = sock.send_to(&frame, link.send_target());
+            warn!("[qgc] 命令 cmd={} 超时未回执，第 {} 次重传", re.command, re.retries);
+            if let Ok(json) = serialize(&QgcEvent::CommandAck(CommandAckPayload {
+                command: re.command,
+                result: 255,
+                result_name: format!("重传 {}", re.retries),
+            })) {
+                let _ = tx.send(json);
+            }
+        }
+
         // 2. 任务状态机推进（发送线程每 100ms 轮询）
         {
             let ms = state::mission();
@@ -469,8 +539,16 @@ fn run_sender(
                     // 飞控请求序号 → 发送对应条目
                     if let Some(n) = m.last_request_seq.take() {
                         if let Some(item) = m.items.get(n as usize) {
+                            // 转弯模式 → param2 转弯半径：fixed 定点 / coordinated 协调 / adaptive 自适应
+                            let param2 = match item.turn_mode.as_deref() {
+                                Some("fixed") => 0.5,
+                                Some("coordinated") => 5.0,
+                                _ => 0.0,
+                            };
                             let frame = mavlink::encode_mission_item_int(
-                                gcs_sysid, gcs_compid, state::next_seq(), 1, 1, n, item.lat, item.lon, item.altitude,
+                                gcs_sysid, gcs_compid, state::next_seq(), 1, 1,
+                                n, item.command, item.lat, item.lon, item.altitude,
+                                item.hold_time.unwrap_or(0.0), param2, 0.0,
                             );
                             let target = link.send_target();
                             let _ = sock.send_to(&frame, target);
@@ -518,10 +596,10 @@ fn run_sender(
             );
             let _ = sock.send_to(&frame, link.send_target());
         }
-        // 4. 请求数据流（5 秒一次，请求飞控以 10Hz 发送遥测）
+        // 4. 请求数据流（5 秒一次，请求飞控以配置频率发送遥测）
         if last_data_stream.elapsed() >= DATA_STREAM_INTERVAL {
             last_data_stream = Instant::now();
-            let frame = mavlink::encode_request_data_stream(gcs_sysid, gcs_compid, state::next_seq(), 1, 1, 10);
+            let frame = mavlink::encode_request_data_stream(gcs_sysid, gcs_compid, state::next_seq(), 1, 1, telemetry_hz.max(1));
             let _ = sock.send_to(&frame, link.send_target());
         }
 

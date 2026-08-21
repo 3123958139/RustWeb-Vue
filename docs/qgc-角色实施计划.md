@@ -113,7 +113,7 @@ frontend/qgc/
 ## 三、实施顺序与验证
 
 1. **后端骨架**：Permission/注册表/`src/qgc/` 全部模块（先 mavlink + udp + simulator + service）→ `cargo build` 通过
-2. **`npm run gen:api`** → 生成 `generated/api/qgc/qgc.ts` + model；断言 `62 路径 / 77 操作`
+2. **`npm run gen:api`** → 生成 `generated/api/qgc/qgc.ts` + model；断言 `66 路径 / 83 操作`
 3. **前端**：`frontend/qgc/` 全量（api facade → useQgcEvents → 组件 → 4 视图）→ `npm run build` 通过
 4. **联调**：dev 模式 `cargo run` + 启动 qgc 服务（Mock=true）→ 仪表盘/地图/航点上传飞行/命令按钮全链路验证
 5. **构建**：`cargo build --release --features embedded` 验证内嵌

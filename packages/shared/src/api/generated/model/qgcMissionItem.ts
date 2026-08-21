@@ -9,24 +9,40 @@
 /**
  * 航点（任务条目）
  *
- * 对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT），
- * 经纬度为 WGS84 十进制度，高度为相对高度（米）。
+ * 对应 MAVLink MISSION_ITEM_INT（MAV_CMD_NAV_WAYPOINT 或 DO 动作命令），
+ * 经纬度为 WGS84 十进制度，高度为相对高度（米）。动作条目（action 非 none）
+ * 由服务端在航点后自动追加 DO 命令条目（MAV_CMD_DO_SET_SERVO / DO_SET_CAM_TRIGG_INTERVAL）。
  */
 export interface QgcMissionItem {
+  /**
+     * 航点动作：none / camera 拍照 / servo 舵机（自动追加 DO 命令条目）
+     * @nullable
+     */
+  action?: string | null;
   /** 相对高度（米） */
   altitude: number;
   /**
-     * 命令（16 = NAV_WAYPOINT）
+     * 命令（16 = NAV_WAYPOINT，183 = DO_SET_SERVO，20001 = DO_SET_CAM_TRIGG_INTERVAL）
      * @minimum 0
      */
   command: number;
+  /**
+     * 停留时间（秒，NAV_WAYPOINT param1；航点悬停时长）
+     * @nullable
+     */
+  hold_time?: number | null;
   /** 纬度（度） */
   lat: number;
   /** 经度（度） */
   lon: number;
   /**
-     * 序号（上传时由服务端自动重排，从 1 开始）
+     * 序号（上传时由服务端自动重排，从 1 开始；0 = 首页）
      * @minimum 0
      */
   seq: number;
+  /**
+     * 转弯模式：fixed 定点 / coordinated 协调 / adaptive 自适应（NAV_WAYPOINT param2 转弯半径）
+     * @nullable
+     */
+  turn_mode?: string | null;
 }

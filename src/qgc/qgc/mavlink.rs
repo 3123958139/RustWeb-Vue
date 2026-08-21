@@ -52,6 +52,18 @@ pub mod msg {
     pub const BATTERY_STATUS: u32 = 147;
     pub const SET_MODE: u32 = 176;
     pub const HOME_POSITION: u32 = 242;
+    /// 参数协议：请求读取全部参数（飞控逐个回 PARAM_VALUE）
+    pub const PARAM_REQUEST_LIST: u32 = 21;
+    /// 参数协议：飞控回执单个参数
+    pub const PARAM_VALUE: u32 = 22;
+    /// 参数协议：地面站写入参数
+    pub const PARAM_SET: u32 = 23;
+    /// EKF 状态报告（传感器健康度）
+    pub const EKF_STATUS_REPORT: u32 = 193;
+    /// 振动数据（传感器健康度）
+    pub const VIBRATION: u32 = 241;
+    /// RC 通道（遥控器输入，含 rssi）
+    pub const RC_CHANNELS: u32 = 65;
 }
 
 /// MAVLink 命令常量（MAV_CMD，COMMAND_LONG 的 command 字段）
@@ -63,19 +75,26 @@ pub mod cmd {
     pub const DO_PAUSE_CONTINUE: u16 = 157;
     pub const MISSION_START: u16 = 300;
     pub const COMPONENT_ARM_DISARM: u16 = 400;
+    pub const PREFLIGHT_CALIBRATION: u16 = 241;
+    pub const DO_SET_SERVO: u16 = 183;
+    pub const DO_SET_CAM_TRIGG_INTERVAL: u16 = 20001;
 }
 
-/// SET_POSITION_TARGET 速度/位置掩码（type_mask）
+/// SET_POSITION_TARGET 掩码（type_mask，POSITION_TARGET_TYPEMASK 位定义）
+///
+/// 位布局：bit0-2 位置 xyz / bit3-5 速度 xyz / bit6-8 加速度 xyz /
+/// bit10 偏航 / bit11 偏航速率。设位 = 忽略该分量。
 pub mod mask {
-    /// 忽略位置分量（只设置速度）
+    /// 忽略位置分量（只设置速度，键盘摇杆用）
     pub const POSITION_IGNORE: u16 = 0x07;
+    /// 忽略速度分量（只设置位置，随点随行用）
+    pub const VELOCITY_IGNORE: u16 = 0x38;
     /// 忽略加速度分量
-    pub const ACCEL_IGNORE: u16 = 0x38;
-    /// 忽略速度分量（只设置位置）
-    pub const VELOCITY_IGNORE: u16 = 0x07 << 0;
-    /// 忽略偏航（只设置位置，随点随行用）
-    pub const YAW_IGNORE: u16 = 0x80;
-    pub const YAW_RATE_IGNORE: u16 = 0x100;
+    pub const ACCEL_IGNORE: u16 = 0x1C0;
+    /// 忽略偏航
+    pub const YAW_IGNORE: u16 = 0x400;
+    /// 忽略偏航速率
+    pub const YAW_RATE_IGNORE: u16 = 0x800;
 }
 
 /// 其他协议常量
@@ -101,6 +120,8 @@ pub mod consts {
     pub const MISSION_TYPE_MISSION: u8 = 0;
     /// MAV_MISSION_ACCEPTED：任务 ack 成功
     pub const MAV_MISSION_ACCEPTED: u8 = 0;
+    /// MAV_PARAM_TYPE_REAL32：参数类型（单精度浮点，ArduPilot 参数通用类型）
+    pub const MAV_PARAM_TYPE_REAL32: u8 = 9;
 }
 
 /// 各消息的 CRC_EXTRA（来源：c_library_v2 common.h `MAVLINK_MESSAGE_CRCS`）
@@ -553,6 +574,12 @@ pub fn decode_mission_request_int(p: &[u8]) -> MissionRequestInt {
 pub struct MissionItemInt {
     pub seq: u16,
     pub command: u16,
+    /// param1：悬停时间（秒，NAV_WAYPOINT）/ DO 命令参数
+    pub param1: f32,
+    /// param2：转弯半径（NAV_WAYPOINT）/ DO 命令参数
+    pub param2: f32,
+    /// param4：目标偏航角（度，NAV_WAYPOINT）/ DO 命令参数
+    pub param4: f32,
     pub x: i32,
     pub y: i32,
     pub z: f32,
@@ -563,6 +590,9 @@ pub fn decode_mission_item_int(p: &[u8]) -> MissionItemInt {
     MissionItemInt {
         seq: rd_u16(p, 2),
         command: rd_u16(p, 5),
+        param1: rd_f32(p, 9),
+        param2: rd_f32(p, 13),
+        param4: rd_f32(p, 21),
         x: rd_i32(p, 25),
         y: rd_i32(p, 29),
         z: rd_f32(p, 33),
@@ -774,6 +804,12 @@ pub fn encode_mission_count(
 }
 
 /// 编码 MISSION_ITEM_INT（任务条目，MAV_FRAME_GLOBAL_RELATIVE_ALT=3）
+///
+/// # 参数
+/// - `command`：MAV_CMD（NAV_WAYPOINT=16 航点 / DO_SET_SERVO / DO_SET_CAM_TRIGG_INTERVAL 动作）
+/// - `param1`：悬停时间（秒）/ DO 命令参数 1
+/// - `param2`：转弯半径（米，0 直角）/ DO 命令参数 2
+/// - `param4`：目标偏航（度）
 pub fn encode_mission_item_int(
     sysid: u8,
     compid: u8,
@@ -781,19 +817,25 @@ pub fn encode_mission_item_int(
     target_sys: u8,
     target_comp: u8,
     item_seq: u16,
+    command: u16,
     lat_deg: f64,
     lon_deg: f64,
     alt_m: f32,
+    param1: f32,
+    param2: f32,
+    param4: f32,
 ) -> Vec<u8> {
     let mut p = vec![0u8; 38];
     p[0] = target_sys;
     p[1] = target_comp;
     p[2..4].copy_from_slice(&item_seq.to_le_bytes());
     p[4] = 3; // MAV_FRAME_GLOBAL_RELATIVE_ALT
-    p[5..7].copy_from_slice(&cmd::NAV_WAYPOINT.to_le_bytes());
+    p[5..7].copy_from_slice(&command.to_le_bytes());
     p[7] = 0; // current
     p[8] = 1; // autocontinue
-    // param1..4 = 0（悬停时间 / 半径 / 偏航等默认值）
+    p[9..13].copy_from_slice(&param1.to_bits().to_le_bytes());
+    p[13..17].copy_from_slice(&param2.to_bits().to_le_bytes());
+    p[21..25].copy_from_slice(&param4.to_bits().to_le_bytes());
     p[25..29].copy_from_slice(&((lat_deg * 1e7).round() as i32).to_le_bytes());
     p[29..33].copy_from_slice(&((lon_deg * 1e7).round() as i32).to_le_bytes());
     p[33..37].copy_from_slice(&alt_m.to_bits().to_le_bytes());
@@ -924,6 +966,202 @@ pub fn mode_id(name: &str) -> Option<u32> {
         // 数字模式 ID（如 "16"）
         _ => name.trim().parse().ok()?,
     })
+}
+
+/// 编码 PARAM_REQUEST_LIST（请求飞控发送全部参数）
+#[allow(dead_code)]
+pub fn encode_param_request_list(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    target_sys: u8,
+    target_comp: u8,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 2];
+    p[0] = target_sys;
+    p[1] = target_comp;
+    encode_v2(sysid, compid, seq, msg::PARAM_REQUEST_LIST, &p)
+}
+
+/// PARAM_SET 解码结果（地面站写入参数）
+#[derive(Debug, Clone)]
+pub struct ParamSet {
+    /// 参数名（最多 16 字节 ASCII，左对齐，0 填充）
+    pub param_id: String,
+    /// 参数值（单精度浮点）
+    pub param_value: f32,
+}
+
+/// 解码 PARAM_SET（param_id 16 字节 + param_value f32）
+pub fn decode_param_set(p: &[u8]) -> ParamSet {
+    let n = p.len().min(16);
+    let mut id_bytes = [0u8; 16];
+    id_bytes[..n].copy_from_slice(&p[..n]);
+    let param_id = String::from_utf8_lossy(&id_bytes)
+        .trim_end_matches('\0')
+        .trim()
+        .to_string();
+    let param_value = if p.len() >= 20 { rd_f32(p, 16) } else { 0.0 };
+    ParamSet { param_id, param_value }
+}
+
+/// 编码 PARAM_VALUE（飞控回执单个参数）
+///
+/// # 参数
+/// - `param_id`：参数名（截断/填充至 16 字节）
+/// - `param_value`：参数值
+/// - `param_count`：参数总数（用于前端进度）
+/// - `param_index`：当前参数序号（0 起）
+pub fn encode_param_value(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    param_id: &str,
+    param_value: f32,
+    param_count: u16,
+    param_index: u16,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 25];
+    // param_id：16 字节 ASCII（左对齐，0 填充）
+    let id_bytes = param_id.as_bytes();
+    let n = id_bytes.len().min(16);
+    p[..n].copy_from_slice(&id_bytes[..n]);
+    p[16..20].copy_from_slice(&param_value.to_bits().to_le_bytes());
+    p[20] = consts::MAV_PARAM_TYPE_REAL32;
+    p[21..23].copy_from_slice(&param_count.to_le_bytes());
+    p[23..25].copy_from_slice(&param_index.to_le_bytes());
+    encode_v2(sysid, compid, seq, msg::PARAM_VALUE, &p)
+}
+
+/// 编码 EKF_STATUS_REPORT（36 字节 v2）
+///
+/// # 参数
+/// - `flags`：EKF 各状态位掩码（MAV_ESTIMATOR_STATUS，位 0~15）
+/// - `vel_var` / `pos_h_var` / `pos_v_var` / `compass_var`：核心方差（越小越健康）
+pub fn encode_ekf_status_report(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    flags: u32,
+    vel_var: f32,
+    pos_h_var: f32,
+    pos_v_var: f32,
+    compass_var: f32,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 36];
+    p[0..4].copy_from_slice(&flags.to_le_bytes());
+    p[4..8].copy_from_slice(&vel_var.to_bits().to_le_bytes());
+    p[8..12].copy_from_slice(&pos_h_var.to_bits().to_le_bytes());
+    p[12..16].copy_from_slice(&pos_v_var.to_bits().to_le_bytes());
+    p[16..20].copy_from_slice(&compass_var.to_bits().to_le_bytes());
+    // 其余方差字段（terrain_alt / baro/ GPS / wind 等）占位填 0
+    encode_v2(sysid, compid, seq, msg::EKF_STATUS_REPORT, &p)
+}
+
+/// EKF_STATUS_REPORT 解码结果
+#[derive(Debug, Clone)]
+pub struct EkfStatus {
+    /// 各状态位掩码
+    pub flags: u32,
+    /// 速度方差
+    pub vel_var: f32,
+    /// 水平位置方差
+    pub pos_h_var: f32,
+    /// 垂直位置方差
+    pub pos_v_var: f32,
+    /// 罗盘方差
+    pub compass_var: f32,
+}
+
+/// 解码 EKF_STATUS_REPORT
+pub fn decode_ekf_status_report(p: &[u8]) -> EkfStatus {
+    EkfStatus {
+        flags: rd_u32(p, 0),
+        vel_var: rd_f32(p, 4),
+        pos_h_var: rd_f32(p, 8),
+        pos_v_var: rd_f32(p, 12),
+        compass_var: rd_f32(p, 16),
+    }
+}
+
+/// 编码 VIBRATION（28 字节 v2：time_usec + vibration xyz + clipping 3 路）
+pub fn encode_vibration(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    time_usec: u64,
+    vx: f32,
+    vy: f32,
+    vz: f32,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 28];
+    p[0..8].copy_from_slice(&time_usec.to_le_bytes());
+    p[8..12].copy_from_slice(&vx.to_bits().to_le_bytes());
+    p[12..16].copy_from_slice(&vy.to_bits().to_le_bytes());
+    p[16..20].copy_from_slice(&vz.to_bits().to_le_bytes());
+    // clipping 3 路占位填 0
+    encode_v2(sysid, compid, seq, msg::VIBRATION, &p)
+}
+
+/// VIBRATION 解码结果
+#[derive(Debug, Clone)]
+pub struct Vibration {
+    /// 振动 x（m/s/s RMS）
+    pub x: f32,
+    /// 振动 y
+    pub y: f32,
+    /// 振动 z
+    pub z: f32,
+}
+
+/// 解码 VIBRATION（取三轴振动）
+pub fn decode_vibration(p: &[u8]) -> Vibration {
+    Vibration {
+        x: rd_f32(p, 8),
+        y: rd_f32(p, 12),
+        z: rd_f32(p, 16),
+    }
+}
+
+/// 编码 RC_CHANNELS（42 字节 v2：time_boot_ms + chan1..18 raw + rssi）
+pub fn encode_rc_channels(
+    sysid: u8,
+    compid: u8,
+    seq: u8,
+    time_boot_ms: u32,
+    channels: &[u16; 18],
+    rssi: u8,
+) -> Vec<u8> {
+    let mut p = vec![0u8; 42];
+    p[0..4].copy_from_slice(&time_boot_ms.to_le_bytes());
+    for i in 0..18 {
+        let off = 4 + i * 2;
+        p[off..off + 2].copy_from_slice(&channels[i].to_le_bytes());
+    }
+    p[40] = rssi;
+    encode_v2(sysid, compid, seq, msg::RC_CHANNELS, &p)
+}
+
+/// RC_CHANNELS 解码结果
+#[derive(Debug, Clone)]
+pub struct RcChannels {
+    /// 18 路通道原始值（PWM，微秒；未使用通道为 0）
+    pub channels: [u16; 18],
+    /// 接收机信号强度（0-100，0 表示遥控器丢失）
+    pub rssi: u8,
+}
+
+/// 解码 RC_CHANNELS
+pub fn decode_rc_channels(p: &[u8]) -> RcChannels {
+    let mut channels = [0u16; 18];
+    for i in 0..18 {
+        let off = 4 + i * 2;
+        if off + 2 <= p.len() {
+            channels[i] = u16::from_le_bytes([p[off], p[off + 1]]);
+        }
+    }
+    let rssi = if p.len() >= 41 { p[40] } else { 0 };
+    RcChannels { channels, rssi }
 }
 
 #[cfg(test)]

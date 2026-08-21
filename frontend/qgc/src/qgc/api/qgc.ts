@@ -14,6 +14,11 @@ export type {
     QgcMission,
     QgcMissionItem,
     TileStats,
+    QgcParam,
+    QgcParamList,
+    QgcStreamRequest,
+    QgcStreamResponse,
+    QgcCsvFile,
 } from "@shared/api/generated";
 
 /**
@@ -139,6 +144,36 @@ export function createQgcApi() {
         /** 清空瓦片缓存（删除磁盘 tiles/ 目录） */
         async clearTiles() {
             return api.qgcClearTiles();
+        },
+
+        /** 读取参数表（模拟器维护的 ArduCopter 精简子集） */
+        async getParams() {
+            return api.qgcGetParams();
+        },
+
+        /** 写入单个参数（直达全局参数表） */
+        async setParam(id: string, value: number) {
+            return api.qgcSetParam({id, value});
+        },
+
+        /** 读取当前遥测数据流频率（Hz） */
+        async getStream() {
+            return api.qgcGetStream();
+        },
+
+        /** 设置遥测数据流频率（Hz，运行时调速） */
+        async setStream(hz: number) {
+            return api.qgcSetStream({hz});
+        },
+
+        /** 列出遥测 CSV 记录文件 */
+        async listCsv() {
+            return api.qgcListCsv();
+        },
+
+        /** 下载单个遥测 CSV 文件内容（纯文本） */
+        async getCsv(name: string) {
+            return api.qgcGetCsv(name);
         },
 
         /**

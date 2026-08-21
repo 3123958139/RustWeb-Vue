@@ -34,6 +34,12 @@
 -->
 <template>
   <div ref="rootRef" class="screen-root">
+    <!-- 告警横幅（严重/警告高亮，语音播报同步触发） -->
+    <div v-if="qgcAlarms.length" class="alarm-banner" :class="alarmTopLevel">
+      <span class="alarm-icon">⚠</span>
+      <span class="alarm-text">{{ qgcAlarms.map((a) => a.message).join(" · ") }}</span>
+    </div>
+
     <!-- 全屏 Cesium 3D 地图（置于缩放舞台之外，保持原生尺寸，transform 不影响拾取） -->
     <div class="screen-map" ref="mapEl"></div>
 
@@ -54,6 +60,21 @@
           <div class="bar-side">
             <span class="bar-time">{{ currentTime }}</span>
             <el-button size="small" class="offline-map-btn" @click="openOfflinePanel">离线地图</el-button>
+            <el-button size="small" class="param-btn" @click="openParamPanel">参数表</el-button>
+            <el-button size="small" class="sensor-btn" @click="openSensorPanel">传感器</el-button>
+            <el-button size="small" class="rc-btn" @click="openRcPanel">遥控</el-button>
+            <el-button size="small" class="stream-btn" @click="openStreamPanel">数据流</el-button>
+            <el-button size="small" class="view-btn" @click="toggleViewMode">{{ view2D ? "3D" : "2D" }} 视图</el-button>
+            <el-button size="small" class="est-btn" @click="openEstimatePanel">估算</el-button>
+            <el-button size="small" class="gp-btn" @click="openGamepadPanel">手柄</el-button>
+            <el-button size="small" :type="noFlyVisible ? 'success' : 'info'" @click="toggleNoFly">禁飞区</el-button>
+            <el-button size="small" :type="measureMode ? 'warning' : 'info'" @click="measureMode = !measureMode; if (!measureMode) clearMeasure()">测量</el-button>
+            <el-button size="small" class="replay-btn" @click="openReplayPanel">回放</el-button>
+            <el-button size="small" class="fpv-btn" @click="openFpvPanel">FPV</el-button>
+            <el-button size="small" class="cal-btn" @click="openCalPanel">校准</el-button>
+            <el-tooltip content="语音告警" placement="bottom">
+              <el-switch class="voice-switch" v-model="speechEnabled" size="small" inline-prompt active-text="🔊" inactive-text="🔈" />
+            </el-tooltip>
             <el-button type="primary" size="small" class="qgc-service-btn" :loading="starting || stopping" @click="onToggleService">
               {{ serviceRunning ? "停止服务" : "启动服务" }}
             </el-button>
@@ -63,6 +84,51 @@
         <!-- 离线地图面板（瓦片离线保存 / 加载管理） -->
         <el-dialog v-model="offlinePanelVisible" title="离线地图" width="560px" append-to-body class="offline-dialog">
           <OfflineMapPanel :center="offlineCenter" />
+        </el-dialog>
+
+        <!-- 参数表面板（读取 / 编辑飞控参数，模拟器共享参数表） -->
+        <el-dialog v-model="paramPanelVisible" title="参数表" width="560px" append-to-body class="param-dialog">
+          <ParamPanel />
+        </el-dialog>
+
+        <!-- 传感器健康面板（EKF 估计器状态 + 振动） -->
+        <el-dialog v-model="sensorPanelVisible" title="传感器健康" width="480px" append-to-body class="sensor-dialog">
+          <SensorHealthPanel :telemetry="telemetry" />
+        </el-dialog>
+
+        <!-- RC 通道面板（遥控器输入通道条 + 信号强度） -->
+        <el-dialog v-model="rcPanelVisible" title="遥控通道" width="460px" append-to-body class="rc-dialog">
+          <RcChannelsPanel :telemetry="telemetry" />
+        </el-dialog>
+
+        <!-- 数据流配置面板（遥测频率调速） -->
+        <el-dialog v-model="streamPanelVisible" title="数据流" width="420px" append-to-body class="stream-dialog">
+          <StreamConfigPanel />
+        </el-dialog>
+
+        <!-- 航程 / 电量估算面板 -->
+        <el-dialog v-model="estPanelVisible" title="航程估算" width="440px" append-to-body class="est-dialog">
+          <FlightEstimatePanel />
+        </el-dialog>
+
+        <!-- 手柄控制面板 -->
+        <el-dialog v-model="gpPanelVisible" title="手柄控制" width="380px" append-to-body class="gp-dialog">
+          <GamepadPanel />
+        </el-dialog>
+
+        <!-- 遥测 CSV 回放面板 -->
+        <el-dialog v-model="replayPanelVisible" title="遥测回放" width="520px" append-to-body class="replay-dialog">
+          <ReplayPanel />
+        </el-dialog>
+
+        <!-- FPV 第一视角视频面板 -->
+        <el-dialog v-model="fpvPanelVisible" title="FPV" width="520px" append-to-body class="fpv-dialog">
+          <FpvPanel />
+        </el-dialog>
+
+        <!-- 传感器校准面板 -->
+        <el-dialog v-model="calPanelVisible" title="传感器校准" width="460px" append-to-body class="cal-dialog">
+          <CalibrationPanel />
         </el-dialog>
 
         <!-- 左上：仪表盘（姿态仪 / 高度速度表 / 航向带纵向排列，点击标题栏收起/展开） -->
@@ -237,18 +303,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { getSessionToken } from "@shared";
 import { qgcApi } from "@/api";
 import { useQgcEvents } from "@/qgc/composables/useQgcEvents";
+import { useQgcAlarms } from "@/qgc/composables/useQgcAlarms";
 import { useWindowScale } from "@/qgc/composables/useWindowScale";
 import AttitudeIndicator from "@/qgc/components/AttitudeIndicator.vue";
 import HeadingTape from "@/qgc/components/HeadingTape.vue";
 import AltitudeSpeedGauge from "@/qgc/components/AltitudeSpeedGauge.vue";
 import OfflineMapPanel from "@/qgc/components/OfflineMapPanel.vue";
+import ParamPanel from "@/qgc/components/ParamPanel.vue";
+import SensorHealthPanel from "@/qgc/components/SensorHealthPanel.vue";
+import RcChannelsPanel from "@/qgc/components/RcChannelsPanel.vue";
+import StreamConfigPanel from "@/qgc/components/StreamConfigPanel.vue";
+import FlightEstimatePanel from "@/qgc/components/FlightEstimatePanel.vue";
+import GamepadPanel from "@/qgc/components/GamepadPanel.vue";
+import ReplayPanel from "@/qgc/components/ReplayPanel.vue";
+import FpvPanel from "@/qgc/components/FpvPanel.vue";
+import CalibrationPanel from "@/qgc/components/CalibrationPanel.vue";
 
 // Cesium 运行时资源（Workers/Assets）基址：dev 由 vite 中间件托管在 /cesium/，
 // 构建产物拷贝在 dist/cesium/（经 /qgc 静态托管映射），统一按 BASE_URL 计算
@@ -274,6 +350,7 @@ let trailEntity: Cesium.Entity | null = null;
 let homeEntity: Cesium.Entity | null = null;
 let missionLineEntity: Cesium.Entity | null = null;
 let gotoEntity: Cesium.Entity | null = null;
+const noFlyEntities: Cesium.Entity[] = [];
 const trailPositions: Cesium.Cartesian3[] = [];
 const followPlane = ref(false);
 let clickHandler: Cesium.ScreenSpaceEventHandler | null = null;
@@ -284,11 +361,146 @@ let mouseMoved = false;
 const offlinePanelVisible = ref(false);
 const offlineCenter = ref<[number, number]>([31.2304, 121.4737]);
 
+/** 参数表面板开关 */
+const paramPanelVisible = ref(false);
+
 /** 打开离线地图面板（中心点同步为地图当前中心） */
 function openOfflinePanel() {
   const c = viewer?.camera.positionCartographic;
   if (c) offlineCenter.value = [Cesium.Math.toDegrees(c.latitude), Cesium.Math.toDegrees(c.longitude)];
   offlinePanelVisible.value = true;
+}
+
+/** 打开参数表面板 */
+function openParamPanel() {
+  paramPanelVisible.value = true;
+}
+
+/** 传感器健康面板开关 */
+const sensorPanelVisible = ref(false);
+
+/** 打开传感器健康面板 */
+function openSensorPanel() {
+  sensorPanelVisible.value = true;
+}
+
+/** RC 通道面板开关 */
+const rcPanelVisible = ref(false);
+
+/** 打开 RC 通道面板 */
+function openRcPanel() {
+  rcPanelVisible.value = true;
+}
+
+/** 数据流配置面板开关 */
+const streamPanelVisible = ref(false);
+
+/** 打开数据流配置面板 */
+function openStreamPanel() {
+  streamPanelVisible.value = true;
+}
+
+/** 当前是否为 2D 视图（Cesium SceneMode） */
+const view2D = ref(false);
+
+/** 切换 2D / 3D 视角（平面与球面地图切换） */
+function toggleViewMode() {
+  if (!viewer) return;
+  if (view2D.value) {
+    viewer.scene.morphTo3D(1000);
+  } else {
+    viewer.scene.morphTo2D(1000);
+  }
+  view2D.value = !view2D.value;
+}
+
+/** 航程估算面板开关 */
+const estPanelVisible = ref(false);
+
+/** 打开航程估算面板 */
+function openEstimatePanel() {
+  estPanelVisible.value = true;
+}
+
+/** 手柄控制面板开关 */
+const gpPanelVisible = ref(false);
+
+/** 打开手柄控制面板 */
+function openGamepadPanel() {
+  gpPanelVisible.value = true;
+}
+
+/** 禁飞区图层显隐 */
+const noFlyVisible = ref(true);
+
+/** 测量模式（点击地图两点量距） */
+const measureMode = ref(false);
+const measureStart = ref<Cesium.Cartesian3 | null>(null);
+let measureEntity: Cesium.Entity | null = null;
+
+/** 回放面板开关 */
+const replayPanelVisible = ref(false);
+function openReplayPanel() {
+  replayPanelVisible.value = true;
+}
+
+/** FPV 面板开关 */
+const fpvPanelVisible = ref(false);
+function openFpvPanel() {
+  fpvPanelVisible.value = true;
+}
+
+/** 校准面板开关 */
+const calPanelVisible = ref(false);
+function openCalPanel() {
+  calPanelVisible.value = true;
+}
+
+/** 切换禁飞区图层可见性 */
+function toggleNoFly() {
+  noFlyVisible.value = !noFlyVisible.value;
+  noFlyEntities.forEach((e) => (e.show = noFlyVisible.value));
+}
+
+/** 处理测量模式下的地图点击（两点量距） */
+function onMeasureClick(lon: number, lat: number) {
+  const v = viewer;
+  if (!v) return;
+  const pos = Cesium.Cartesian3.fromDegrees(lon, lat);
+  if (measureStart.value === null) {
+    measureStart.value = pos;
+    measureEntity = v.entities.add({
+      position: pos,
+      point: { pixelSize: 8, color: Cesium.Color.YELLOW },
+    });
+  } else {
+    const start = measureStart.value;
+    const end = pos;
+    const d = Cesium.Cartesian3.distance(start, end);
+    measureEntity = v.entities.add({
+      polyline: {
+        positions: [start, end],
+        width: 2,
+        material: Cesium.Color.YELLOW,
+      },
+      label: {
+        text: `${(d / 1000).toFixed(2)} km / ${d.toFixed(0)} m`,
+        font: "14px sans-serif",
+        fillColor: Cesium.Color.YELLOW,
+        pixelOffset: new Cesium.Cartesian2(0, -18),
+      },
+    });
+    measureStart.value = null;
+    measureMode.value = false;
+  }
+}
+
+/** 清除测量绘制 */
+function clearMeasure() {
+  if (viewer && measureEntity) viewer.entities.remove(measureEntity);
+  measureEntity = null;
+  measureStart.value = null;
+  measureMode.value = false;
 }
 
 /** 飞机 SVG 图标（data URI，Billboard 按航向旋转） */
@@ -548,6 +760,8 @@ const kbdEnabled = ref(false);
 /** 按键集合（key → 机体速度 m/s） */
 const kbdKeys = new Set<string>();
 let kbdTimer: ReturnType<typeof setInterval> | null = null;
+/** 上一次下发的键盘速度指令（用于松键/关闭开关时补发停止指令） */
+let lastKbdCmd: [number, number, number] | null = null;
 
 function onKeyDown(e: KeyboardEvent) {
   if (!kbdEnabled.value) return;
@@ -560,10 +774,18 @@ function onKeyDown(e: KeyboardEvent) {
 
 function onKeyUp(e: KeyboardEvent) {
   const k = e.key.toLowerCase();
+  if (["w", "a", "s", "d", " ", "shift"].includes(k)) {
+    e.preventDefault();
+  }
   kbdKeys.delete(k);
 }
 
-/** 周期发送速度指令（100ms，按住持续飞行） */
+/** 下发键盘速度指令（0,0,0 表示悬停停止） */
+function sendKbd(vx: number, vy: number, vz: number) {
+  qgcApi.sendCommand("move", null, [vx, vy, vz]).catch(() => {});
+}
+
+/** 周期发送速度指令（100ms，按住持续飞行；松键/关闭开关时补发停止指令） */
 function kbdLoop() {
   if (!kbdEnabled.value) return;
   let vx = 0;
@@ -575,10 +797,21 @@ function kbdLoop() {
   if (kbdKeys.has("d")) vy += 3;
   if (kbdKeys.has(" ")) vz -= 2;
   if (kbdKeys.has("shift")) vz += 2;
-  if (vx !== 0 || vy !== 0 || vz !== 0) {
-    qgcApi.sendCommand("move", null, [vx, vy, vz]).catch(() => {});
+  const cur: [number, number, number] = [vx, vy, vz];
+  // 指令变化时下发（含非零→零的停止），避免静止时持续刷包
+  if (!lastKbdCmd || lastKbdCmd[0] !== vx || lastKbdCmd[1] !== vy || lastKbdCmd[2] !== vz) {
+    sendKbd(vx, vy, vz);
+    lastKbdCmd = cur;
   }
 }
+
+/** 关闭键盘开关时补发停止指令，避免飞机保持最后速度继续飞行 */
+watch(kbdEnabled, (on) => {
+  if (!on) {
+    sendKbd(0, 0, 0);
+    lastKbdCmd = null;
+  }
+});
 
 // ========== 任务 ==========
 
@@ -688,10 +921,16 @@ const flightTimeText = computed(() => {
 
 // ========== 事件流 ==========
 
+// 告警检测（低电量 / 飞控失联 / 高度超限 / GPS 弱）+ 语音播报
+const { alarms: qgcAlarms, speechEnabled, analyze: analyzeAlarms } = useQgcAlarms();
+/** 最高告警等级（用于横幅配色） */
+const alarmTopLevel = computed(() => (qgcAlarms.value.some((a) => a.level === "critical") ? "critical" : "warn"));
+
 const { connected: wsConnected, telemetry, connect, disconnect } = useQgcEvents({
   onTelemetry: (t) => {
     updatePlane(t.lat, t.lon, t.heading, t.relative_alt);
     updateHome(t.home_lat, t.home_lon);
+    analyzeAlarms(t);
   },
   onMissionProgress: (p) => {
     missionState.value = p.state;
@@ -760,8 +999,42 @@ onMounted(async () => {
     const cart = viewer.camera.pickEllipsoid(e.position, viewer.scene.globe.ellipsoid);
     if (!cart) return;
     const c = Cesium.Cartographic.fromCartesian(cart);
-    onMapClick(Cesium.Math.toDegrees(c.latitude), Cesium.Math.toDegrees(c.longitude));
+    const lon = Cesium.Math.toDegrees(c.longitude);
+    const lat = Cesium.Math.toDegrees(c.latitude);
+    if (measureMode.value) {
+      onMeasureClick(lon, lat);
+    } else {
+      onMapClick(lat, lon);
+    }
   }, Cesium.ScreenSpaceEventType.LEFT_UP);
+
+  // 禁飞区图层（示例：机场周边圆形禁飞区，可叠加真实地理围栏数据）
+  const noFlyZones = [
+    { lon: 121.805, lat: 31.144, r: 3000, name: "虹桥机场禁飞区" },
+    { lon: 121.808, lat: 30.78, r: 4000, name: "浦东机场禁飞区" },
+    { lon: 121.4737, lat: 31.2304, r: 800, name: "市中心临时管制区" },
+  ];
+  const v = viewer;
+  noFlyZones.forEach((z) => {
+    const ent = v.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(z.lon, z.lat),
+      ellipse: {
+        semiMajorAxis: z.r,
+        semiMinorAxis: z.r,
+        material: Cesium.Color.RED.withAlpha(0.18),
+        outline: true,
+        outlineColor: Cesium.Color.RED.withAlpha(0.6),
+      },
+      label: {
+        text: z.name,
+        font: "13px sans-serif",
+        fillColor: Cesium.Color.RED,
+        pixelOffset: new Cesium.Cartesian2(0, -20),
+      },
+      show: noFlyVisible.value,
+    });
+    noFlyEntities.push(ent);
+  });
 
   // 初始遥测快照（无有效遥测时机体落在默认起飞点，相机保持上海视野）
   try {
@@ -797,6 +1070,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   disconnect();
+  // 离开页面前停止键盘速度指令，防止飞机保持最后速度继续飞行
+  sendKbd(0, 0, 0);
+  lastKbdCmd = null;
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
   if (kbdTimer !== null) clearInterval(kbdTimer);
@@ -810,6 +1086,9 @@ onUnmounted(() => {
   homeEntity = null;
   missionLineEntity = null;
   gotoEntity = null;
+  noFlyEntities.length = 0;
+  measureEntity = null;
+  measureStart.value = null;
   trailPositions.length = 0;
 });
 </script>
@@ -1005,6 +1284,60 @@ onUnmounted(() => {
   background: transparent;
   border: 1px solid var(--grid-line);
   white-space: nowrap;
+}
+
+/* 语音告警开关：与状态条按钮等高 */
+.voice-switch {
+  --el-switch-on-color: var(--text-success);
+  margin: 0 2px;
+}
+
+/* ============ 告警横幅（顶部居中，红/黄高亮 + 闪烁） ============ */
+
+.alarm-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 70%;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  pointer-events: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  animation: alarm-blink 1.2s ease-in-out infinite;
+}
+
+.alarm-banner.warn {
+  background: linear-gradient(180deg, rgba(240, 192, 64, 0.92), rgba(200, 150, 20, 0.92));
+  border: 1px solid #f0c040;
+  color: #2a1f00;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+.alarm-banner.critical {
+  background: linear-gradient(180deg, rgba(230, 60, 50, 0.95), rgba(180, 30, 24, 0.95));
+  border: 1px solid #ff6a5e;
+  color: #ffffff;
+}
+
+.alarm-icon {
+  font-size: 18px;
+}
+
+.alarm-text {
+  font-weight: 600;
+}
+
+@keyframes alarm-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
 }
 
 .bar-side {
