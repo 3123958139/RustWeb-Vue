@@ -129,8 +129,14 @@ pub struct FaultCodeFlags {
     pub fc2_gen_voltage_abnormal: bool,
     /// 空中熄火
     pub fc2_in_flight_flameout: bool,
-    /// 通信断开
-    pub fc2_comm_disconnected: bool,
+    /// 燃气通信断开
+    pub fc2_comm_disconnected_fuel: bool,
+    /// 控制通信断开
+    pub fc2_comm_disconnected_control: bool,
+    /// 油门错误
+    pub fc2_throttle_fault: bool,
+    /// 起动错误
+    pub fc2_start_fault: bool,
 }
 
 /// Adam4015 模拟量采集模块解码字段（8 通道电压，V）
@@ -260,7 +266,10 @@ impl EcuFields {
             ("fc2StartVoltageAbnormal", "起动电压异常"),
             ("fc2GenVoltageAbnormal", "发电电压异常"),
             ("fc2InFlightFlameout", "空中熄火"),
-            ("fc2CommDisconnected", "通信断开"),
+            ("fc2CommDisconnectedFuel", "燃气通信断开"),
+            ("fc2CommDisconnectedControl", "控制通信断开"),
+            ("fc2ThrottleFault", "油门设置错误"),
+            ("fc2StartFault", "允许起动信号失效"),
             ("stopSolenoid", "停车电磁阀"),
             ("fuelPump", "燃油泵"),
             ("oilPump", "滑油泵"),
@@ -327,7 +336,10 @@ impl EcuFields {
             "fc2StartVoltageAbnormal" => fmt_bool(fc.fc2_start_voltage_abnormal),
             "fc2GenVoltageAbnormal" => fmt_bool(fc.fc2_gen_voltage_abnormal),
             "fc2InFlightFlameout" => fmt_bool(fc.fc2_in_flight_flameout),
-            "fc2CommDisconnected" => fmt_bool(fc.fc2_comm_disconnected),
+            "fc2CommDisconnectedFuel" => fmt_bool(fc.fc2_comm_disconnected_fuel),
+            "fc2CommDisconnectedControl" => fmt_bool(fc.fc2_comm_disconnected_control),
+            "fc2ThrottleFault" => fmt_bool(fc.fc2_throttle_fault),
+            "fc2StartFault" => fmt_bool(fc.fc2_start_fault),
             "stopSolenoid" => fmt_bool(self.stop_solenoid),
             "fuelPump" => fmt_bool(self.fuel_pump),
             "oilPump" => fmt_bool(self.oil_pump),
