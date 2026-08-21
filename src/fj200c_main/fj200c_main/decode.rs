@@ -91,19 +91,19 @@ pub fn cmd_exec_str(code: u8) -> &'static str {
 /// 帧内各字段按固定偏移读取（小端 u16），温度类字段需减去 273.0（开尔文转摄氏），
 /// 故障码拆分为两位（fc1/fc2）按位展开为 `FaultCodeFlags` 布尔位。
 pub fn decode_ecu(frame: &[u8]) -> EcuFields {
-    tracing::trace!("{}", &format_hex(frame));
+    tracing::error!("{}", &format_hex(frame));
     // 读取小端 u16 的便捷闭包
-    let u16_le = |i: usize| -> u16 { (frame[i] as u16) | ((frame[i + 1] as u16) << 8) };
+    let u16_le = |i: usize| -> u16 { (frame[i + 1] as u16) | ((frame[i] as u16) << 8) };
 
     let _count = frame[3];
     let mach = frame[4] as f64 / 100.0;
-    let voltage = frame[5] as f64 / 10.0;
+    let voltage = frame[5] as f64;
     let altitude = u16_le(6) as f64;
     let ng_speed = u16_le(8) as f64;
-    let exhaust_temp = u16_le(10) as f64 / 10.0;
+    let exhaust_temp = u16_le(10) as f64 - 273.0;
     let intake_temp = u16_le(12) as f64 / 10.0 - 273.0;
     let np_speed = u16_le(14) as f64;
-    let throttle_val = u16_le(16) as f64;
+    let throttle_val = u16_le(16) as f64 / 100.0;
     let engine_status_u8 = frame[18];
     let cmd_exec_u8 = frame[19];
     let fc1 = u16_le(20);
@@ -113,7 +113,7 @@ pub fn decode_ecu(frame: &[u8]) -> EcuFields {
     // 附件状态：低 5 位按位表示 停车电磁阀/燃油泵/滑油泵/起动机/轮载
     let accessory = frame[28] & 0x1F;
     let oil_pressure = frame[29] as f64 / 100.0;
-    let exchanger_temp = u16_le(30) as f64 / 10.0;
+    let exchanger_temp = u16_le(30) as f64 / 10.0 - 273.0;
     // 特征码（4 字节，十六进制拼接）
     let fingerprint = frame[34..38]
         .iter()

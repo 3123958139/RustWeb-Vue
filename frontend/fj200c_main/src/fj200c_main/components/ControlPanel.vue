@@ -10,10 +10,10 @@
   - 按钮点击后构造完整帧并调用 fj200cMainApi.sendCommand()
 -->
 <script lang="ts" setup>
-import { ref, onBeforeUnmount } from 'vue'
-import { useDashboardStore } from '../store/dashboard'
-import { fj200cMainApi } from '@/api'
-import { ElMessage } from 'element-plus'
+import {onBeforeUnmount, ref} from 'vue'
+import {useDashboardStore} from '../store/dashboard'
+import {fj200cMainApi} from '@/api'
+import {ElMessage} from 'element-plus'
 
 const store = useDashboardStore()
 
@@ -124,15 +124,15 @@ async function sendCommand(label: string) {
 }
 
 const controlButtons = [
-  { label: '起动', row: 0, col: 0 },
-  { label: '停车', row: 0, col: 1 },
-  { label: '燃气发生器冷运转', row: 0, col: 2 },
-  { label: '油路排气', row: 0, col: 3 },
-  { label: '停止燃气发生器冷运转', row: 0, col: 5 },
-  { label: '空中起动', row: 1, col: 0 },
-  { label: '空白', row: 1, col: 1 },
-  { label: '恒定油门设定', row: 1, col: 2 },
-  { label: '电控器自检', row: 1, col: 3 },
+  {label: '起动', row: 0, col: 0},
+  {label: '停车', row: 0, col: 1},
+  {label: '燃气发生器冷运转', row: 0, col: 2},
+  {label: '油路排气', row: 0, col: 3},
+  {label: '停止燃气发生器冷运转', row: 0, col: 5},
+  {label: '空中起动', row: 1, col: 0},
+  {label: '空白', row: 1, col: 1},
+  {label: '恒定油门设定', row: 1, col: 2},
+  {label: '电控器自检', row: 1, col: 3},
 ]
 
 const autoRunning = ref(false)
@@ -143,6 +143,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     autoTimers.push(window.setTimeout(resolve, ms))
   })
+}
+
+async function showMessage() {
+  ElMessage.error("自动按钮禁用");
 }
 
 async function startAuto() {
@@ -182,40 +186,40 @@ onBeforeUnmount(() => {
       <div class="control-config">
         <div class="config-row">
           <span class="config-label">飞行马赫数</span>
-          <el-input v-model.number="store.controlPanel.machNumber" class="config-input" size="small" />
-          <el-button size="small" :disabled="autoRunning" @click="sendMachNumber()">确定</el-button>
+          <el-input v-model.number="store.controlPanel.machNumber" class="config-input" size="small"/>
+          <el-button :disabled="autoRunning" size="small" @click="sendMachNumber()">确定</el-button>
         </div>
         <div class="config-row">
           <span class="config-label">海拔高度</span>
-          <el-input v-model.number="store.controlPanel.altitude" class="config-input" size="small" />
-          <el-button size="small" :disabled="autoRunning" @click="sendAltitude()">确定</el-button>
+          <el-input v-model.number="store.controlPanel.altitude" class="config-input" size="small"/>
+          <el-button :disabled="autoRunning" size="small" @click="sendAltitude()">确定</el-button>
         </div>
         <div class="config-row">
           <span class="config-label">恒定油门占空比</span>
-          <el-input v-model.number="store.controlPanel.throttleDuty" class="config-input" size="small" />
-          <el-button size="small" :disabled="autoRunning" @click="sendThrottleDuty()">确定</el-button>
+          <el-input v-model.number="store.controlPanel.throttleDuty" class="config-input" size="small"/>
+          <el-button :disabled="autoRunning" size="small" @click="sendThrottleDuty()">确定</el-button>
         </div>
         <div class="config-row">
           <span class="config-label">轮载</span>
           <el-select v-model="store.controlPanel.wheelLoad" class="config-select" size="small">
-            <el-option label="地面" value="0" />
-            <el-option label="空中" value="1" />
+            <el-option label="地面" value="0"/>
+            <el-option label="空中" value="1"/>
           </el-select>
-          <el-button size="small" :disabled="autoRunning" @click="sendWheelLoad()">确定</el-button>
+          <el-button :disabled="autoRunning" size="small" @click="sendWheelLoad()">确定</el-button>
         </div>
       </div>
-      <div class="control-divider" />
+      <div class="control-divider"/>
       <div class="control-grid">
         <button
-          v-for="btn in controlButtons"
-          :key="btn.label"
-          class="ctrl-btn"
-          :disabled="autoRunning"
-          @click="sendCommand(btn.label)"
+            v-for="btn in controlButtons"
+            :key="btn.label"
+            :disabled="autoRunning"
+            class="ctrl-btn"
+            @click="sendCommand(btn.label)"
         >
           {{ btn.label }}
         </button>
-        <button class="ctrl-btn ctrl-btn-auto" :disabled="autoRunning" @click="startAuto">
+        <button :disabled="true" class="ctrl-btn ctrl-btn-auto" @click="startAuto" @mouseover="showMessage">
           {{ autoRunning ? '自动中…' : '自动' }}
         </button>
       </div>

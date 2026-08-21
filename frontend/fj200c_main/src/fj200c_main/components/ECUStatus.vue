@@ -5,7 +5,7 @@
   所有数据来自 Pinia store 的 `ecuData`，由后端 WebSocket `port_data` 事件驱动更新。
 -->
 <script lang="ts" setup>
-import { useDashboardStore } from '../store/dashboard'
+import {useDashboardStore} from '../store/dashboard'
 
 const store = useDashboardStore()
 const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d)
@@ -41,7 +41,7 @@ const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d)
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">油门</span>
-        <span class="ep-value">{{ n(store.ecuData.throttle, 0) }}</span>
+        <span class="ep-value">{{ n(store.ecuData.throttle, 2) }}</span>
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">发动机状态</span>
@@ -65,7 +65,7 @@ const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d)
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">滑油压力</span>
-        <span class="ep-value">{{ n(store.ecuData.oilPressure, 1) }} kPa</span>
+        <span class="ep-value">{{ n(store.ecuData.oilPressure, 2) }} kPa</span>
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">滑油温度</span>
