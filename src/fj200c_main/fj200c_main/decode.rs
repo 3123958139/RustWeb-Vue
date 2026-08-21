@@ -232,7 +232,7 @@ fn parse_adam(input_str: &str) -> Vec<f64> {
         // 尝试将字符串转换为 f64
         match chunk.parse::<f64>() {
             Ok(val) => {
-                println!("Chunk [{}]: '{}' -> {:.2}", i, chunk, val);
+                // println!("Chunk [{}]: '{}' -> {:.2}", i, chunk, val);
                 floats.push(val);
             }
             Err(e) => {
@@ -258,7 +258,7 @@ pub fn decode_adam4015(frame: &[u8]) -> Adam4015Fields {
         // }
         let parsed_data = parse_adam(inner);
         for i in 0..parsed_data.len() {
-            error!("i = {:?}", i);
+            // error!("i = {:?}", i);
             channels[i] = parsed_data[i];
         }
     }
@@ -291,7 +291,7 @@ pub fn decode_adam4117(frame: &[u8]) -> Adam4117Fields {
         // }
         let parsed_data = parse_adam(inner);
         for i in 0..parsed_data.len() {
-            error!("i = {:?}", i);
+            // error!("i = {:?}", i);
             channels[i] = parsed_data[i];
         }
     }

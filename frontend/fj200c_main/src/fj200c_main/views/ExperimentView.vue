@@ -18,7 +18,7 @@
           <div class="ecu-grid">
             <div v-for="item in ecuItems" :key="item.key" class="ecu-cell">
               <span class="ecu-label">{{ item.label }}</span>
-              <span class="ecu-value" :class="item.cls">{{ item.value }}</span>
+              <span :class="item.cls" class="ecu-value">{{ item.value }}</span>
             </div>
           </div>
         </div>
@@ -29,11 +29,12 @@
             <div class="fm-panel-header">故障码 1</div>
             <div class="fault-grid">
               <div
-                v-for="item in faultCode1Items"
-                :key="item.key"
-                class="fault-cell"
-                :class="{ alarm: store.faultCodes[item.key] }"
-              >{{ item.label }}</div>
+                  v-for="item in faultCode1Items"
+                  :key="item.key"
+                  :class="{ alarm: store.faultCodes[item.key] }"
+                  class="fault-cell"
+              >{{ item.label }}
+              </div>
             </div>
           </div>
 
@@ -41,11 +42,12 @@
             <div class="fm-panel-header">故障码 2</div>
             <div class="fault-grid fault-grid-3">
               <div
-                v-for="item in faultCode2Items"
-                :key="item.key"
-                class="fault-cell"
-                :class="{ alarm: store.faultCodes[item.key] }"
-              >{{ item.label }}</div>
+                  v-for="item in faultCode2Items"
+                  :key="item.key"
+                  :class="{ alarm: store.faultCodes[item.key] }"
+                  class="fault-cell"
+              >{{ item.label }}
+              </div>
             </div>
           </div>
 
@@ -53,11 +55,12 @@
             <div class="fm-panel-header">附件状态</div>
             <div class="accessory-row">
               <div
-                v-for="item in accessoryItems"
-                :key="item.key"
-                class="fault-cell"
-                :class="{ active: Boolean(store.ecuData[item.key]) }"
-              >{{ item.label }}</div>
+                  v-for="item in accessoryItems"
+                  :key="item.key"
+                  :class="{ active: Boolean(store.ecuData[item.key]) }"
+                  class="fault-cell"
+              >{{ item.label }}
+              </div>
             </div>
           </div>
         </div>
@@ -67,9 +70,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from "vue";
-import { useDashboardStore } from "@/fj200c_main/store/dashboard";
-import type { EcuFields, FaultCodeFlags } from "@shared/api/generated";
+import {computed} from "vue";
+import {useDashboardStore} from "@/fj200c_main/store/dashboard";
+import type {EcuFields, FaultCodeFlags} from "@shared/api/generated";
 import ScaledPage from "@/fj200c_main/components/ScaledPage.vue";
 
 const store = useDashboardStore();
@@ -96,69 +99,72 @@ const ecuItems = computed<ECUItem[]>(() => {
   const e = store.ecuData;
   const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d);
   return [
-    { key: "machNumber", label: "飞行马赫数回传", value: n(e.machNumber, 2) },
-    { key: "altitude", label: "海拔高度回传", value: n(e.altitude, 0) },
-    { key: "ngSpeed", label: "燃气发生器转速Ng", value: `${n(store.dashboardState.ngSpeed, 0)} r/min` },
-    { key: "exhaustTemp", label: "排气温度", value: `${n(store.dashboardState.exhaustTemp, 1)} ℃` },
-    { key: "intakeTemp", label: "进气温度", value: `${n(e.intakeTemp, 1)} ℃` },
-    { key: "npSpeed", label: "动力涡轮转速Np", value: `${n(store.dashboardState.npSpeed, 0)} r/min` },
-    { key: "throttle", label: "油门", value: n(e.throttle, 0) },
-    { key: "engineStatus", label: "发动机状态", value: e.engineStatus || "—" },
-    { key: "workingVoltage", label: "工作电压", value: `${n(e.workingVoltage, 1)} V` },
-    { key: "cmdExecStatus", label: "控制指令执行情况", value: e.cmdExecStatus || "—" },
-    { key: "faultCode1", label: "故障码1", value: String(e.faultCode1 ?? 0) },
-    { key: "faultCode2", label: "故障码2", value: String(e.faultCode2 ?? 0) },
-    { key: "oilPressure", label: "滑油压力", value: `${n(e.oilPressure, 1)} kPa` },
-    { key: "oilTemp", label: "滑油温度", value: `${n(e.oilTemp, 1)} ℃` },
-    { key: "fuelPressure", label: "燃油压力", value: `${n(e.fuelPressure, 0)} kPa` },
-    { key: "accessoryStatus", label: "附件状态（hex）", value: e.accessoryStatus || "0" },
-    { key: "exchangerOutletTemp", label: "换热器出口滑油温度", value: `${n(e.exchangerOutletTemp, 1)} ℃` },
-    { key: "fingerprintCode", label: "指纹码", value: e.fingerprintCode || "—", cls: "mono" },
-    { key: "frameCount", label: "帧计数", value: n(e.frameCount, 0) },
-    { key: "engineStatusU8", label: "发动机状态（hex）", value: e.engineStatusU8 || "0" },
-    { key: "cmdExecU8", label: "控制指令执行情况（hex）", value: e.cmdExecU8 || "0" },
+    {key: "machNumber", label: "飞行马赫数回传", value: n(e.machNumber, 2)},
+    {key: "altitude", label: "海拔高度回传", value: n(e.altitude, 0)},
+    {key: "ngSpeed", label: "燃气发生器转速Ng", value: `${n(store.dashboardState.ngSpeed, 0)} r/min`},
+    {key: "exhaustTemp", label: "排气温度", value: `${n(store.dashboardState.exhaustTemp, 1)} ℃`},
+    {key: "intakeTemp", label: "进气温度", value: `${n(e.intakeTemp, 1)} ℃`},
+    {key: "npSpeed", label: "动力涡轮转速Np", value: `${n(store.dashboardState.npSpeed, 0)} r/min`},
+    {key: "throttle", label: "油门", value: n(e.throttle, 0)},
+    {key: "engineStatus", label: "发动机状态", value: e.engineStatus || "—"},
+    {key: "workingVoltage", label: "工作电压", value: `${n(e.workingVoltage, 1)} V`},
+    {key: "cmdExecStatus", label: "控制指令执行情况", value: e.cmdExecStatus || "—"},
+    {key: "faultCode1", label: "故障码1", value: String(e.faultCode1 ?? 0)},
+    {key: "faultCode2", label: "故障码2", value: String(e.faultCode2 ?? 0)},
+    {key: "oilPressure", label: "滑油压力", value: `${n(e.oilPressure, 1)} kPa`},
+    {key: "oilTemp", label: "滑油温度", value: `${n(e.oilTemp, 1)} ℃`},
+    {key: "fuelPressure", label: "燃油压力", value: `${n(e.fuelPressure, 0)} kPa`},
+    {key: "accessoryStatus", label: "附件状态（hex）", value: e.accessoryStatus || "0"},
+    {key: "exchangerOutletTemp", label: "换热器出口滑油温度", value: `${n(e.exchangerOutletTemp, 1)} ℃`},
+    {key: "fingerprintCode", label: "指纹码", value: e.fingerprintCode || "—", cls: "mono"},
+    {key: "frameCount", label: "帧计数", value: n(e.frameCount, 0)},
+    {key: "engineStatusU8", label: "发动机状态（hex）", value: e.engineStatusU8 || "0"},
+    {key: "cmdExecU8", label: "控制指令执行情况（hex）", value: e.cmdExecU8 || "0"},
   ];
 });
 
 const faultCode1Items: FaultItem[] = [
-  { label: "自检排温异常", key: "fc1SelfCheckExhaust" },
-  { label: "自检进温异常", key: "fc1SelfCheckIntakeTemp" },
-  { label: "自检滑压异常", key: "fc1SelfCheckOilPressure" },
-  { label: "自检滑温异常", key: "fc1SelfCheckOilTemp" },
-  { label: "自检燃压异常", key: "fc1SelfCheckFuelPressure" },
-  { label: "自检Ng转速异常", key: "fc1SelfCheckNgSpeed" },
-  { label: "自检Np转速异常", key: "fc1SelfCheckNpSpeed" },
-  { label: "油路排气异常", key: "fc1SelfCheckFuelVent" },
-  { label: "冷运转异常", key: "fc1ColdStartAbnormal" },
-  { label: "点火失败", key: "fc1IgnitionFailure" },
-  { label: "起动超温", key: "fc1Overtemp" },
-  { label: "起动超时", key: "fc1StartTimeout" },
-  { label: "起发转速低", key: "fc1StartSpeedLow" },
-  { label: "Ng转速超转", key: "fc1NgOverspeed" },
-  { label: "Np转速超转", key: "fc1NpOverspeed" },
-  { label: "排温超温", key: "fc1ExhaustOvertemp" },
+  {label: "自检排温异常", key: "fc1SelfCheckExhaust"},
+  {label: "自检进温异常", key: "fc1SelfCheckIntakeTemp"},
+  {label: "自检滑压异常", key: "fc1SelfCheckOilPressure"},
+  {label: "自检滑温异常", key: "fc1SelfCheckOilTemp"},
+  {label: "自检燃压异常", key: "fc1SelfCheckFuelPressure"},
+  {label: "自检Ng转速异常", key: "fc1SelfCheckNgSpeed"},
+  {label: "自检Np转速异常", key: "fc1SelfCheckNpSpeed"},
+  {label: "油路排气异常", key: "fc1SelfCheckFuelVent"},
+  {label: "冷运转异常", key: "fc1ColdStartAbnormal"},
+  {label: "点火失败", key: "fc1IgnitionFailure"},
+  {label: "起动超温", key: "fc1Overtemp"},
+  {label: "起动超时", key: "fc1StartTimeout"},
+  {label: "起发转速低", key: "fc1StartSpeedLow"},
+  {label: "Ng转速超转", key: "fc1NgOverspeed"},
+  {label: "Np转速超转", key: "fc1NpOverspeed"},
+  {label: "排温超温", key: "fc1ExhaustOvertemp"},
 ];
 
 const faultCode2Items: FaultItem[] = [
-  { label: "Ng转速故障", key: "fc2NgSpeedFault" },
-  { label: "Np转速故障", key: "fc2NpSpeedFault" },
-  { label: "排温故障", key: "fc2ExhaustTempFault" },
-  { label: "滑温故障", key: "fc2OilTempFault" },
-  { label: "滑压故障", key: "fc2OilPressureFault" },
-  { label: "燃压故障", key: "fc2FuelPressureFault" },
-  { label: "ECU电压异常", key: "fc2VoltageAbnormal" },
-  { label: "起动电压异常", key: "fc2StartVoltageAbnormal" },
-  { label: "发电电压异常", key: "fc2GenVoltageAbnormal" },
-  { label: "空中熄火", key: "fc2InFlightFlameout" },
-  { label: "通信断开", key: "fc2CommDisconnected" },
+  {label: "Ng转速故障", key: "fc2NgSpeedFault"},
+  {label: "Np转速故障", key: "fc2NpSpeedFault"},
+  {label: "排温故障", key: "fc2ExhaustTempFault"},
+  {label: "滑温故障", key: "fc2OilTempFault"},
+  {label: "滑压故障", key: "fc2OilPressureFault"},
+  {label: "燃压故障", key: "fc2FuelPressureFault"},
+  {label: "ECU电压异常", key: "fc2VoltageAbnormal"},
+  {label: "起动电压异常", key: "fc2StartVoltageAbnormal"},
+  {label: "发电电压异常", key: "fc2GenVoltageAbnormal"},
+  {label: "空中熄火", key: "fc2InFlightFlameout"},
+  {label: '燃气通信断开', key: 'fc2CommDisconnectedFuel'},
+  {label: '控制通信断开', key: 'fc2CommDisconnectedControl'},
+  {label: '油门设置错误', key: 'fc2ThrottleFault'},
+  {label: '允许起动信号失效', key: 'fc2StartFault'},
 ];
 
 const accessoryItems: AccessoryItem[] = [
-  { label: "停车电磁阀", key: "stopSolenoid" },
-  { label: "燃油泵", key: "fuelPump" },
-  { label: "滑油泵", key: "oilPump" },
-  { label: "起发电机", key: "starter" },
-  { label: "轮载状态", key: "wheelLoadStatus" },
+  {label: "停车电磁阀", key: "stopSolenoid"},
+  {label: "燃油泵", key: "fuelPump"},
+  {label: "滑油泵", key: "oilPump"},
+  {label: "起发电机", key: "starter"},
+  {label: "轮载状态", key: "wheelLoadStatus"},
 ];
 </script>
 
