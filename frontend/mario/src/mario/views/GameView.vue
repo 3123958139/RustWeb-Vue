@@ -9,9 +9,10 @@
   - 到达终点旗杆即可通关，得分自动提交到高分榜
 -->
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { marioApi } from "@/api";
+import { useWindowScale } from "@/mario/composables/useWindowScale";
 
 // ============ 基础常量 ============
 const TILE = 16; // 瓦片边长（像素）
@@ -22,9 +23,9 @@ const GRAV = 0.5; // 重力
 const MAX_FALL = 10; // 最大下落速度
 
 // ============ 瓦片说明 ============
-// ' ' 空、'X' 实心地/砖、'B' 可顶碎砖、'Q' 问号块（顶出金币）、'#' 已使用块
-// 'P' 水管壁、'o' 悬浮金币、'K' 终点城堡
-type TileChar = " " | "X" | "B" | "Q" | "#" | "P" | "o" | "K";
+// ' ' 空、'X' 实心地/砖、'B' 可顶碎砖、'Q' 问号块、'#' 已使用块
+// 'P' 水管壁、'o' 悬浮金币、'K' 终点城堡、'H' 隐藏砖（不可见，顶到才出金币并显现）
+type TileChar = " " | "X" | "B" | "Q" | "#" | "P" | "o" | "K" | "H";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 // 类型上视为已初始化（onMounted 统一赋值），运行时各绘制入口均以 `if (!ctx) return;` 兜底
@@ -32,13 +33,31 @@ let ctx!: CanvasRenderingContext2D;
 
 const authStore = useAuthStore();
 
+// 界面等比缩放：参考 fj200c_main 的 useWindowScale 机制，
+// 以游戏画布 480×320 为设计稿，CSS transform: scale 放大居中并限制最大倍率
+const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale({
+  designWidth: VIEW_W,
+  designHeight: VIEW_H,
+});
+const stageStyle = computed(() => ({
+  width: DESIGN_W + "px",
+  height: DESIGN_H + "px",
+  transform: "scale(" + scale.value + ")",
+}));
+
 // ============ 游戏状态（非响应式，性能优先） ============
 const game = {
-  cols: 120,
+  cols: 200,
   grid: [] as TileChar[][], // grid[row][col]
-  mario: { x: 0, y: 0, w: 14, h: 20, vx: 0, vy: 0, onGround: false, facing: 1, anim: 0 },
+  mario: { x: 0, y: 0, w: 14, h: 20, vx: 0, vy: 0, onGround: false, facing: 1, anim: 0, size: 0 as 0 | 1, inv: 0, fire: 0 as 0 | 1 },
   enemies: [] as Enemy[],
+  items: [] as Item[],
+  fireballs: [] as Fireball[],
   particles: [] as Particle[],
+  mushroomBlocks: new Set<number>(), // 产出“变大蘑菇”的问号块列号
+  flowerBlocks: new Set<number>(), // 产出“火花花”的问号块列号
+  coinBricks: new Set<number>(), // 顶出金币（而非碎裂）的砖块列号
+  oneupBlocks: new Set<number>(), // 顶出 1UP 绿蘑菇的问号块列号
   state: "title" as "title" | "play" | "dead" | "clear",
   score: 0,
   coins: 0,
@@ -48,7 +67,9 @@ const game = {
   camera: 0,
   frame: 0,
   timer: 0,
+  fireCd: 0, // 火球发射冷却
   respawnIdle: 0,
+  flagBonus: 0, // 顶旗杆高度分段奖励
   dead: false,
   won: false,
   flagCol: 0,
@@ -65,7 +86,32 @@ interface Enemy {
   w: number;
   h: number;
   vx: number;
+  vy: number;
   alive: boolean;
+  kind: "goomba" | "koopa"; // 栗子怪 / 乌龟
+  state: "walk" | "shell" | "slide"; // 乌龟状态：行走 / 静止壳 / 滑行壳
+}
+
+/** 悬浮道具：变大蘑菇 / 火花花 / 1UP 绿蘑菇 */
+interface Item {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  vx: number;
+  vy: number;
+  t: number;
+  remove: boolean;
+  type: "mushroom" | "flower" | "oneup";
+}
+
+/** 火球 */
+interface Fireball {
+  x: number;
+  y: number;
+  vx: number;
+  t: number;
+  remove: boolean;
 }
 
 interface Particle {
@@ -88,10 +134,10 @@ function tileAt(c: number, r: number): TileChar {
 }
 
 function isSolid(t: TileChar): boolean {
-  return t === "X" || t === "B" || t === "Q" || t === "#" || t === "P" || t === "K";
+  return t === "X" || t === "B" || t === "Q" || t === "#" || t === "P" || t === "K" || t === "H";
 }
 
-// ============ 关卡生成 ============
+// ============ 关卡生成（尽量复刻“超级马里奥兄弟 1-1”节奏） ============
 function buildLevel() {
   const cols = game.cols;
   // 初始化空网格
@@ -100,93 +146,161 @@ function buildLevel() {
     grid.push(new Array<TileChar>(cols).fill(" "));
   }
 
-  // 地面（最底行），保留少量坑洞增加挑战
+  // 地面（最底行），保留 3 处宽窄不同的坑洞，模仿 1-1 的地形起伏
   for (let c = 0; c < cols; c++) {
-    const pit = c === 38 || c === 78 || c === 108;
+    const pit =
+      (c >= 30 && c <= 31) || // 2 格窄坑
+      (c >= 62 && c <= 64) || // 3 格坑
+      (c >= 96 && c <= 99); // 4 格宽坑
     grid[ROWS - 1][c] = pit ? " " : "X";
   }
 
-  // 辅助：放置一行块
+  // 辅助：放一整行瓦片
   const putRow = (row: number, from: number, to: number, t: TileChar) => {
     for (let c = from; c <= to; c++) {
       if (c >= 0 && c < cols) grid[row][c] = t;
     }
   };
 
-  // 问号金币块与砖块层（第 14 行即地面上 5 格，第 15 行即 4 格可顶到）
-  const groups: Array<[number, number, TileChar]> = [
-    // [起始列, 数量, 类型]
-    [6, 4, "B"],
-    [12, 1, "Q"],
-    [13, 1, "Q"],
-    [16, 3, "B"],
-    [21, 1, "Q"],
-    [24, 2, "B"],
+  // ---- 可顶层（第 14 行，地面上方 5 格）：问号块与砖块交错，仿 1-1 前段节奏 ----
+  const layer: Array<[number, number, TileChar]> = [
+    [5, 3, "B"], // 起步砖
+    [7, 1, "Q"],
+    [12, 2, "Q"],
+    [16, 2, "B"],
+    [18, 1, "Q"],
+    [23, 3, "B"],
+    [26, 1, "Q"],
     [27, 1, "Q"],
-    [30, 4, "B"],
-    [33, 1, "Q"],
-    [34, 1, "Q"],
-    [42, 3, "B"],
+    [33, 3, "B"],
+    [35, 1, "Q"],
+    [37, 1, "Q"],
+    [43, 3, "B"],
     [46, 1, "Q"],
-    [50, 5, "B"],
-    [56, 1, "Q"],
-    [60, 3, "B"],
-    [64, 1, "Q"],
-    [70, 4, "B"],
+    [48, 1, "Q"],
+    [52, 3, "B"],
+    [55, 1, "Q"],
+    [58, 1, "Q"],
+    [67, 3, "B"],
+    [69, 1, "Q"],
+    [71, 1, "Q"],
+    [73, 2, "B"],
     [75, 1, "Q"],
-    [82, 3, "B"],
+    [80, 3, "B"],
+    [83, 1, "Q"],
     [86, 1, "Q"],
-    [90, 4, "B"],
-    [95, 1, "Q"],
-    [100, 3, "B"],
-    [104, 1, "Q"],
+    [88, 2, "B"],
+    [91, 1, "Q"],
+    [93, 1, "Q"],
+    [104, 3, "B"],
+    [106, 1, "Q"],
+    [109, 1, "Q"],
+    [113, 3, "B"],
+    [115, 1, "Q"],
+    [118, 2, "B"],
+    [120, 1, "Q"],
+    [123, 1, "Q"],
+    [128, 3, "B"],
+    [130, 2, "B"],
+    [134, 1, "Q"],
+    [136, 1, "Q"],
+    [141, 3, "B"],
+    [144, 1, "Q"],
+    [147, 1, "Q"],
+    [150, 3, "B"],
   ];
-  for (const [from, count, t] of groups) {
-    putRow(14, from, from + count - 1, t);
+  for (const [from, count, t] of layer) putRow(14, from, from + count - 1, t);
+
+  // ---- 高台（第 7 行）：空中砖道，上方再悬银币 ----
+  const upper: Array<[number, number]> = [
+    [22, 4],
+    [60, 4],
+    [77, 4],
+    [117, 4],
+    [143, 4],
+  ];
+  for (const [from, count] of upper) putRow(7, from, from + count - 1, "B");
+  // 高台上空一字悬挂金币
+  for (const c of [24, 25, 26, 62, 63, 79, 80, 119, 120, 145, 146]) grid[6][c] = "o";
+
+  // ---- 可顶层上方短线金币（跳起可吃到） ----
+  for (const c of [11, 12, 17, 18, 38, 39, 49, 50, 68, 69, 84, 85, 105, 106, 119, 120, 135, 136]) {
+    grid[13][c] = "o";
   }
 
-  // 部分悬空平台
-  putRow(9, 44, 47, "B");
-  putRow(9, 52, 55, "B");
-  putRow(7, 98, 101, "B");
-
-  // 悬浮金币
-  const coinCells: Array<[number, number]> = [
-    [14, 12], [15, 12], [22, 11], [25, 11], [28, 11],
-    [43, 11], [47, 11], [57, 11], [61, 11], [71, 11],
-    [83, 11], [91, 11], [101, 11],
-  ];
-  for (const [c, r] of coinCells) grid[r][c] = "o";
-
-  // 水管（两座）
+  // ---- 水管（6 座，高 2~4 格，分布在砖块之间的地面空隙） ----
   const pipes: Array<[number, number]> = [
-    // [列, 高出地面格数]
-    [19, 3],
-    [66, 4],
-    [92, 2],
+    [14, 2],
+    [20, 3],
+    [40, 4],
+    [66, 2],
+    [110, 4],
+    [149, 3],
   ];
   for (const [c, h] of pipes) {
     for (let r = ROWS - 1 - h; r < ROWS - 1; r++) grid[r][c] = "P";
   }
 
-  // 终点城堡 + 旗杆（旗杆用城堡墙带）
-  game.flagCol = 115;
-  for (let r = ROWS - 6; r < ROWS; r++) grid[r][124] = "K";
-  grid[ROWS - 7][124] = "P";
-  grid[ROWS - 6][124] = "P";
+  // ---- 终点旗杆 + 城堡前台阶 + 城堡 ----
+  game.flagCol = 165;
+  // 旗杆（高 10 格）
+  for (let r = ROWS - 11; r <= ROWS - 2; r++) grid[r][165] = "P";
+  // 城堡前台阶（逐级升高 3 级）
+  grid[14][161] = "X";
+  grid[13][162] = "X";
+  grid[12][163] = "X";
+  // 城堡城墙（3 列宽，含顶部雉堞）
+  for (let r = ROWS - 6; r < ROWS; r++) grid[r][168] = "K";
+  grid[ROWS - 8][169] = "K";
+  grid[ROWS - 8][170] = "K";
+  for (let r = ROWS - 6; r < ROWS; r++) grid[r][171] = "K";
 
   game.grid = grid;
 
-  // 敌人（栗子怪）
-  game.enemies = [
-    { x: 14 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.6, alive: true },
-    { x: 32 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.7, alive: true },
-    { x: 48 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.5, alive: true },
-    { x: 63 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.8, alive: true },
-    { x: 84 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.6, alive: true },
-    { x: 96 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.9, alive: true },
-    { x: 106 * TILE, y: groundTop() - 14, w: 14, h: 14, vx: -0.7, alive: true },
+  // 指定某些问号块产出“变大蘑菇”或“火花花”（列号取自上方的 Q 块）
+  game.mushroomBlocks = new Set([7, 26, 55, 83, 106, 134]);
+  game.flowerBlocks = new Set([27, 48, 75, 93, 115, 136, 144]);
+  // 某些砖块内藏金币：顶它们出金币后变空（而非碎裂）
+  game.coinBricks = new Set([23, 43, 67, 88, 118, 141]);
+
+  // ---- 隐藏区域：不可见砖块（顶到才出金币并显现，可借其登高） ----
+  const hiddenCols = [11, 29, 38, 51, 59, 78, 90, 97, 107, 122, 132, 140, 153];
+  for (const c of hiddenCols) grid[14][c] = "H";
+
+  // 隐藏区域藏宝：若干隐蔽位置放金币串，跳到隐藏砖上可吃到
+  for (const c of [10, 28, 39, 52, 60, 79, 89, 98, 106, 121, 131, 141]) grid[13][c] = "o";
+
+  // ---- 隐藏连跳通道 + 1UP：在第 125 列搭一条隐藏砖阶梯，跳到顶端的问号块顶出 1UP 绿蘑菇 ----
+  game.oneupBlocks = new Set([125]);
+  const ladderCol = 125;
+  for (const r of [14, 11, 8, 5]) grid[r][ladderCol] = "H"; // 竖直阶梯（差 3 格，逐级可跳）
+  grid[4][ladderCol] = "Q"; // 顶端问号块 → 1UP
+  // 阶梯旁点缀金币（跳上去可顺路吃到）
+  for (const [c, r] of [[124, 13], [126, 12], [125, 7], [126, 6]] as Array<[number, number]>) {
+    grid[r][c] = "o";
+  }
+
+  // ---- 敌人：栗子怪与绿乌龟（乌龟可踩成龟壳滑行） ----
+  const spawnDefs: Array<[number, "goomba" | "koopa"]> = [
+    [9, "goomba"], [10, "goomba"], [25, "koopa"], [39, "goomba"], [45, "goomba"],
+    [46, "goomba"], [57, "koopa"], [58, "goomba"], [72, "goomba"], [73, "goomba"],
+    [87, "koopa"], [102, "goomba"], [103, "goomba"], [115, "koopa"], [116, "goomba"],
+    [132, "koopa"], [133, "goomba"], [145, "goomba"], [146, "goomba"], [158, "koopa"],
   ];
+  game.enemies = spawnDefs.map(([c, kind]) => ({
+    x: c * TILE,
+    y: groundTop() - 14,
+    w: 14,
+    h: 14,
+    vx: kind === "koopa" ? -(0.3 + Math.random() * 0.3) : -(0.5 + Math.random() * 0.5),
+    vy: 0,
+    alive: true,
+    kind,
+    state: "walk" as "walk" | "shell" | "slide",
+  }));
+
+  game.items = [];
+  game.fireballs = [];
   game.particles = [];
 }
 
@@ -201,11 +315,34 @@ function newGame() {
   game.level = 1;
   game.dead = false;
   game.won = false;
+  game.fireballs = [];
+  game.fireCd = 0;
   spawnMario();
+}
+
+/** 设置马里奥体型（0=小 / 1=大），保持脚底对齐 */
+function setMarioSize(size: 0 | 1) {
+  const m = game.mario;
+  const feet = m.y + m.h;
+  if (size === 1) {
+    m.w = 16;
+    m.h = 32;
+  } else {
+    m.w = 14;
+    m.h = 20;
+    // 缩回小号时保留火球能力（原版规则：缩小时保留火花花进度）
+  }
+  m.size = size;
+  m.y = feet - m.h;
 }
 
 function spawnMario() {
   const m = game.mario;
+  m.size = 0;
+  m.w = 14;
+  m.h = 20;
+  m.inv = 0;
+  m.fire = 0;
   m.x = 2 * TILE;
   m.y = groundTop() - m.h;
   m.vx = 0;
@@ -214,13 +351,26 @@ function spawnMario() {
   game.camera = 0;
 }
 
+/** 根据马里奥抓到旗杆时的高度计算分段奖励（越高越多） */
+function flagSegment(marioY: number): number {
+  const top = (ROWS - 11) * TILE; // 旗杆顶端 y
+  const bottom = groundTop(); // 旗杆底端（地面）y
+  const ratio = (marioY - top) / (bottom - top);
+  if (ratio < 0.2) return 5000; // 几乎抓到顶
+  if (ratio < 0.4) return 4000;
+  if (ratio < 0.6) return 2000;
+  if (ratio < 0.8) return 800;
+  return 100; // 旗杆底部附近
+}
+
 /** 通关：结算并提交成绩 */
-function doWin() {
+function doWin(heightBonus: number) {
   game.state = "clear";
   game.won = true;
   game.finalTime = game.time;
+  game.flagBonus = heightBonus;
   const timeBonus = game.time * 10;
-  game.score += timeBonus;
+  game.score += heightBonus + timeBonus;
   void marioApi
     .submitScore({
       score: game.score,
@@ -264,6 +414,10 @@ function onKeyDown(e: KeyboardEvent) {
   if (game.state === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W")) {
     tryJump();
   }
+  // 火球射击（X / C，需拥有火球能力）
+  if (game.state === "play" && (k === "x" || k === "X" || k === "c" || k === "C")) {
+    fire();
+  }
 }
 
 function onKeyUp(e: KeyboardEvent) {
@@ -277,10 +431,25 @@ function onKeyUp(e: KeyboardEvent) {
 function tryJump() {
   const m = game.mario;
   if (m.onGround) {
-    m.vy = -8;
+    // 大马里奥跳得更高（贴原版）：小号 -8 / 大号 -9.6
+    m.vy = m.size === 1 ? -9.6 : -8;
     m.onGround = false;
     game.timer = 12; // 跳跃缓冲
   }
+}
+
+/** 发射火球（需拥有火球能力，受冷却限制） */
+function fire() {
+  const m = game.mario;
+  if (game.mario.fire !== 1 || game.fireCd > 0) return;
+  game.fireCd = 12;
+  game.fireballs.push({
+    x: m.x + (m.facing > 0 ? m.w : -6),
+    y: m.y + m.h / 2 - 3,
+    vx: m.facing > 0 ? 3.2 : -3.2,
+    t: 0,
+    remove: false,
+  });
 }
 
 function isLeft() {
@@ -336,18 +505,58 @@ function moveAndCollide(ent: { x: number; y: number; w: number; h: number; vx: n
 
 function hitBlockFromBelow(col: number, row: number) {
   const t = tileAt(col, row);
-  if (t === "Q") {
-    // 问号块：出金币，变已使用
+  if (t === "H") {
+    // 隐藏砖：顶出金币并变为“已使用”砖（从此可见）
     game.grid[row][col] = "#";
     game.coins += 1;
     game.score += 150;
     spawnCoinBurst(col * TILE + 8, row * TILE);
+  } else if (t === "Q") {
+    // 问号块：变已使用。产出优先级：1UP > 火花花 > 大蘑菇 > 金币
+    game.grid[row][col] = "#";
+    if (game.oneupBlocks.has(col)) {
+      game.score += 100;
+      game.items.push(itemFromBlock(col, row, "oneup"));
+    } else if (game.flowerBlocks.has(col)) {
+      game.score += 100;
+      game.items.push(itemFromBlock(col, row, "flower"));
+    } else if (game.mushroomBlocks.has(col)) {
+      game.score += 100;
+      game.items.push(itemFromBlock(col, row, "mushroom"));
+    } else {
+      game.coins += 1;
+      game.score += 150;
+      spawnCoinBurst(col * TILE + 8, row * TILE);
+    }
   } else if (t === "B") {
-    // 砖块：顶碎
-    game.grid[row][col] = " ";
-    game.score += 60;
-    spawnBrickBits(col * TILE, row * TILE);
+    if (game.coinBricks.has(col)) {
+      // 金币砖：顶出金币后变空（不再碎裂）
+      game.grid[row][col] = "#";
+      game.coins += 1;
+      game.score += 150;
+      spawnCoinBurst(col * TILE + 8, row * TILE);
+    } else {
+      // 普通砖块：顶碎
+      game.grid[row][col] = " ";
+      game.score += 60;
+      spawnBrickBits(col * TILE, row * TILE);
+    }
   }
+}
+
+/** 从问号块生成道具（1UP / 蘑菇滑动 / 火花花原地） */
+function itemFromBlock(col: number, row: number, type: "mushroom" | "flower" | "oneup"): Item {
+  return {
+    x: col * TILE + 1,
+    y: row * TILE - 14,
+    w: 14,
+    h: 14,
+    vx: type === "mushroom" ? 0.8 : 0,
+    vy: 0,
+    t: 0,
+    remove: false,
+    type,
+  };
 }
 
 // ============ 粒子 ============
@@ -401,14 +610,111 @@ function update() {
       }
     }
 
-    // 敌人
+    // 无敌帧递减
+    if (m.inv > 0) m.inv--;
+
+    // 道具（蘑菇/火花花）物理与收集
+    for (const it of game.items) {
+      it.t++;
+      // 冒出动画：前 24 帧向上弹起
+      if (it.t < 24) {
+        it.y -= 2;
+        continue;
+      }
+      // 火花花：原地待前（不滑动，轻微浮动）；蘑菇：重力 + 沿地面滑动
+      if (it.type === "flower") {
+        it.y += Math.sin(it.t * 0.15) * 0.4;
+      } else {
+        it.x += it.vx;
+        it.y += it.vy;
+        it.vy += GRAV;
+        if (it.vy > MAX_FALL) it.vy = MAX_FALL;
+        const stepR = Math.floor((it.y + it.h) / TILE);
+        const under = isSolid(tileAt(Math.floor((it.x + 2) / TILE), stepR)) ||
+          isSolid(tileAt(Math.floor((it.x + it.w - 2) / TILE), stepR));
+        if (under) {
+          it.y = stepR * TILE - it.h - 0.01;
+          it.vy = 0;
+        }
+        // 撞墙反向
+        const frontC = it.vx >= 0 ? Math.floor((it.x + it.w) / TILE) : Math.floor(it.x / TILE);
+        if (isSolid(tileAt(frontC, Math.floor(it.y / TILE)))) it.vx *= -1;
+      }
+
+      // 收集判定（蘑菇 & 火花花共用）
+      if (
+        m.x < it.x + it.w && m.x + m.w > it.x &&
+        m.y < it.y + it.h && m.y + m.h > it.y
+      ) {
+        it.remove = true;
+        game.score += 1000;
+        spawnCoinBurst(it.x + 7, it.y);
+        if (it.type === "oneup") {
+          // 1UP 绿蘑菇：增加一条生命（封顶 99）
+          game.lives = Math.min(99, game.lives + 1);
+        } else if (it.type === "flower") {
+          // 火花花：小→变大；大→获得火球射击能力
+          if (game.mario.size === 0) setMarioSize(1);
+          else game.mario.fire = 1;
+        } else {
+          // 蘑菇：小→变大；大→仅加分
+          if (game.mario.size === 0) setMarioSize(1);
+        }
+      }
+    }
+    game.items = game.items.filter((i) => !i.remove);
+
+    // 火球更新（只在拥有火球能力时刷新）
+    if (game.fireCd > 0) game.fireCd--;
+    for (const f of game.fireballs) {
+      f.t++;
+      f.x += f.vx;
+      // 撞墙消失
+      const fy = Math.floor((f.y + 4) / TILE);
+      const fCol = f.vx > 0 ? Math.floor((f.x + 6) / TILE) : Math.floor(f.x / TILE);
+      if (isSolid(tileAt(fCol, Math.floor(f.y / TILE))) || isSolid(tileAt(fCol, fy))) {
+        f.remove = true;
+      }
+      // 撞敌击杀
+      for (const e of game.enemies) {
+        if (!e.alive) continue;
+        if (f.x < e.x + e.w && f.x + 6 > e.x && f.y < e.y + e.h && f.y + 6 > e.y) {
+          e.alive = false;
+          game.score += 200;
+          f.remove = true;
+          break;
+        }
+      }
+      if (f.t > 90) f.remove = true;
+    }
+    game.fireballs = game.fireballs.filter((f) => !f.remove);
+
+    // 敌人：前方有墙才反向（修复“原地抖/不动”），并受重力随地形起伏落坑
     for (const e of game.enemies) {
       if (!e.alive) continue;
-      e.x += e.vx;
-      // 碰壁反向
-      if (isSolid(tileAt(Math.floor((e.vx > 0 ? e.x + e.w : e.x) / TILE), Math.floor((e.y + e.h) / TILE)))) {
-        e.vx *= -1;
+      // 静止龟壳不自主移动
+      if (e.state !== "shell") {
+        e.x += e.vx;
+        // 前方墙体检测（用身体上/中两行，避免把脚下地面误判为墙）
+        const frontC = e.vx >= 0 ? Math.floor((e.x + e.w) / TILE) : Math.floor(e.x / TILE);
+        const wallR1 = Math.floor(e.y / TILE);
+        const wallR2 = Math.floor((e.y + e.h - 2) / TILE);
+        if (isSolid(tileAt(frontC, wallR1)) || isSolid(tileAt(frontC, wallR2))) {
+          e.vx *= -1;
+        }
       }
+      // 重力：脚下有实心（地/平台/台阶）则停留，否则下落（会掉进坑）
+      e.y += e.vy;
+      e.vy += GRAV;
+      if (e.vy > MAX_FALL) e.vy = MAX_FALL;
+      const stepR = Math.floor((e.y + e.h) / TILE);
+      const underL = isSolid(tileAt(Math.floor((e.x + 1) / TILE), stepR));
+      const underR = isSolid(tileAt(Math.floor((e.x + e.w - 1) / TILE), stepR));
+      if (underL || underR) {
+        e.y = stepR * TILE - e.h - 0.01;
+        e.vy = 0;
+      }
+
       // 与马里奥碰撞
       if (
         m.x < e.x + e.w && m.x + m.w > e.x &&
@@ -417,10 +723,39 @@ function update() {
         const falling = m.vy > 0;
         const above = m.y + m.h - e.y < e.h * 0.6;
         if (falling && above) {
-          // 踩扁
-          e.alive = false;
-          game.score += 200;
+          // 踩顶
           m.vy = -6;
+          m.onGround = false;
+          if (e.kind === "goomba") {
+            e.alive = false;
+            game.score += 200;
+          } else if (e.state === "walk") {
+            // 乌龟：缩壳
+            e.state = "shell";
+            e.vx = 0;
+            game.score += 100;
+          } else if (e.state === "shell") {
+            // 静止壳：踢成滑行壳（朝被踩时面对的反方向）
+            e.state = "slide";
+            e.vx = m.x < e.x ? 4 : -4;
+            game.score += 100;
+          } else {
+            // 滑行壳：踩停
+            e.state = "shell";
+            e.vx = 0;
+            game.score += 100;
+          }
+        } else if (m.inv > 0) {
+          // 无敌帧：免受伤害
+        } else if (e.kind === "koopa" && e.state === "shell") {
+          // 静止壳侧碰：不受伤，但被踢走滑行
+          e.state = "slide";
+          e.vx = m.x < e.x ? 4 : -4;
+        } else if (game.mario.size === 1) {
+          // 大马里奥被撞（goomba / 行走龟 / 滑行壳）：缩回小号 + 短暂无敌
+          setMarioSize(0);
+          m.inv = 120;
+          m.vy = -4;
           m.onGround = false;
         } else {
           playerDie();
@@ -428,7 +763,20 @@ function update() {
         }
       }
     }
-    // 移除已被踩灭的敌人
+
+    // 滑行龟壳撞击其他敌人（连锁击杀）
+    for (const e of game.enemies) {
+      if (!e.alive || e.kind !== "koopa" || e.state !== "slide") continue;
+      for (const o of game.enemies) {
+        if (o === e || !o.alive) continue;
+        if (o.x < e.x + e.w && o.x + o.w > e.x && o.y < e.y + e.h && o.y + o.h > e.y) {
+          o.alive = false;
+          game.score += 200;
+        }
+      }
+    }
+
+    // 移除已被踩灭/击杀的敌人
     game.enemies = game.enemies.filter((e) => e.alive);
 
     // 掉落判定（掉出屏幕或掉进坑）
@@ -437,10 +785,16 @@ function update() {
       return;
     }
 
-    // 终点判定
-    if (m.x + m.w >= game.flagCol * TILE) {
-      doWin();
-      return;
+    // 终点判定：触到旗杆柱体，按抓到的高度分段给分
+    {
+      const pX1 = game.flagCol * TILE;
+      const pX2 = pX1 + TILE;
+      const pTopY = (ROWS - 11) * TILE;
+      const pBotY = groundTop();
+      if (m.x + m.w > pX1 && m.x < pX2 && m.y + m.h > pTopY && m.y < pBotY) {
+        doWin(flagSegment(m.y));
+        return;
+      }
     }
 
     // 摄像机跟随
@@ -508,6 +862,25 @@ function render() {
     drawEnemy(e);
   }
 
+  // 道具（蘑菇/火花花）
+  for (const it of game.items) {
+    drawItem(it);
+  }
+
+  // 火球
+  for (const f of game.fireballs) {
+    const fx = Math.round(f.x - cam);
+    const fy = Math.round(f.y);
+    ctx.fillStyle = "#ff7a1a";
+    ctx.beginPath();
+    ctx.arc(fx + 3, fy + 3, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffdf80";
+    ctx.beginPath();
+    ctx.arc(fx + 2, fy + 2, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // 马里奥
   drawMario();
 
@@ -543,6 +916,8 @@ function drawBrick(px: number, py: number, brown: string, mortar: string) {
 
 function drawTile(t: TileChar, px: number, py: number) {
   if (!ctx) return;
+  // 隐藏砖：不可见（顶到变 '#' 后才会绘制）
+  if (t === "H") return;
   switch (t) {
     case "X":
     case "P":
@@ -599,6 +974,57 @@ function drawTile(t: TileChar, px: number, py: number) {
 function drawEnemy(e: Enemy) {
   if (!ctx) return;
   const px = e.x - game.camera;
+  if (e.kind === "koopa") {
+    // ===== 乌龟 =====
+    if (e.state === "shell" || e.state === "slide") {
+      // 龟壳（静止或滑行）
+      ctx.fillStyle = "#3f9e33";
+      ctx.beginPath();
+      ctx.ellipse(px + e.w / 2, e.y + e.h, e.w / 2, e.h / 2 - 1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e8f2c0";
+      ctx.beginPath();
+      ctx.ellipse(px + e.w / 2, e.y + 6, e.w / 2 - 2, e.h / 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 滑行时画速度线
+      if (e.state === "slide") {
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 1; i <= 3; i++) {
+          const lx = px + (e.vx > 0 ? -i * 4 : e.w + i * 4);
+          ctx.moveTo(lx - 2, e.y + e.h - 2);
+          ctx.lineTo(lx + 2, e.y + e.h - 5);
+        }
+        ctx.stroke();
+      }
+      return;
+    }
+    // 行走乌龟
+    // 绿壳
+    ctx.fillStyle = "#3f9e33";
+    ctx.beginPath();
+    ctx.arc(px + e.w / 2, e.y + 3, e.w / 2 - 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e8f2c0";
+    ctx.beginPath();
+    ctx.ellipse(px + e.w / 2, e.y + 1, e.w / 2 - 3, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 头
+    ctx.fillStyle = "#c8e0b0";
+    ctx.fillRect(px + e.w / 2 + (e.vx > 0 ? 1 : -5), e.y + 3, 5, 4);
+    // 眼睛
+    ctx.fillStyle = "#333";
+    ctx.fillRect(px + e.w / 2 + (e.vx > 0 ? 3 : -1), e.y + 4, 2, 2);
+    // 脚
+    ctx.fillStyle = "#5a7a2a";
+    const step = Math.sin(game.frame * 0.4) > 0 ? 0 : 2;
+    ctx.fillRect(px + 2 + step, e.y + e.h - 3, 4, 3);
+    ctx.fillRect(px + e.w - 5 - step, e.y + e.h - 3, 4, 3);
+    return;
+  }
+
+  // ===== 栗子怪 goomba =====
   const bob = Math.sin(game.frame * 0.2);
   ctx.fillStyle = "#a03e1f";
   ctx.beginPath();
@@ -616,13 +1042,116 @@ function drawEnemy(e: Enemy) {
   void bob;
 }
 
+function drawItem(it: Item) {
+  if (!ctx) return;
+  const px = Math.round(it.x - game.camera);
+  const py = Math.round(it.y);
+  if (it.type === "flower") {
+    // ===== 火花花：白花 + 黄芯，花茎 =====
+    ctx.fillStyle = "#3f9e33";
+    ctx.fillRect(px + it.w / 2 - 1, py + it.h - 4, 2, 4);
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(px + it.w / 2 - 3, py + it.h / 2 - 4, 3, 0, Math.PI * 2);
+    ctx.arc(px + it.w / 2 + 3, py + it.h / 2 - 4, 3, 0, Math.PI * 2);
+    ctx.arc(px + it.w / 2, py + it.h / 2 - 7, 3, 0, Math.PI * 2);
+    ctx.arc(px + it.w / 2, py + it.h / 2 - 1, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffcf3a";
+    ctx.beginPath();
+    ctx.arc(px + it.w / 2, py + it.h / 2 - 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  if (it.type === "oneup") {
+    // ===== 1UP 绿蘑菇：绿帽 + 白点 + 白柄（加命） =====
+    ctx.fillStyle = "#3f9e33";
+    ctx.beginPath();
+    ctx.arc(px + it.w / 2, py + 4, it.w / 2, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(px, py + 4, it.w, it.h / 2 - 1);
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(px + it.w / 2, py + 3, 1.6, 0, Math.PI * 2);
+    ctx.arc(px + 3, py + 5, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff6e0";
+    ctx.fillRect(px + 2, py + it.h / 2 - 1, it.w - 4, it.h - it.h / 2 + 1);
+    // "1UP" 字样
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 6px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("1UP", px + it.w / 2, py + it.h - 2);
+    return;
+  }
+  // ===== 蘑菇：红帽 + 白点 + 白柄 =====
+  ctx.fillStyle = "#e23b2e";
+  ctx.beginPath();
+  ctx.arc(px + it.w / 2, py + 4, it.w / 2, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(px, py + 4, it.w, it.h / 2 - 1);
+  // 帽上白点
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(px + it.w / 2, py + 3, 1.6, 0, Math.PI * 2);
+  ctx.arc(px + 3, py + 5, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+  // 白色蘑菇柄
+  ctx.fillStyle = "#fff6e0";
+  ctx.fillRect(px + 2, py + it.h / 2 - 1, it.w - 4, it.h - it.h / 2 + 1);
+  // 眼睛
+  ctx.fillStyle = "#333";
+  ctx.fillRect(px + 3, py + 4, 2, 2);
+  ctx.fillRect(px + it.w - 5, py + 4, 2, 2);
+}
+
 function drawMario() {
   if (!ctx) return;
   const m = game.mario;
+  // 无敌帧：闪烁（每隔几帧消失一次）
+  if (m.inv > 0 && Math.floor(m.inv / 4) % 2 === 0) return;
   const px = Math.round(m.x - game.camera);
   const py = Math.round(m.y);
-  const flap = Math.sin(game.mario.anim * 0.5);
+  const big = m.size === 1;
 
+  if (big) {
+    // ===== 大马里奥（更高，红帽+蓝工装） =====
+    // 帽子
+    ctx.fillStyle = "#e23b2e";
+    ctx.fillRect(px + 1, py, m.w - 2, 5);
+    ctx.fillRect(px - 1, py + 4, m.w + 2, 2);
+    // 帽檐"M"
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(px + (m.facing > 0 ? 4 : m.w - 8), py + 1, 5, 3);
+    // 脸
+    ctx.fillStyle = "#f7c59f";
+    ctx.fillRect(px + 1, py + 6, m.w - 2, 8);
+    // 眼睛
+    ctx.fillStyle = "#333";
+    ctx.fillRect(px + (m.facing > 0 ? m.w - 7 : 5), py + 8, 2, 3);
+    // 胡子
+    ctx.fillStyle = "#7a3b1a";
+    ctx.fillRect(px + 1, py + 12, m.w - 2, 2);
+    // 工装（蓝）
+    ctx.fillStyle = "#2a6bd8";
+    ctx.fillRect(px + 1, py + 15, m.w - 2, m.h - 17);
+    // 工装扣子
+    ctx.fillStyle = "#ffe899";
+    ctx.fillRect(px + (m.facing > 0 ? m.w - 8 : 6), py + 18, 2, 2);
+    // 脚
+    ctx.fillStyle = "#8a4a24";
+    if (m.onGround) {
+      const step = Math.sin(game.mario.anim * 0.5) > 0 ? 1.5 : -1.5;
+      ctx.fillRect(px - 1 + step, py + m.h - 4, 9, 4);
+      ctx.fillRect(px + m.w - 1 - step, py + m.h - 4, 9, 4);
+    } else {
+      ctx.fillRect(px - 2, py + m.h - 4, 8, 4);
+      ctx.fillRect(px + m.w - 6, py + m.h - 4, 8, 4);
+    }
+    return;
+  }
+
+  // ===== 小马里奥 =====
   // 帽子（红）
   ctx.fillStyle = "#e23b2e";
   ctx.fillRect(px + 1, py, m.w - 2, 4);
@@ -640,10 +1169,9 @@ function drawMario() {
   // 身体（蓝工装）
   ctx.fillStyle = "#2a6bd8";
   ctx.fillRect(px + 1, py + 12, m.w - 2, m.h - 13);
-  // 每只脚
+  // 脚
   ctx.fillStyle = "#8a4a24";
   if (!m.onGround) {
-    // 跳跃叉腿
     ctx.fillRect(px - 1, py + m.h - 3, m.w / 2, 3);
     ctx.fillRect(px + m.w / 2 - 1, py + m.h - 4, m.w / 2, 3);
   } else {
@@ -651,7 +1179,6 @@ function drawMario() {
     ctx.fillRect(px + step, py + m.h - 3, m.w / 2 + 1, 3);
     ctx.fillRect(px + m.w / 2 - step, py + m.h - 3, m.w / 2 + 1, 3);
   }
-  void flap;
 }
 
 function drawHud(cam: number) {
@@ -681,9 +1208,10 @@ function drawOverlayTitle() {
   ctx.font = "14px monospace";
   ctx.fillText("复刻版平台跳跃", VIEW_W / 2, 146);
   ctx.fillStyle = "#e23b2e";
-  ctx.fillText("←→ 移动  |  Space/↑ 跳跃", VIEW_W / 2, 180);
-  ctx.fillText("顶 ?块出金币 · 顶 B砖可碎 · 踩敌人消灭", VIEW_W / 2, 200);
-  ctx.fillText("抵达终点旗杆通关 · R 重新开始", VIEW_W / 2, 220);
+  ctx.fillText("←→ 移动  |  Space/↑ 跳跃  |  X/C 火球", VIEW_W / 2, 178);
+  ctx.fillText("顶 ?块出金币/蘑菇/火花花 · 顶 B砖可碎 · 踩敌人消灭", VIEW_W / 2, 198);
+  ctx.fillText("踩乌龟可缩壳/滑行 · 触旗杆按高度分段得分", VIEW_W / 2, 218);
+  ctx.fillText("隐藏砖可登高 · 顶端问号块藏着 1UP 绿蘑菇加命", VIEW_W / 2, 236);
   ctx.fillStyle = "#7aff7a";
   ctx.font = "bold 18px monospace";
   ctx.fillText("按 ENTER 开始", VIEW_W / 2, 262);
@@ -704,15 +1232,15 @@ function drawOverlayEnd(gameOver: boolean) {
     ? [`得分 ${game.score}`, `金币 ${game.coins}`, `为你通关的下一关加油~`]
     : [
         `得分 ${game.score}`,
-        `金币 ×${game.coins}`,
-        `时间奖励 ${game.finalTime * 10}`,
-        `已提交到高分榜`,
+        `旗杆高度奖励 +=${game.flagBonus}`,
+        `时间奖励 +${game.finalTime * 10}`,
+        `金币 ×${game.coins} · 已提交到高分榜`,
       ];
   lines.forEach((ln, i) => ctx.fillText(ln, VIEW_W / 2, 140 + i * 22));
 
   ctx.font = "bold 16px monospace";
   ctx.fillStyle = "#ffcc00";
-  ctx.fillText("按 ENTER 再来一局", VIEW_W / 2, 232);
+  ctx.fillText("按 ENTER 再来一局", VIEW_W / 2, 252);
 }
 
 // ============ 渲染主循环 ============
@@ -755,8 +1283,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="mario-page">
-    <div class="game-wrap">
+  <div ref="rootRef" class="screen-root">
+    <div class="scaled-stage" :style="stageStyle">
       <canvas
         ref="canvasRef"
         :width="VIEW_W"
@@ -764,37 +1292,58 @@ onBeforeUnmount(() => {
         class="mario-canvas"
         tabindex="0"
       />
-      <div class="tip">当前用户：{{ authStore.user?.username ?? "—" }}</div>
+    </div>
+    <div class="tip-row">
+      <span>当前用户：{{ authStore.user?.username ?? "—" }}</span>
+      <span class="keys">←→ 移动 · Space/↑ 跳跃 · X/C 火球 · R 重新开始 · Enter 开始</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-.mario-page {
+.screen-root {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-.game-wrap {
+  min-height: 0;
+  width: 100%;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #1a2440 0%, #0a0e1a 80%);
+  padding: 8px;
+}
+.scaled-stage {
+  flex-shrink: 0;
+  transform-origin: center center;
+  line-height: 0;
 }
 .mario-canvas {
-  width: min(100%, 900px);
-  aspect-ratio: 480 / 320;
+  width: 100%;
+  height: 100%;
+  display: block;
   background: #000;
   border: 3px solid #ffcc00;
   border-radius: 8px;
   image-rendering: pixelated;
   outline: none;
-  box-shadow: 0 0 30px rgba(255, 204, 0, 0.2);
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.25);
 }
-.tip {
+.tip-row {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
   font-size: 13px;
   color: #aaa;
+  padding: 0 16px;
+  flex-wrap: wrap;
+}
+.keys {
+  color: #ffcc00;
 }
 </style>
