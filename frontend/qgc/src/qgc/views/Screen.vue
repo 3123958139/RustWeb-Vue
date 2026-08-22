@@ -1279,7 +1279,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   width: max-content;
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 8px;
   background: transparent;
   border: 1px solid var(--grid-line);
@@ -1289,7 +1289,7 @@ onUnmounted(() => {
 /* 语音告警开关：与状态条按钮等高 */
 .voice-switch {
   --el-switch-on-color: var(--text-success);
-  margin: 0 2px;
+  margin: 0;
 }
 
 /* ============ 告警横幅（顶部居中，红/黄高亮 + 闪烁） ============ */
@@ -1343,7 +1343,12 @@ onUnmounted(() => {
 .bar-side {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+/* 紧凑排列：去掉 Element Plus 相邻按钮的默认外边距，仅保留 flex gap */
+.bar-side .el-button + .el-button {
+  margin-left: 0;
 }
 
 .bar-time {
