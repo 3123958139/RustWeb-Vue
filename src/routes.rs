@@ -105,6 +105,10 @@ pub fn create_router(db: DatabaseConnection) -> Router {
     // - WebSocket 推送（telemetry / mission_progress / command_ack）
     let qgc_routes = crate::qgc::routes::qgc_router(db.clone());
 
+    // mario 角色路由（需要 MarioMonitor 权限）：
+    // - 超级马里奥复刻游戏成绩：高分榜 / 提交成绩 / 全局统计
+    let mario_routes = crate::mario::routes::mario_router(db.clone());
+
     // ============ 2. 组装路由树 ============
     //
     // `Router::new()` 创建空路由
@@ -160,5 +164,6 @@ pub fn create_router(db: DatabaseConnection) -> Router {
         .nest("/api/fw150", fw150_routes)
         .nest("/api/protocol_generator", protocol_generator_routes)
         .nest("/api/qgc", qgc_routes)
+        .nest("/api/mario", mario_routes)
         .with_state(db)
 }

@@ -46,6 +46,7 @@ embed_assets!(
     City3dAssets => "frontend/city3d/dist/",
     ProtocolGeneratorAssets => "frontend/protocol_generator/dist/",
     QgcAssets => "frontend/qgc/dist/",
+    MarioAssets => "frontend/mario/dist/",
 );
 
 // ============ 处理函数 ============
@@ -122,5 +123,6 @@ pub fn embedded_router() -> Router {
         "city3d" => City3dAssets,
         "protocol_generator" => ProtocolGeneratorAssets,
         "qgc" => QgcAssets,
+        "mario" => MarioAssets,
     )
 }

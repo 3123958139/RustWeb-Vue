@@ -116,6 +116,10 @@ use utoipa::OpenApi;
         crate::qgc::handlers::list_csv_handler,
         crate::qgc::handlers::get_csv_handler,
         crate::qgc::handlers::get_help_handler,
+        // ============ mario（超级马里奥复刻游戏） ============
+        crate::mario::handlers::list_scores,
+        crate::mario::handlers::submit_score,
+        crate::mario::handlers::get_stats,
     ),
     components(
         schemas(
@@ -199,6 +203,11 @@ use utoipa::OpenApi;
             crate::qgc::models::QgcMission,
             crate::qgc::models::QgcMissionUploadRequest,
             crate::qgc::models::TileStats,
+            // mario 模型（超级马里奥复刻游戏）
+            crate::mario::models::MarioScore,
+            crate::mario::models::ScoreList,
+            crate::mario::models::MarioStats,
+            crate::mario::models::SubmitScoreRequest,
         )
     ),
 )]
@@ -302,13 +311,16 @@ mod tests {
             "/api/qgc/telemetry/csv",
             "/api/qgc/telemetry/csv/{name}",
             "/api/qgc/help",
+            // mario：3 个操作（scores GET/POST + stats GET）
+            "/api/mario/scores",
+            "/api/mario/stats",
         ] {
             assert!(paths.contains_key(path), "缺少路径: {}", path);
         }
 
         // 唯一路径数：auth 3 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
-        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 + qgc 17（新增 param/stream/telemetry/csv 列表+下载）= 66
-        assert_eq!(paths.len(), 66, "路径数量与预期不符");
+        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 + qgc 17 + mario 2（scores/stats）= 68
+        assert_eq!(paths.len(), 68, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -325,7 +337,7 @@ mod tests {
                 }
             }
         }
-        // 83 个 HTTP 操作（不含 WebSocket；qgc 新增 22：start/stop/status/config GET+PUT/telemetry/command/mode/mission GET+PUT+DELETE/mission/download/tile/stats/clear/param GET+PUT/stream GET+POST/telemetry/csv 列表+下载/help）
-        assert_eq!(operations, 83, "操作数量与预期不符");
+        // 86 个 HTTP 操作（不含 WebSocket；qgc 22 + mario 未计入质变前的分项：83 + 新增 mario 3 = 86）
+        assert_eq!(operations, 86, "操作数量与预期不符");
     }
 }

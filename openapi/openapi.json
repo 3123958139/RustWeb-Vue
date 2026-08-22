@@ -1299,6 +1299,89 @@
         }
       }
     },
+    "/api/mario/scores": {
+      "get": {
+        "tags": [
+          "mario"
+        ],
+        "summary": "高分榜",
+        "operationId": "marioListScores",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "返回条数（默认 10，最大 50）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "高分榜单（按分数倒序）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ScoreList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "mario"
+        ],
+        "summary": "提交一局游戏成绩",
+        "operationId": "marioSubmitScore",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitScoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "提交成功，返回写入的榜单条目（含排名）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MarioScore"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mario/stats": {
+      "get": {
+        "tags": [
+          "mario"
+        ],
+        "summary": "全局统计",
+        "operationId": "marioGetStats",
+        "responses": {
+          "200": {
+            "description": "全局统计",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MarioStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/meta/roles": {
       "get": {
         "tags": [
@@ -2874,6 +2957,133 @@
           }
         }
       },
+      "ApiResponse_MarioScore": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "榜单条目（GET /api/mario/scores 返回）",
+            "required": [
+              "ranking",
+              "username",
+              "score",
+              "level",
+              "coins",
+              "time_ms",
+              "created_at"
+            ],
+            "properties": {
+              "coins": {
+                "type": "integer",
+                "format": "int64",
+                "description": "收集金币数"
+              },
+              "created_at": {
+                "type": "string",
+                "description": "提交时间"
+              },
+              "level": {
+                "type": "integer",
+                "format": "int64",
+                "description": "到达关卡"
+              },
+              "ranking": {
+                "type": "integer",
+                "format": "int64",
+                "description": "排名（1 起始）"
+              },
+              "score": {
+                "type": "integer",
+                "format": "int64",
+                "description": "得分"
+              },
+              "time_ms": {
+                "type": "integer",
+                "format": "int64",
+                "description": "通关耗时（毫秒，0 表示未完成）"
+              },
+              "username": {
+                "type": "string",
+                "description": "提交者用户名"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_MarioStats": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "全局统计（GET /api/mario/stats 返回）",
+            "required": [
+              "total_games",
+              "total_coins",
+              "top_score",
+              "players"
+            ],
+            "properties": {
+              "players": {
+                "type": "integer",
+                "format": "int64",
+                "description": "参与玩家数（不同用户名去重）"
+              },
+              "top_score": {
+                "type": "integer",
+                "format": "int64",
+                "description": "历史最高分"
+              },
+              "top_username": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "最高分获得者用户名"
+              },
+              "total_coins": {
+                "type": "integer",
+                "format": "int64",
+                "description": "累计收集金币数"
+              },
+              "total_games": {
+                "type": "integer",
+                "format": "int64",
+                "description": "累计游戏总局数"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
       "ApiResponse_Overview": {
         "type": "object",
         "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
@@ -3555,6 +3765,48 @@
             "properties": {
               "saved": {
                 "type": "boolean"
+              }
+            }
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "错误信息（可选）"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功"
+          }
+        }
+      },
+      "ApiResponse_ScoreList": {
+        "type": "object",
+        "description": "统一 API 响应格式\n\n所有 API 端点返回此格式，前端统一处理。\n\n成功响应：\n```json\n{ \"success\": true, \"data\": { ... }, \"message\": null }\n```\n\n错误响应：\n```json\n{ \"success\": false, \"data\": null, \"message\": \"错误信息\" }\n```\n\n# 泛型说明\n\n`T` 是泛型参数，表示 `data` 字段的类型：\n- `ApiResponse<User>` - 单个用户\n- `ApiResponse<Vec<User>>` - 用户列表\n- `ApiResponse<LoginResponse>` - 登录响应",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "高分榜（分页携带总数，供前端展示「共 N 局」）",
+            "required": [
+              "items",
+              "total"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MarioScore"
+                },
+                "description": "榜单条目"
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64",
+                "description": "历史总记录数"
               }
             }
           },
@@ -5633,6 +5885,93 @@
           }
         }
       },
+      "MarioScore": {
+        "type": "object",
+        "description": "榜单条目（GET /api/mario/scores 返回）",
+        "required": [
+          "ranking",
+          "username",
+          "score",
+          "level",
+          "coins",
+          "time_ms",
+          "created_at"
+        ],
+        "properties": {
+          "coins": {
+            "type": "integer",
+            "format": "int64",
+            "description": "收集金币数"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "提交时间"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int64",
+            "description": "到达关卡"
+          },
+          "ranking": {
+            "type": "integer",
+            "format": "int64",
+            "description": "排名（1 起始）"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int64",
+            "description": "得分"
+          },
+          "time_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "通关耗时（毫秒，0 表示未完成）"
+          },
+          "username": {
+            "type": "string",
+            "description": "提交者用户名"
+          }
+        }
+      },
+      "MarioStats": {
+        "type": "object",
+        "description": "全局统计（GET /api/mario/stats 返回）",
+        "required": [
+          "total_games",
+          "total_coins",
+          "top_score",
+          "players"
+        ],
+        "properties": {
+          "players": {
+            "type": "integer",
+            "format": "int64",
+            "description": "参与玩家数（不同用户名去重）"
+          },
+          "top_score": {
+            "type": "integer",
+            "format": "int64",
+            "description": "历史最高分"
+          },
+          "top_username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "最高分获得者用户名"
+          },
+          "total_coins": {
+            "type": "integer",
+            "format": "int64",
+            "description": "累计收集金币数"
+          },
+          "total_games": {
+            "type": "integer",
+            "format": "int64",
+            "description": "累计游戏总局数"
+          }
+        }
+      },
       "Overview": {
         "type": "object",
         "description": "城市概览聚合统计",
@@ -5762,6 +6101,7 @@
           "Fj200cMainMonitor",
           "ProtocolGeneratorMonitor",
           "QgcMonitor",
+          "MarioMonitor",
           "UsersRead",
           "UsersWrite",
           "UsersDelete",
@@ -6517,6 +6857,28 @@
           }
         }
       },
+      "ScoreList": {
+        "type": "object",
+        "description": "高分榜（分页携带总数，供前端展示「共 N 局」）",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarioScore"
+            },
+            "description": "榜单条目"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "历史总记录数"
+          }
+        }
+      },
       "SeedPasswordInfo": {
         "type": "object",
         "description": "种子账号初始密码信息",
@@ -6630,6 +6992,38 @@
           "thrust": {
             "type": "string",
             "description": "推力"
+          }
+        }
+      },
+      "SubmitScoreRequest": {
+        "type": "object",
+        "description": "提交成绩请求体（POST /api/mario/scores）",
+        "required": [
+          "score",
+          "level",
+          "coins",
+          "time_ms"
+        ],
+        "properties": {
+          "coins": {
+            "type": "integer",
+            "format": "int64",
+            "description": "收集金币数"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int64",
+            "description": "到达关卡（从 1 开始）"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int64",
+            "description": "本局得分"
+          },
+          "time_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "通关耗时（毫秒，0 表示未完成）"
           }
         }
       },

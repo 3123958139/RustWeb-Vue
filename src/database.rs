@@ -263,9 +263,31 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     .execute(&mut *tx)
     .await?;
 
-    // ============ 6. 幂等清理（对历史版本数据库生效） ============
+    // ============ 6. 马里奥游戏分数表（mario 角色） ============
+    // 排行榜数据：每局游戏结束后提交一条记录，前端挑战高分
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS mario_scores (
+            id BLOB PRIMARY KEY,                     -- 记录 UUID
+            username TEXT NOT NULL,                  -- 提交者用户名
+            score INTEGER NOT NULL DEFAULT 0,        -- 本局得分
+            level INTEGER NOT NULL DEFAULT 1,        -- 到达关卡
+            coins INTEGER NOT NULL DEFAULT 0,        -- 收集金币数
+            time_ms INTEGER NOT NULL DEFAULT 0,      -- 通关耗时（毫秒，0 表示未完成）
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_mario_scores_score ON mario_scores(score DESC)",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // ============ 7. 幂等清理（对历史版本数据库生效） ============
     // 以下表已废弃，安全删除（IF EXISTS 确保不存在时不报错）
-    // 这些表在早期版本中使用，现在角色由代码注册表定义
     sqlx::query("DROP TABLE IF EXISTS user_roles")
         .execute(&mut *tx)
         .await?;
@@ -320,7 +342,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     .execute(&mut *tx)
     .await?;
 
-    // ============ 7. 初始账号种子（幂等） ============
+    // ============ 8. 初始账号种子（幂等） ============
     // 公开注册已移除，用户只能由管理员创建
     // 首次部署需要种子账号引导登录
     //
@@ -383,6 +405,12 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             "qgc",
             "qgc@7304.com",
             "qgc",
+        ),
+        (
+            "00000000-0000-4000-8000-00000000000a",
+            "mario",
+            "mario@7304.com",
+            "mario",
         ),
     ];
 
@@ -459,7 +487,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .await?;
     }
 
-    // ============ 8. city3d 城市数据种子（幂等） ============
+    // ============ 9. city3d 城市数据种子（幂等） ============
     // 初始化 5 个城市区域 + 51 栋建筑 + 8 条事件，
     // 使 3D 场景首次启动即有完整的城市形态。
     //

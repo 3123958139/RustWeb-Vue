@@ -86,6 +86,8 @@ pub enum Permission {
     ProtocolGeneratorMonitor,
     /// qgc 面板：飞控地面站权限
     QgcMonitor,
+    /// mario 面板：超级马里奥复刻游戏权限
+    MarioMonitor,
 
     // ============ 管理面板权限 ============
     /// 用户读取权限（查看用户列表）

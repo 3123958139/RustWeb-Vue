@@ -47,6 +47,7 @@ export const Permission = {
   Fj200cMainMonitor: 'Fj200cMainMonitor',
   ProtocolGeneratorMonitor: 'ProtocolGeneratorMonitor',
   QgcMonitor: 'QgcMonitor',
+  MarioMonitor: 'MarioMonitor',
   UsersRead: 'UsersRead',
   UsersWrite: 'UsersWrite',
   UsersDelete: 'UsersDelete',

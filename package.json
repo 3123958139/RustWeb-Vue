@@ -10,6 +10,7 @@
     "frontend/city3d",
     "frontend/protocol_generator",
     "frontend/qgc",
+    "frontend/mario",
     "packages/shared"
   ],
   "scripts": {

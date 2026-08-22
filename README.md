@@ -1,6 +1,6 @@
 # Rust Web 全栈管理系统
 
-Rust + Axum 后端 + 9 个 Vue 3 前端应用的多角色管理系统。RBAC 角色权限、WebSocket 实时监控、OpenAPI 契约自动同步前后端类型。
+Rust + Axum 后端 + 10 个 Vue 3 前端应用的多角色管理系统。RBAC 角色权限、WebSocket 实时监控、OpenAPI 契约自动同步前后端类型。
 
 ## 技术栈
 
@@ -17,7 +17,7 @@ RustWeb-Vue/
 │   ├── routes.rs           # 路由集中注册
 │   ├── roles.rs            # 角色注册表（RBAC 唯一源，经 /api/meta/roles 暴露）
 │   ├── api_docs.rs         # OpenAPI 聚合 + export_openapi 测试
-│   ├── embedded_assets.rs  # single-exe 打包：--features embedded 时内嵌 9 个前端 dist
+│   ├── embedded_assets.rs  # single-exe 打包：--features embedded 时内嵌 10 个前端 dist
 │   ├── database.rs         # 建表 + 种子账号（无 sqlx 迁移文件）
 │   ├── common/             # 认证、中间件、模型、DTO、错误处理、JWT、串口封装
 │   ├── admin/              # 用户管理
@@ -28,8 +28,9 @@ RustWeb-Vue/
 │   ├── city3d/             # 城市区域/建筑/事件 + 概览统计
 │   ├── protocol_generator/ # 通信协议生成（参数表 CSV、协议代码、Excel/Markdown 导出）
 │   ├── qgc/                # 飞控地面站（MAVLink v2、UDP 模拟飞控、航点任务、WebSocket）
+│   ├── mario/              # 超级马里奥复刻游戏（Canvas 游戏 + 高分榜）
 │   └── role_template/      # 新角色模块参考模板
-├── frontend/               # 9 个独立 Vue 应用（见下表）
+├── frontend/               # 10 个独立 Vue 应用（见下表）
 ├── packages/shared/        # @rustweb/shared 共享包
 │   └── src/
 │       ├── roles.ts        # 前端菜单配置 + 注册表拉取/缓存（loadRoleRegistry）
@@ -61,8 +62,9 @@ RustWeb-Vue/
 | 发动机测控 | `frontend/fj200c_main` | ECU/ADAM/DYNO 三路串口测控、试验、报表 | 5179 | `/fj200c_main` |
 | 通信协议生成 | `frontend/protocol_generator` | 参数表 CSV 编辑、协议 C# 代码生成、Excel/Markdown 导出 | 5180 | `/protocol_generator` |
 | 飞控地面站 | `frontend/qgc` | MAVLink 遥测仪表、地图航点任务规划、命令控制 | 5181 | `/qgc` |
+| 超级马里奥 | `frontend/mario` | Canvas 平台跳跃游戏、高分榜 | 5182 | `/mario` |
 
-9 个应用共享同一登录态（localStorage token），跨应用跳转自动传递；各自 `vite.config.ts` 均是一行工厂调用 `defineAppConfig({ app, port, ws }, __dirname)`（`/api` 代理到后端 :3000，WebSocket 代理仅 fj200c_information / fj200c_main / ftj1c / qgc 开启）。
+10 个应用共享同一登录态（localStorage token），跨应用跳转自动传递；各自 `vite.config.ts` 均是一行工厂调用 `defineAppConfig({ app, port, ws }, __dirname)`（`/api` 代理到后端 :3000，WebSocket 代理仅 fj200c_information / fj200c_main / ftj1c / qgc 开启）。
 
 ## 角色与权限（RBAC）
 
@@ -77,6 +79,7 @@ RustWeb-Vue/
 | `city3d` | City3dView | city3d |
 | `protocol_generator` | ProtocolGeneratorMonitor | protocol_generator |
 | `qgc` | QgcMonitor | qgc |
+| `mario` | MarioMonitor | mario |
 
 角色注册表唯一源在后端 `src/roles.rs`（`ROLE_REGISTRY`），通过 `GET /api/meta/roles` 公开；前端运行时拉取 key/name/permissions（orval 生成 `RoleInfo` 类型），经 `packages/shared/src/roles.ts` 的 `loadRoleRegistry()` 缓存，`initAuth`/`login` 时自动加载。菜单（`MENU_CONFIG`）与 `ROLE_APP_URLS` 是纯前端 UI 概念，仍手写在 `packages/shared/src/roles.ts`。
 

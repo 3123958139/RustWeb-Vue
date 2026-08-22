@@ -355,6 +355,28 @@ const MENU_CONFIG: Record<string, { userMenus: MenuItem[]; adminMenus: MenuItem[
         ],
         adminMenus: [],
     },
+    // ============ mario 角色（超级马里奥复刻游戏） ============
+    // 职责：浏览器内 Canvas 马里奥平台跳跃游戏 + 高分榜
+    // 应用：mario（端口 5182）
+    mario: {
+        userMenus: [
+            {
+                id: "mario-game",
+                title: "开始游戏",
+                path: "/mario/main",
+                icon: "VideoPlay",
+                permissions: [Permission.MarioMonitor],
+            },
+            {
+                id: "mario-rank",
+                title: "高分榜",
+                path: "/mario/rank",
+                icon: "Trophy",
+                permissions: [Permission.MarioMonitor],
+            },
+        ],
+        adminMenus: [],
+    },
 };
 
 /**
@@ -540,6 +562,8 @@ export const ROLE_APP_URLS: Record<string, { dev: string; prod: string }> = {
     protocol_generator: {dev: "http://localhost:5180", prod: "/protocol_generator"},
     // 飞控地面站 → qgc（端口 5181，路径 /qgc）
     qgc: {dev: "http://localhost:5181", prod: "/qgc"},
+    // 超级马里奥复刻游戏 → mario（端口 5182，路径 /mario）
+    mario: {dev: "http://localhost:5182", prod: "/mario"},
 };
 
 /**

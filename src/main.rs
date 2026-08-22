@@ -49,6 +49,7 @@ mod fj200c_main; // fj200c_main 角色模块：发动机测控（ECU/Adam4015/Ad
 mod ftj1c; // ftj1c 角色模块：UDP 组播通信监控
 mod fw100; // fw150 角色模块：设备台账管理
 mod fw150;
+mod mario; // mario 角色模块：超级马里奥复刻游戏
 mod protocol_generator; // protocol_generator 角色模块：通信协议生成器
 mod qgc; // qgc 角色模块：飞控地面站（MAVLink v2 + 模拟飞控）
 mod role_template; // 角色模板：新角色开发的参考模板
@@ -251,6 +252,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .nest_service(
                 "/qgc",
                 ServeDir::new("dist-qgc").fallback(ServeFile::new("dist-qgc/index.html")),
+            )
+            .nest_service(
+                "/mario",
+                ServeDir::new("dist-mario").fallback(ServeFile::new("dist-mario/index.html")),
             );
 
         app
