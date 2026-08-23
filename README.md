@@ -134,7 +134,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `PORT` | `3000` | 后端端口 |
-| `DATABASE_URL` | `sqlite://rustweb.db` | SQLite 连接（文件自动创建） |
+| `DATABASE_URL` | `sqlite://fj200c.db` | SQLite 连接（文件自动创建） |
 | `JWT_SECRET` | dev 有默认值 | JWT 签名密钥（**release 模式缺失会拒绝启动**） |
 | `JWT_EXPIRATION` | `86400` | token 过期秒数 |
 | `RUST_LOG` | `info` | 日志级别 |
@@ -157,7 +157,7 @@ deploy.bat   # 1) 4 个前端并行 npm run build（build-frontends.ps1）2) car
 
 ```
 deploy/
-├── rust-web-backend.exe     # 单文件后端（内嵌 4 个前端 dist，双击即可启动）
+├── fj200c-backend.exe     # 单文件后端（内嵌 4 个前端 dist，双击即可启动）
 ├── .env                     # 运行时配置（不存在时自动生成）
 ├── config-fj200c_information.ini   # 发动机监控模块配置（随部署自动生成）
 ├── config-fj200c_main.ini   # 发动机测控模块配置（随部署自动生成）
@@ -165,14 +165,14 @@ deploy/
 ```
 
 - 访问：`http://localhost:3000`（4 个应用 SPA 深链接自动回退 index.html）
-- 数据迁移：拷贝 `deploy/rustweb.db` 即可
+- 数据迁移：拷贝 `deploy/fj200c.db` 即可
 - 服务绑定 `127.0.0.1`，如需外网访问修改 `src/main.rs` 为 `0.0.0.0` 后重新部署
 
 ## 数据库
 
 建表与种子数据由 `src/database.rs` 内建（无 sqlx 迁移文件）：首次启动自动创建 `users` / `user_settings` 等表并插入 4 个种子账号（admin、fj200c_information、fj200c_main、mario，邮箱 `@7304.com`）。**种子账号初始密码是随机生成的**，明文只存 `seed_passwords` 表，经 `GET /admin/pwd` 查询（admin 后端可在用户管理设置中停用该端点）。
 
-数据文件为运行目录下的 `rustweb.db`（开发在项目根，部署在 `deploy/`）。
+数据文件为运行目录下的 `fj200c.db`（开发在项目根，部署在 `deploy/`）。
 
 ## 开发指南
 

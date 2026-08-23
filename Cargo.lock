@@ -646,6 +646,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
+name = "fj200c-backend"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "axum",
+ "bcrypt",
+ "chrono",
+ "configparser",
+ "csv",
+ "dotenvy",
+ "futures-util",
+ "jsonwebtoken",
+ "mime_guess",
+ "rand 0.8.7",
+ "reqwest",
+ "rust-embed",
+ "rust_xlsxwriter",
+ "serde",
+ "serde_json",
+ "serial2",
+ "socket2 0.5.10",
+ "sqlx",
+ "tokio",
+ "tower",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "utoipa",
+ "uuid",
+ "validator",
+]
+
+[[package]]
 name = "flate2"
 version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1932,39 +1965,6 @@ checksum = "42ffa149f6aa81b58a5b3011d01a857c4ed12c7a732d2c51947a4c7c692185f0"
 dependencies = [
  "sha2 0.11.0",
  "walkdir",
-]
-
-[[package]]
-name = "rust-web-backend"
-version = "0.1.0"
-dependencies = [
- "arc-swap",
- "axum",
- "bcrypt",
- "chrono",
- "configparser",
- "csv",
- "dotenvy",
- "futures-util",
- "jsonwebtoken",
- "mime_guess",
- "rand 0.8.7",
- "reqwest",
- "rust-embed",
- "rust_xlsxwriter",
- "serde",
- "serde_json",
- "serial2",
- "socket2 0.5.10",
- "sqlx",
- "tokio",
- "tower",
- "tower-http 0.5.2",
- "tracing",
- "tracing-subscriber",
- "utoipa",
- "uuid",
- "validator",
 ]
 
 [[package]]

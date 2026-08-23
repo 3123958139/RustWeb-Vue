@@ -7,7 +7,7 @@
 //! | 环境变量 | 类型 | 默认值 | 说明 |
 //! |----------|------|--------|------|
 //! | `PORT` | u16 | 3000 | 服务器监听端口 |
-//! | `DATABASE_URL` | String | `sqlite://rustweb.db` | 数据库连接 URL |
+//! | `DATABASE_URL` | String | `sqlite://fj200c.db` | 数据库连接 URL |
 //!
 //! # 使用方式
 //!
@@ -46,7 +46,7 @@ pub struct AppConfig {
     
     /// SQLite 数据库连接 URL
     /// 格式：`sqlite://<文件路径>`
-    /// 例如：`sqlite://rustweb.db`（当前目录的 rustweb.db 文件）
+    /// 例如：`sqlite://fj200c.db`（当前目录的 fj200c.db 文件）
     pub database_url: String,
 }
 
@@ -72,9 +72,9 @@ impl AppConfig {
             .parse::<u16>()?;
 
         // 读取 DATABASE_URL 环境变量
-        // 默认值为 `sqlite://rustweb.db`（当前目录）
+        // 默认值为 `sqlite://fj200c.db`（当前目录）
         let database_url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite://rustweb.db".to_string());
+            .unwrap_or_else(|_| "sqlite://fj200c.db".to_string());
 
         Ok(AppConfig {
             port,

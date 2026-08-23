@@ -1,5 +1,5 @@
 [package]
-name = "rust-web-backend"
+name = "fj200c-backend"
 version = "0.1.0"
 edition = "2021"
 

@@ -41,7 +41,7 @@ pub type DatabaseConnection = SqlitePool;
 /// 初始化数据库连接和表结构
 ///
 /// # 参数
-/// - `database_url`: SQLite 数据库文件路径，如 `sqlite://rustweb.db`
+/// - `database_url`: SQLite 数据库文件路径，如 `sqlite://fj200c.db`
 ///
 /// # 返回值
 /// - `Ok(DatabaseConnection)` - 成功返回连接池

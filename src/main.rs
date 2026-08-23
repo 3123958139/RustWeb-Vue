@@ -122,7 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============ 3. 加载应用配置 ============
     // `AppConfig::load()` 从环境变量读取配置：
     // - `PORT`: 服务器端口（默认 3000）
-    // - `DATABASE_URL`: 数据库连接 URL（默认 `sqlite://rustweb.db`）
+    // - `DATABASE_URL`: 数据库连接 URL（默认 `sqlite://fj200c.db`）
     //
     // `?` 操作符是 Rust 的错误传播语法：
     // - 如果 `Result` 是 `Ok`，解包返回值

@@ -101,8 +101,8 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 
 ## 配置与数据
 
-- **环境变量**：`.env` + dotenv：`PORT`（默认 3000）、`DATABASE_URL`（默认 `sqlite://rustweb.db`）、`JWT_SECRET`、`JWT_EXPIRATION`、`RUST_LOG`、`CORS_ORIGINS`。**release 模式（非 debug_assertions）下 `JWT_SECRET` 与 `CORS_ORIGINS` 缺失会拒绝启动**（`src/common/jwt.rs:init`、`main.rs` CORS 白名单），dev 模式有默认值/放行任意来源
-- **数据库**：SQLite 文件在运行目录自动创建（开发为根目录 `rustweb.db`，部署为 `deploy/rustweb.db`），无手动安装。建表与种子账号由 `src/database.rs` 内建（无 sqlx 迁移文件）；**种子账号初始密码是随机生成的**（4 个角色，邮箱 `@7304.com`），明文只存 `seed_passwords` 表，经 `GET /admin/pwd` 查询（`src/admin/routes.rs` 的 `PUT /api/users/settings/pwd-route` 可停用该端点）
+- **环境变量**：`.env` + dotenv：`PORT`（默认 3000）、`DATABASE_URL`（默认 `sqlite://fj200c.db`）、`JWT_SECRET`、`JWT_EXPIRATION`、`RUST_LOG`、`CORS_ORIGINS`。**release 模式（非 debug_assertions）下 `JWT_SECRET` 与 `CORS_ORIGINS` 缺失会拒绝启动**（`src/common/jwt.rs:init`、`main.rs` CORS 白名单），dev 模式有默认值/放行任意来源
+- **数据库**：SQLite 文件在运行目录自动创建（开发为根目录 `fj200c.db`，部署为 `deploy/fj200c.db`），无手动安装。建表与种子账号由 `src/database.rs` 内建（无 sqlx 迁移文件）；**种子账号初始密码是随机生成的**（4 个角色，邮箱 `@7304.com`），明文只存 `seed_passwords` 表，经 `GET /admin/pwd` 查询（`src/admin/routes.rs` 的 `PUT /api/users/settings/pwd-route` 可停用该端点）
 - **发动机模块**：`config-fj200c_information.ini`（`[Mock] InProcess = true` 开箱即用无需硬件；`[ConnectionN]` 串口；`[CSV]` 记录），**修改后立即生效**（服务运行时热加载）
 - **发动机测控模块**：`config-fj200c_main.ini`（`[COM] Count = 5` 五路串口 ECU/Adam4015/Adam4117/Dyno/Flux；`[MOCK] SimulationMenu = true` 模拟运行；`[REPORT] StatePoints` 报表状态点；`[CSV] Dir = csv`），**修改后需重启**
 - **静态托管**（生产）：后端 `main.rs` 双模式——`embedded` feature 下 4 个前端已内嵌进 exe（`embedded_assets.rs` 内存服务，SPA 深链接回退 index.html）；默认 dev 模式仍读磁盘 `dist-*/` 目录；根路径 `/` 重定向到 `/admin`
@@ -132,7 +132,7 @@ deploy.bat        # 1) 4 个前端并行 npm run build（build-frontends.ps1）2
 
 ```
 deploy/
-├── rust-web-backend.exe     # 单文件后端（内嵌 4 个前端 dist，双击即可启动）
+├── fj200c-backend.exe     # 单文件后端（内嵌 4 个前端 dist，双击即可启动）
 ├── .env                     # 运行时配置（不存在时自动生成）
 ├── config-fj200c_information.ini        # 发动机模块配置（随部署自动生成）
 ├── config-fj200c_main.ini   # 发动机测控模块配置（随部署自动生成）
@@ -164,5 +164,5 @@ deploy/
 
 - 后端：`cargo run`，`RUST_LOG` 控制日志级别
 - 前端：Vite dev server + `/api` proxy；生产环境由后端托管
-- 数据库：SQLite 文件在运行目录（根 `rustweb.db` / `deploy/rustweb.db`），可用任意 SQLite 客户端查看
+- 数据库：SQLite 文件在运行目录（根 `fj200c.db` / `deploy/fj200c.db`），可用任意 SQLite 客户端查看
 - API 契约：浏览器访问 `http://localhost:3000/api-docs/openapi.json`

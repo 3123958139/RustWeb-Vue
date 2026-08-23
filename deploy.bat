@@ -33,12 +33,12 @@ if errorlevel 1 (
 rem [8/8] Assemble deploy directory (single exe + runtime-only files)
 echo [8/8] Assembling deploy directory...
 if not exist deploy mkdir deploy
-copy /y target\release\rust-web-backend.exe deploy\ >nul
+copy /y target\release\fj200c-backend.exe deploy\ >nul
 
 rem Generate .env if it does not exist
 if not exist deploy\.env (
     echo PORT=3000> deploy\.env
-    echo DATABASE_URL=sqlite://rustweb.db>> deploy\.env
+    echo DATABASE_URL=sqlite://fj200c.db>> deploy\.env
     echo JWT_SECRET=your-super-secret-jwt-key-change-this-in-production>> deploy\.env
     echo JWT_EXPIRATION=86400>> deploy\.env
     echo RUST_LOG=info>> deploy\.env
@@ -133,7 +133,7 @@ copy /y config-fj200c_main.ini deploy\ >nul
 echo [8/8] Deployment complete!
 echo ----------------------------------------
 echo   Deploy folder: %~dp0deploy
-echo   Start:        double-click deploy\rust-web-backend.exe
+echo   Start:        double-click deploy\fj200c-backend.exe
 echo   Fj200c_information:      http://localhost:3000/fj200c_information
 echo   Fj200c_main:             http://localhost:3000/fj200c_main
 echo   Admin:                   http://localhost:3000/admin
@@ -175,7 +175,7 @@ if not "%OCCUPIED_PID%"=="" (
     timeout /t 1 /nobreak >nul
 )
 
-start "RustWeb" cmd /k rust-web-backend.exe
+start "RustWeb" cmd /k fj200c-backend.exe
 echo Server started. Press any key to close this window...
 pause >nul
 endlocal
