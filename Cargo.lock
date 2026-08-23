@@ -1950,6 +1950,7 @@ dependencies = [
  "mime_guess",
  "rand 0.8.7",
  "reqwest",
+ "ring",
  "rust-embed",
  "rust_xlsxwriter",
  "serde",

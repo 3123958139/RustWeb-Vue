@@ -24,6 +24,7 @@
 pub mod auth;           // 认证模块：登录、用户信息、用户管理
 pub mod config;         // INI 配置封装（configparser）
 pub mod csv_writer;     // CSV 写入器（500ms 批量刷新 + Drop flush）
+pub mod crypto;         // 可逆加密：用户名/初始密码 AES-256-GCM + HMAC 指纹
 pub mod dto;            // 公共响应 DTO：fj200c_information / ftj1c 共用载荷
 pub mod error;          // 错误处理：统一错误类型
 pub mod frame_extractor; // 帧提取器（字节流 → 固定长度帧）

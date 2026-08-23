@@ -124,11 +124,12 @@ impl AuthService {
     ///
     /// # 实现流程
     ///
-    /// 1. 检查用户名/邮箱是否已存在
-    /// 2. 加密密码
-    /// 3. 插入数据库
-    /// 4. 创建默认设置
-    /// 5. 返回用户信息
+    /// 1. 检查用户名（按指纹）/邮箱是否已存在
+    /// 2. 加密密码（bcrypt）
+    /// 3. 加密用户名（AES-256-GCM）并派生指纹
+    /// 4. 插入数据库
+    /// 5. 创建默认设置
+    /// 6. 返回用户信息
     ///
     /// # 语法说明
     ///
@@ -142,12 +143,16 @@ impl AuthService {
         password: &str,
         role: &str,
     ) -> Result<User, Box<dyn std::error::Error>> {
+        // 用户名指纹：AES-256-GCM 密文无法直接比较明文查重，用确定性的 HMAC 指纹兜底唯一性
+        let username_hash = crate::common::crypto::username_hash(username);
+
         // 检查用户是否已存在（只查存在性，避免取整行）
+        // 用户名通过 username_hash 指纹匹配（库中为密文）
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 OR username = $2)",
+            "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 OR username_hash = $2)",
         )
         .bind(email)
-        .bind(username)
+        .bind(&username_hash)
         .fetch_one(pool)
         .await?;
 
@@ -165,18 +170,22 @@ impl AuthService {
         })
         .await??;
 
+        // 加密用户名（防止直接读取 SQLite 文件看到明文）
+        let username_enc = crate::common::crypto::encrypt(username)?;
+
         // 创建用户
         let user_id = Uuid::new_v4();
         let now = Utc::now();
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (id, username, email, password_hash, role, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO users (id, username, username_hash, email, password_hash, role, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
             "#,
         )
         .bind(user_id)
-        .bind(username)
+        .bind(&username_enc)
+        .bind(&username_hash)
         .bind(email)
         .bind(&password_hash)
         .bind(role)

@@ -108,30 +108,35 @@ pub enum Permission {
 /// | 字段 | 类型 | 说明 |
 /// |------|------|------|
 /// | `id` | `Uuid` | 用户唯一标识 |
-/// | `username` | `String` | 用户名 |
-/// | `email` | `String` | 邮箱（用于登录） |
+/// | `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |
+/// | `email` | `String` | 邮箱（用于登录，明文存储以支持登录查询） |
 /// | `password_hash` | `String` | 密码哈希（不可序列化） |
 /// | `role` | `String` | 角色标识 |
 /// | `created_at` | `DateTime<Utc>` | 创建时间 |
 /// | `updated_at` | `DateTime<Utc>` | 更新时间 |
 ///
+/// # 安全说明
+///
+/// - `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时
+///   派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。
+/// - `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。
+///
 /// # 语法说明
 ///
-/// - `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体
 /// - `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone, utoipa::ToSchema)]
+/// - `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担
+#[derive(Debug, Serialize, Deserialize, Clone, utoipa::ToSchema)]
 pub struct User {
     /// 用户 UUID（主键）
     pub id: Uuid,
-    /// 用户名（唯一）
+    /// 用户名（唯一；库中为密文，本字段始终是解密后的明文）
     pub username: String,
     /// 邮箱（唯一，用于登录）
     pub email: String,
     /// 密码哈希（bcrypt 加密）
-    /// `#[serde(skip_serializing)]` 确保 JSON 输出时不包含此字段
-    /// `#[sqlx(default)]` 允许未查此列的查询（中间件/列表接口）映射为默认值
+    /// `#[serde(skip_serializing)]` 确保 JSON 输出时不包含此字段；
+    /// 部分查询不查此列，由手动 `FromRow` 容忍缺失
     #[serde(skip_serializing)]
-    #[sqlx(default)]
     pub password_hash: String,
     /// 角色标识（如 "admin"、"fj200c_information"），与角色注册表的 `key` 对应
     pub role: String,
@@ -139,6 +144,26 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     /// 更新时间（UTC）
     pub updated_at: DateTime<Utc>,
+}
+
+// 手动实现 FromRow：读取库中密文后立即解密，使 `username` 字段对上层始终是明文
+impl FromRow<'_, SqliteRow> for User {
+    fn from_row(row: &SqliteRow) -> Result<Self, sqlx::Error> {
+        // 用户名列在库中为密文（AES-256-GCM），解密为明文；
+        // 解密失败（如历史明文未迁移）时回退返回原值，避免读取报错
+        let username = crate::common::crypto::decrypt_or_plaintext(
+            &row.try_get::<String, _>("username")?,
+        );
+        Ok(User {
+            id: row.try_get("id")?,
+            username,
+            email: row.try_get("email")?,
+            password_hash: row.try_get("password_hash").unwrap_or_default(),
+            role: row.try_get("role")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
 }
 
 impl User {

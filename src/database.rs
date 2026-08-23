@@ -90,8 +90,9 @@ pub async fn init_database(
 /// | 字段 | 类型 | 约束 | 说明 |
 /// |------|------|------|------|
 /// | id | BLOB | PRIMARY KEY | 用户 UUID |
-/// | username | TEXT | UNIQUE NOT NULL | 用户名 |
-/// | email | TEXT | UNIQUE NOT NULL | 邮箱 |
+/// | username | TEXT | UNIQUE NOT NULL | 用户名（AES-256-GCM 密文，防止直读库见明文） |
+/// | username_hash | TEXT | UNIQUE (索引) | 用户名指纹（HMAC-SHA256，承载唯一约束/查重/join） |
+/// | email | TEXT | UNIQUE NOT NULL | 邮箱（明文，用于登录查询） |
 /// | password_hash | TEXT | NOT NULL | 密码哈希（bcrypt） |
 /// | role | TEXT | NOT NULL DEFAULT 'user' | 角色标识 |
 /// | created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
@@ -112,8 +113,9 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         r#"
         CREATE TABLE IF NOT EXISTS users (
             id BLOB PRIMARY KEY,                    -- UUID 主键
-            username TEXT UNIQUE NOT NULL,          -- 用户名（唯一）
-            email TEXT UNIQUE NOT NULL,             -- 邮箱（唯一）
+            username TEXT UNIQUE NOT NULL,          -- 用户名（AES-256-GCM 密文存储，防止直读库见明文）
+            username_hash TEXT,                     -- 用户名指纹（HMAC-SHA256，用于唯一约束/查重/join）
+            email TEXT UNIQUE NOT NULL,             -- 邮箱（唯一，明文存储以支持登录查询）
             password_hash TEXT NOT NULL,            -- 密码哈希（bcrypt 加密）
             role TEXT NOT NULL DEFAULT 'user',      -- 角色（默认 'user'，已更名）
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
@@ -125,13 +127,15 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     .await?;
 
     // ============ 2. 种子账号初始密码表 ============
-    // 种子账号的随机初始密码明文不打印到日志，只写入本表，
-    // 通过 `GET /admin/pwd` 查询（密码登录后应立即修改）
+    // 种子账号的随机初始密码明文不打印到日志，只加密写入本表，
+    // 通过 `GET /admin/pwd` 查询（密码登录后应立即修改）。
+    // username 存用户名的 AES-256-GCM 密文，username_hash 做 join 键。
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS seed_passwords (
-            username TEXT PRIMARY KEY,          -- 种子账号用户名
-            password TEXT NOT NULL,             -- 初始密码明文（仅种子账号）
+            username TEXT PRIMARY KEY,          -- 种子账号用户名（AES-256-GCM 密文）
+            username_hash TEXT,                 -- 用户名指纹（用于与 users 表 join / 查重）
+            password TEXT NOT NULL,             -- 初始密码密文（AES-256-GCM，仅种子账号）
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 记录创建时间
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP   -- 记录更新时间
         )
@@ -342,6 +346,89 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     .execute(&mut *tx)
     .await?;
 
+    // ============ 7.5 username 加密迁移（幂等） ============
+    // 目的：让历史数据库（users.username / seed_passwords.username.password 为明文）
+    // 升级为 AES-256-GCM 密文，并补齐 username_hash 指纹列。
+    // 新库建表语句已含 username_hash 列，此处仅对旧库 ALTER 补列 + 迁移存量数据。
+    // 以 `username_hash IS NULL` 作为"未迁移"标记，迁移完成置位后再次启动跳过（只做一次）。
+
+    // 为 users 补 username_hash 列（SQLite 不支持 `ADD COLUMN IF NOT EXISTS`，先用 pragma 探测）
+    let users_have_hash: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name = 'username_hash')",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !users_have_hash {
+        sqlx::query("ALTER TABLE users ADD COLUMN username_hash TEXT")
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // 为 seed_passwords 补 username_hash 列
+    let sp_have_hash: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('seed_passwords') WHERE name = 'username_hash')",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !sp_have_hash {
+        sqlx::query("ALTER TABLE seed_passwords ADD COLUMN username_hash TEXT")
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // 唯一性兜底索引：真正承载用户名唯一约束的是指纹列（AES 密文每次随机，无法承载唯一语义）
+    sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_hash ON users(username_hash)")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS idx_seed_passwords_username_hash ON seed_passwords(username_hash)")
+        .execute(&mut *tx)
+        .await?;
+
+    // 存量 users：把明文用户名加密 + 派生指纹（username_hash 为空即未迁移）
+    let plain_users: Vec<(uuid::Uuid, String)> = sqlx::query_as::<_, (uuid::Uuid, String)>(
+        "SELECT id, username FROM users WHERE username_hash IS NULL OR username_hash = ''",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let plain_users_count = plain_users.len();
+    for (id, plain_username) in plain_users {
+        let enc = crate::common::crypto::encrypt(&plain_username)?;
+        let uh = crate::common::crypto::username_hash(&plain_username);
+        sqlx::query(
+            "UPDATE users SET username = $1, username_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+        )
+        .bind(&enc)
+        .bind(&uh)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tracing::info!("username 迁移：已加密 {} 个存量用户名的用户名", plain_users_count);
+
+    // 存量 seed_passwords：把明文用户名与明文初始密码加密 + 派生指纹
+    let plain_seeds: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
+        "SELECT username, password FROM seed_passwords WHERE username_hash IS NULL OR username_hash = ''",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let plain_seeds_count = plain_seeds.len();
+    for (plain_username, plain_pwd) in plain_seeds {
+        let enc = crate::common::crypto::encrypt(&plain_username)?;
+        let uh = crate::common::crypto::username_hash(&plain_username);
+        let pwd_enc = crate::common::crypto::encrypt(&plain_pwd)?;
+        // username 是主键（迁移时仍为明文），按明文定位唯一行
+        sqlx::query(
+            "UPDATE seed_passwords SET username = $1, username_hash = $2, password = $3, updated_at = CURRENT_TIMESTAMP WHERE username = $4 AND (username_hash IS NULL OR username_hash = '')",
+        )
+        .bind(&enc)
+        .bind(&uh)
+        .bind(&pwd_enc)
+        .bind(&plain_username)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tracing::info!("username 迁移：已加密 {} 条种子账号的初始密码", plain_seeds_count);
+
     // ============ 8. 初始账号种子（幂等） ============
     // 公开注册已移除，用户只能由管理员创建
     // 首次部署需要种子账号引导登录
@@ -416,20 +503,20 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
 
     for (id_str, username, email, role) in seeds {
         let id = Uuid::parse_str(id_str)?;
-        // 已存在则跳过（不覆盖密码，避免重启时重置用户密码）。
-        // 同时按 id 检查：历史库可能存有同固定 id 但旧用户名（如改名前的
-        // fj200c），只查 username 会导致插入时撞 UNIQUE 约束。
+        // 用户名已密文存储，按固定 id 判断存在性（兼容历史库同 id 旧用户名，
+        // 如改名前的 fj200c），避免用明文去比较密文。
+        let username_hash = crate::common::crypto::username_hash(username);
+
         let exists: bool =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 OR id = $2)")
-                .bind(username)
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
                 .bind(id)
                 .fetch_one(&mut *tx)
                 .await?;
 
-        // 是否已有初始密码记录（旧版本升级库没有该表数据）
+        // 是否已有初始密码记录（旧版本升级库没有该表数据），按指纹匹配
         let pwd_exists: bool =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM seed_passwords WHERE username = $1)")
-                .bind(username)
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM seed_passwords WHERE username_hash = $1)")
+                .bind(&username_hash)
                 .fetch_one(&mut *tx)
                 .await?;
         if exists && pwd_exists {
@@ -437,13 +524,17 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         }
 
         // 生成随机初始密码并 bcrypt 加密（阻塞操作移入 spawn_blocking）。
-        // 明文只写入 seed_passwords 表，不打印到日志，经 /admin/pwd 查询
+        // 明文不打印到日志、不直接入库，经 /admin/pwd 查询
         let (password, password_fake) = random_password(12);
         let password_clone = password.clone();
         let hash = tokio::task::spawn_blocking(move || {
             bcrypt::hash(password_clone.as_bytes(), bcrypt::DEFAULT_COST)
         })
         .await??;
+
+        // 用户名与初始密码分别 AES-256-GCM 加密入库（防止直读库见明文）
+        let username_enc = crate::common::crypto::encrypt(username)?;
+        let pwd_enc = crate::common::crypto::encrypt(&password_fake)?;
 
         if exists {
             // 旧版本库：账号已存在但没有初始密码记录，重置初始密码（一次性迁移）
@@ -459,10 +550,11 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             // INSERT OR IGNORE 兜底：两个进程并发首次启动时，后提交者的同 id
             // 插入会被忽略而非报错，rows_affected() == 0 表示已被他人创建
             let result = sqlx::query(
-                "INSERT OR IGNORE INTO users (id, username, email, password_hash, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                "INSERT OR IGNORE INTO users (id, username, username_hash, email, password_hash, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             )
                 .bind(id)
-                .bind(username)
+                .bind(&username_enc)
+                .bind(&username_hash)
                 .bind(email)
                 .bind(&hash)
                 .bind(role)
@@ -474,15 +566,16 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             tracing::info!("已创建种子账号 {}（{}）", username, email);
         }
 
-        // 初始密码明文入表（供 /admin/pwd 查询）
+        // 初始密码密文入表（供 /admin/pwd 查询），按指纹幂等 upsert
         sqlx::query(
-            "INSERT INTO seed_passwords (username, password, created_at, updated_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             ON CONFLICT(username) DO UPDATE SET
+            "INSERT INTO seed_passwords (username, username_hash, password, created_at, updated_at)
+             VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             ON CONFLICT(username_hash) DO UPDATE SET
                  password = excluded.password, updated_at = CURRENT_TIMESTAMP",
         )
-        .bind(username)
-        .bind(&password_fake)
+        .bind(&username_enc)
+        .bind(&username_hash)
+        .bind(&pwd_enc)
         .execute(&mut *tx)
         .await?;
     }
