@@ -40,23 +40,17 @@
 // 例如：`mod admin;` 对应 `src/admin/mod.rs` 或 `src/admin.rs`
 mod admin; // 管理员模块：用户管理、角色管理
 mod api_docs; // OpenAPI 文档定义与导出
-mod city3d; // city3d 角色模块：城市 3D 展示
 mod common; // 公共模块：认证、中间件、数据模型、错误处理
 mod config; // 配置模块：从环境变量加载应用配置
 mod database; // 数据库模块：SQLite 连接、表创建、种子数据
 mod fj200c_information; // fj200c_information 角色模块：发动机监控
 mod fj200c_main; // fj200c_main 角色模块：发动机测控（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
-mod ftj1c; // ftj1c 角色模块：UDP 组播通信监控
-mod fw100; // fw150 角色模块：设备台账管理
-mod fw150;
 mod mario; // mario 角色模块：超级马里奥复刻游戏
-mod protocol_generator; // protocol_generator 角色模块：通信协议生成器
-mod qgc; // qgc 角色模块：飞控地面站（MAVLink v2 + 模拟飞控）
 mod role_template; // 角色模板：新角色开发的参考模板
 mod roles; // 角色注册表：全系统角色定义的单一事实来源
 mod routes; // 路由模块：集中注册所有 API 路由
 
-// 单 exe 打包：`--features embedded` 时嵌入 6 个前端 dist，运行时从内存服务
+// 单 exe 打包：`--features embedded` 时嵌入 4 个前端 dist，运行时从内存服务
 #[cfg(feature = "embedded")]
 mod embedded_assets;
 
@@ -220,10 +214,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ServeDir::new("dist-admin").fallback(ServeFile::new("dist-admin/index.html")),
             )
             .nest_service(
-                "/fw100",
-                ServeDir::new("dist-fw100").fallback(ServeFile::new("dist-fw100/index.html")),
-            )
-            .nest_service(
                 "/fj200c_information",
                 ServeDir::new("dist-fj200c_information").fallback(ServeFile::new("dist-fj200c_information/index.html")),
             )
@@ -231,27 +221,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "/fj200c_main",
                 ServeDir::new("dist-fj200c_main")
                     .fallback(ServeFile::new("dist-fj200c_main/index.html")),
-            )
-            .nest_service(
-                "/ftj1c",
-                ServeDir::new("dist-ftj1c").fallback(ServeFile::new("dist-ftj1c/index.html")),
-            )
-            .nest_service(
-                "/city3d",
-                ServeDir::new("dist-city3d").fallback(ServeFile::new("dist-city3d/index.html")),
-            )
-            .nest_service(
-                "/fw150",
-                ServeDir::new("dist-fw150").fallback(ServeFile::new("dist-fw150/index.html")),
-            )
-            .nest_service(
-                "/protocol_generator",
-                ServeDir::new("dist-protocol_generator")
-                    .fallback(ServeFile::new("dist-protocol_generator/index.html")),
-            )
-            .nest_service(
-                "/qgc",
-                ServeDir::new("dist-qgc").fallback(ServeFile::new("dist-qgc/index.html")),
             )
             .nest_service(
                 "/mario",

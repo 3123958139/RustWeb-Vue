@@ -3,13 +3,7 @@
   "workspaces": [
     "frontend/fj200c_information",
     "frontend/fj200c_main",
-    "frontend/fw100",
-    "frontend/fw150",
-    "frontend/ftj1c",
     "frontend/admin",
-    "frontend/city3d",
-    "frontend/protocol_generator",
-    "frontend/qgc",
     "frontend/mario",
     "packages/shared"
   ],

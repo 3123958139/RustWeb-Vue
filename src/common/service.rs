@@ -1,13 +1,12 @@
 //! # 公共服务运行时（线程句柄 / 停止标志管理）
 //!
-//! 各角色服务（fj200c_information / ftj1c）共用的启动/停止编排基础设施：
+//! 各角色服务共用的启动/停止编排基础设施：
 //! - 工作线程句柄的存储与 join
 //! - 「停止进行中」标志（防启动/停止竞态）
 //! - 异步停止骨架 `stop_in_background`（置停止信号 → 后台 join → 复位标志）
 //!
 //! 各角色仍各自维护运行状态（`SERVICE_RUNNING`）与停止信号，
-//! 因为停止信号的具体形态不同（fj200c_information 用 `AtomicBool` 全局量，
-//! ftj1c 用 `OnceLock<Arc<AtomicBool>>` 惰性单例）。
+//! 因为停止信号的具体形态不同。
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -98,7 +97,7 @@ pub fn stop_in_background(
 ///
 /// 保证**有且只有当前角色保持线程与资源**：
 ///
-/// - `keep_role = None`：停止全部三个角色服务（退出登录场景，无当前角色）
+/// - `keep_role = None`：停止全部角色服务（退出登录场景，无当前角色）
 /// - `keep_role = Some(role)`：仅停止**其他角色**自有的服务线程与资源，
 ///   当前角色（`role`）的服务保持运行（切换角色 / 切换账号 / 启动当前角色服务场景）
 ///
@@ -107,20 +106,12 @@ pub fn stop_in_background(
 /// - `fj200c_information`：串口/模拟采集会话线程、CSV 写线程
 /// - `fj200c_main`：五路串口（ECU/ADAM/DYNO/Flux）读线程、周期发送线程、
 ///   处理线程、模拟发送线程，并关闭 CSV 录制文件
-/// - `ftj1c`：UDP 组播接收线程、串口发送线程
-/// - `qgc`：UDP 接收/发送线程、模拟飞控线程
 pub fn stop_all_services_except(keep_role: Option<&str>) {
     if keep_role != Some("fj200c_information") {
         crate::fj200c_information::service::stop_service();
     }
     if keep_role != Some("fj200c_main") {
         crate::fj200c_main::service::stop_all();
-    }
-    if keep_role != Some("ftj1c") {
-        crate::ftj1c::service::stop_service();
-    }
-    if keep_role != Some("qgc") {
-        crate::qgc::service::stop_service();
     }
     tracing::info!("角色服务线程清理完成（保留: {:?}）", keep_role);
 }

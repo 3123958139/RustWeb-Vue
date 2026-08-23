@@ -1,6 +1,6 @@
 //! # serial2 串口公共封装
 //!
-//! fj200c_main / fj200c_information / ftj1c 三处串口打开逻辑的公共部分：
+//! fj200c_main / fj200c_information 两处串口打开逻辑的公共部分：
 //! 把 Web 配置的数字参数（`data_bits` 5~8、`parity` 0/1/2、`stop_bits` 1/2）
 //! 映射为 serial2 枚举，统一 `set_raw()` + 无流控 + 读超时，并输出打开日志。
 //!

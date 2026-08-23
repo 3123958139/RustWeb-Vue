@@ -71,21 +71,8 @@ pub enum Permission {
     // ============ 角色专属权限 ============
     /// fj200c_information 面板：发动机监控权限
     Fj200cInformationMonitor,
-    /// fw150 面板：设备台账权限
-    Fw100Monitor,
-    /// ftj1c 面板：UDP 组播通信监控权限
-    Ftj1cMonitor,
-    Ftj1cHelp,
-    /// city3d 面板：城市 3D 展示权限
-    City3dView,
-    /// fw150 面板：设备台账权限
-    Fw150Monitor,
     /// fj200c_main 面板：发动机测控权限
     Fj200cMainMonitor,
-    /// protocol_generator 面板：通信协议生成器权限
-    ProtocolGeneratorMonitor,
-    /// qgc 面板：飞控地面站权限
-    QgcMonitor,
     /// mario 面板：超级马里奥复刻游戏权限
     MarioMonitor,
 

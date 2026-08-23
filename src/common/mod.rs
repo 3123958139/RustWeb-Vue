@@ -24,7 +24,7 @@
 pub mod auth;           // 认证模块：登录、用户信息、用户管理
 pub mod config;         // INI 配置封装（configparser）
 pub mod csv_writer;     // CSV 写入器（500ms 批量刷新 + Drop flush）
-pub mod dto;            // 公共响应 DTO：fj200c_information / ftj1c 共用载荷
+pub mod dto;            // 公共响应 DTO：fj200c_information 共用载荷
 pub mod error;          // 错误处理：统一错误类型
 pub mod frame_extractor; // 帧提取器（字节流 → 固定长度帧）
 pub mod global_var;     // 全局 KV 存储（OnceLock + RwLock）
@@ -32,7 +32,6 @@ pub mod io;             // 统一硬件 IO 抽象 trait（IoControl）
 pub mod jwt;            // JWT 令牌：创建和验证
 pub mod latest_frame;   // 最新帧跟踪器（ArcSwap + CAS 序号去重）
 pub mod least_squares;  // 最小二乘法多项式拟合（Gauss 消元）
-pub mod ledger;         // 设备台账演示数据（fw100 / fw150 共用）
 pub mod middleware;     // 中间件：认证、权限检查
 pub mod models;         // 数据模型：用户、权限、请求/响应
 pub mod quad_frame;     // 四槽帧缓冲（主备切换，泛型帧长）

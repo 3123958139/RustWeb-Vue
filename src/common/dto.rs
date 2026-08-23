@@ -1,6 +1,6 @@
 //! 公共响应 DTO。
 //!
-//! fj200c_information / ftj1c 模块共用的载荷类型，供 OpenAPI 文档（utoipa）与前端类型生成使用，
+//! fj200c_information 模块共用的载荷类型，供 OpenAPI 文档（utoipa）与前端类型生成使用，
 //! 字段与 handlers 层实际返回的 JSON 保持一一对应。
 //! 集中定义避免 OpenAPI schema 同名冲突。
 

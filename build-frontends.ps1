@@ -1,4 +1,4 @@
-# build-frontends.ps1 — 并行构建 10 个前端（由 deploy.bat 调用）
+# build-frontends.ps1 — 并行构建 4 个前端（由 deploy.bat 调用）
 #
 # 本机为 Windows PowerShell 5.1，没有 PS7 的 ForEach-Object -Parallel，
 # 改用 Start-Job 分波并行（每波最多 3 个任务），效果等同 -ThrottleLimit 3。
@@ -6,7 +6,7 @@
 $ErrorActionPreference = 'Stop'
 
 $root = (Get-Location).Path
-$apps = 'fj200c_information', 'fj200c_main', 'fw100', 'admin', 'ftj1c', 'city3d', 'fw150', 'protocol_generator', 'qgc', 'mario'
+$apps = 'fj200c_information', 'fj200c_main', 'admin', 'mario'
 
 $failed = @()
 
@@ -45,4 +45,4 @@ if ($failed.Count -gt 0) {
     Write-Output "[FAILED] $($failed -join ', ') frontend build failed."
     exit 1
 }
-Write-Output 'All 10 frontends built successfully.'
+Write-Output 'All 4 frontends built successfully.'

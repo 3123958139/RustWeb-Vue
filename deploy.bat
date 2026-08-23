@@ -11,7 +11,7 @@ rem Build frontends in PARALLEL (max 3 concurrent, see build-frontends.ps1).
 rem Order still matters: frontends must be built BEFORE the backend, because the
 rem frontend dist is embedded INTO the exe at compile time
 rem (cargo build --release --features embedded, see src/embedded_assets.rs).
-echo Building 10 frontends in parallel (3 concurrent)...
+echo Building 4 frontends in parallel (3 concurrent)...
 powershell -NoProfile -ExecutionPolicy Bypass -File build-frontends.ps1
 if errorlevel 1 (
     echo.
@@ -66,48 +66,7 @@ if not exist config-fj200c_information.ini (
     echo Enabled = true>> config-fj200c_information.ini
     echo Dir = csv>> config-fj200c_information.ini
 )
-rem ftj1c role config
-if not exist config-ftj1c.ini (
-    echo [WARN] config-ftj1c.ini not found. A default one will be created.
-    echo [Udp]>> config-ftj1c.ini
-    echo Mock = true>> config-ftj1c.ini
-    echo.>> config-ftj1c.ini
-    echo [IP]>> config-ftj1c.ini
-    echo IP1 = 225.5.2.1>> config-ftj1c.ini
-    echo Port1 = 20004>> config-ftj1c.ini
-    echo IP2 = 192.168.100.104>> config-ftj1c.ini
-    echo Port2 = 20004>> config-ftj1c.ini
-    echo IP3 = 225.5.2.1>> config-ftj1c.ini
-    echo Port3 = 20004>> config-ftj1c.ini
-    echo IP4 = 192.168.100.104>> config-ftj1c.ini
-    echo Port4 = 20004>> config-ftj1c.ini
-    echo IP5 = 225.55.1.2>> config-ftj1c.ini
-    echo Port5 = 16387>> config-ftj1c.ini
-    echo IP6 = 192.168.100.104>> config-ftj1c.ini
-    echo Port6 = 16387>> config-ftj1c.ini
-    echo IP7 = 225.55.1.2>> config-ftj1c.ini
-    echo Port7 = 16385>> config-ftj1c.ini
-    echo IP8 = 192.168.100.104>> config-ftj1c.ini
-    echo Port8 = 16385>> config-ftj1c.ini
-    echo IP9 = 226.0.0.80>> config-ftj1c.ini
-    echo Port9 = 8090>> config-ftj1c.ini
-    echo IP10 = 192.168.100.104>> config-ftj1c.ini
-    echo Port10 = 8090>> config-ftj1c.ini
-    echo IP11 = 226.0.0.80>> config-ftj1c.ini
-    echo Port11 = 8004>> config-ftj1c.ini
-    echo IP12 = 192.168.100.104>> config-ftj1c.ini
-    echo Port12 = 8004>> config-ftj1c.ini
-    echo IP13 = 226.0.0.80>> config-ftj1c.ini
-    echo Port13 = 8090>> config-ftj1c.ini
-    echo IP14 = 192.168.100.104>> config-ftj1c.ini
-    echo Port14 = 8090>> config-ftj1c.ini
-    echo IP15 = 226.0.0.82>> config-ftj1c.ini
-    echo Port15 = 6091>> config-ftj1c.ini
-    echo IP16 = 192.168.100.104>> config-ftj1c.ini
-    echo Port16 = 6091>> config-ftj1c.ini
-)
 copy /y config-fj200c_information.ini deploy\ >nul
-copy /y config-ftj1c.ini deploy\ >nul
 if not exist deploy\csv mkdir deploy\csv
 
 rem fj200c_main role config (ECU/ADAM/DYNO 三路串口测控)
@@ -171,34 +130,13 @@ if not exist config-fj200c_main.ini (
 )
 copy /y config-fj200c_main.ini deploy\ >nul
 
-rem qgc role config (MAVLink 飞控地面站)
-if not exist config-qgc.ini (
-    echo [WARN] config-qgc.ini not found. A default one will be created.
-    echo [Udp]>> config-qgc.ini
-    echo Mock = true>> config-qgc.ini
-    echo LocalPort = 14550>> config-qgc.ini
-    echo.>> config-qgc.ini
-    echo [Gcs]>> config-qgc.ini
-    echo TelemetryHz = 10>> config-qgc.ini
-    echo.>> config-qgc.ini
-    echo [Tiles]>> config-qgc.ini
-    echo Url = https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn^&size=1^&scale=1^&style=8^&x={x}^&y={y}^&z={z}>> config-qgc.ini
-)
-copy /y config-qgc.ini deploy\ >nul
-
 echo [8/8] Deployment complete!
 echo ----------------------------------------
 echo   Deploy folder: %~dp0deploy
 echo   Start:        double-click deploy\rust-web-backend.exe
 echo   Fj200c_information:      http://localhost:3000/fj200c_information
 echo   Fj200c_main:             http://localhost:3000/fj200c_main
-echo   Fw100:                   http://localhost:3000/fw100
-echo   Fw150:                   http://localhost:3000/fw150
-echo   Ftj1c:                   http://localhost:3000/ftj1c
 echo   Admin:                   http://localhost:3000/admin
-echo   City3d:                  http://localhost:3000/city3d
-echo   Protocol_generator:      http://localhost:3000/protocol_generator
-echo   Qgc:                     http://localhost:3000/qgc
 echo   Mario:                   http://localhost:3000/mario
 echo ----------------------------------------
 

@@ -1,10 +1,10 @@
 //! # 公共 INI 配置封装
 //!
 //! 封装 `configparser` 库，提供 INI 配置文件的加载与读取。
-//! 原 fj200c_information / ftj1c 各自一份同构实现，统一收拢到此公共模块。
+//! 原各角色各自一份同构实现，统一收拢到此公共模块。
 //!
-//! 注意：**全局实例（`GLOBAL`）不在此模块**。两个角色的配置文件不同
-//! （`config-fj200c_information.ini` / `config-ftj1c.ini`），各角色模块通过
+//! 注意：**全局实例（`GLOBAL`）不在此模块**。各角色配置文件不同
+//! （`config-fj200c_information.ini` 等），各角色模块通过
 //! `config_singleton!` 宏生成自己的 `static GLOBAL: OnceLock<Config>` 与
 //! `global()` / `set_global()`（仅只读单例；需热替换的 fj200c_main 保持自实现）。
 

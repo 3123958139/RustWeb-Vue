@@ -46,30 +46,6 @@ use utoipa::OpenApi;
         crate::fj200c_information::handlers::save_config_handler,
         crate::fj200c_information::handlers::list_csv_files_handler,
         crate::fj200c_information::handlers::get_csv_file_handler,
-        // ============ ftj1c（UDP 通信监控） ============
-        crate::ftj1c::handlers::start_service_handler,
-        crate::ftj1c::handlers::stop_service_handler,
-        crate::ftj1c::handlers::service_status_handler,
-        crate::ftj1c::handlers::ip_config_handler,
-        crate::ftj1c::handlers::read_config_handler,
-        crate::ftj1c::handlers::save_config_handler,
-        crate::ftj1c::handlers::get_help_handler,
-        // ============ fw100 / fw150（设备台账） ============
-        crate::fw100::handlers::list_fw100_items,
-        crate::fw150::handlers::list_fw150_items,
-        // ============ city3d（城市 3D 展示） ============
-        crate::city3d::handlers::list_buildings,
-        crate::city3d::handlers::create_building,
-        crate::city3d::handlers::update_building,
-        crate::city3d::handlers::delete_building,
-        crate::city3d::handlers::list_districts,
-        crate::city3d::handlers::create_district,
-        crate::city3d::handlers::update_district,
-        crate::city3d::handlers::delete_district,
-        crate::city3d::handlers::list_events,
-        crate::city3d::handlers::create_event,
-        crate::city3d::handlers::delete_event,
-        crate::city3d::handlers::overview,
         // ============ fj200c_main（发动机测控 ECU/Adam4015/Adam4117/Dyno/Flux 五路串口） ============
         crate::fj200c_main::handlers::start_service_handler,
         crate::fj200c_main::handlers::stop_service_handler,
@@ -86,36 +62,6 @@ use utoipa::OpenApi;
         crate::fj200c_main::handlers::save_experiment_handler,
         crate::fj200c_main::handlers::generate_report_handler,
         crate::fj200c_main::handlers::get_help_handler,
-        // ============ protocol_generator（通信协议生成） ============
-        crate::protocol_generator::handlers::get_default_csv,
-        crate::protocol_generator::handlers::save_default_csv,
-        crate::protocol_generator::handlers::export_markdown,
-        crate::protocol_generator::handlers::export_excel,
-        crate::protocol_generator::handlers::parse_csv,
-        crate::protocol_generator::handlers::serialize_csv,
-        // ============ qgc（飞控地面站，MAVLink v2） ============
-        crate::qgc::handlers::start_service_handler,
-        crate::qgc::handlers::stop_service_handler,
-        crate::qgc::handlers::service_status_handler,
-        crate::qgc::handlers::read_config_handler,
-        crate::qgc::handlers::save_config_handler,
-        crate::qgc::handlers::telemetry_handler,
-        crate::qgc::handlers::command_handler,
-        crate::qgc::handlers::mode_handler,
-        crate::qgc::handlers::get_mission_handler,
-        crate::qgc::handlers::upload_mission_handler,
-        crate::qgc::handlers::clear_mission_handler,
-        crate::qgc::handlers::download_mission_handler,
-        crate::qgc::handlers::tile_handler,
-        crate::qgc::handlers::tile_stats_handler,
-        crate::qgc::handlers::clear_tiles_handler,
-        crate::qgc::handlers::get_params_handler,
-        crate::qgc::handlers::set_param_handler,
-        crate::qgc::handlers::get_stream_handler,
-        crate::qgc::handlers::set_stream_handler,
-        crate::qgc::handlers::list_csv_handler,
-        crate::qgc::handlers::get_csv_handler,
-        crate::qgc::handlers::get_help_handler,
         // ============ mario（超级马里奥复刻游戏） ============
         crate::mario::handlers::list_scores,
         crate::mario::handlers::submit_score,
@@ -137,7 +83,7 @@ use utoipa::OpenApi;
             crate::admin::handlers::PwdRouteStatus,
             // meta（角色注册表）
             crate::roles::RoleInfo,
-            // 公共响应 DTO（fj200c_information / ftj1c 共用）
+            // 公共响应 DTO
             crate::common::dto::ServiceStatus,
             crate::common::dto::SentResult,
             crate::common::dto::SavedResult,
@@ -147,27 +93,6 @@ use utoipa::OpenApi;
             // fj200c_information 请求体
             crate::fj200c_information::handlers::SendCommandRequest,
             crate::fj200c_information::handlers::SaveConfigRequest,
-            // ftj1c 模型
-            crate::ftj1c::models::IpConfig,
-            crate::ftj1c::models::Ftj1cSaveConfigRequest,
-            // fw100 / fw150
-            crate::common::ledger::LedgerItem,
-            crate::fw150::services::Fw150LedgerItem,
-            // city3d 模型
-            crate::city3d::models::Building,
-            crate::city3d::models::BuildingPage,
-            crate::city3d::models::District,
-            crate::city3d::models::CityEvent,
-            crate::city3d::models::EventPage,
-            crate::city3d::models::CreateResult,
-            crate::city3d::models::RecentEvent,
-            crate::city3d::models::Overview,
-            // city3d 请求体
-            crate::city3d::handlers::CreateBuildingRequest,
-            crate::city3d::handlers::UpdateBuildingRequest,
-            crate::city3d::handlers::CreateDistrictRequest,
-            crate::city3d::handlers::UpdateDistrictRequest,
-            crate::city3d::handlers::CreateEventRequest,
             // fj200c_main 数据模型
             crate::fj200c_main::types::EcuFields,
             crate::fj200c_main::types::FaultCodeFlags,
@@ -189,20 +114,6 @@ use utoipa::OpenApi;
             crate::fj200c_main::handlers::RecordingState,
             crate::fj200c_main::handlers::SimulationState,
             crate::fj200c_main::handlers::ThemeState,
-            // protocol_generator 模型
-            crate::protocol_generator::models::ProtocolField,
-            crate::protocol_generator::models::ParameterDef,
-            crate::protocol_generator::models::ProtocolExportRequest,
-            crate::protocol_generator::models::CsvParseRequest,
-            crate::protocol_generator::models::TextContent,
-            // qgc 模型（飞控地面站）
-            crate::qgc::models::QgcTelemetry,
-            crate::qgc::models::QgcCommandRequest,
-            crate::qgc::models::QgcModeRequest,
-            crate::qgc::models::QgcMissionItem,
-            crate::qgc::models::QgcMission,
-            crate::qgc::models::QgcMissionUploadRequest,
-            crate::qgc::models::TileStats,
             // mario 模型（超级马里奥复刻游戏）
             crate::mario::models::MarioScore,
             crate::mario::models::ScoreList,
@@ -258,22 +169,7 @@ mod tests {
             "/api/fj200c_information/config",
             "/api/fj200c_information/csv/files",
             "/api/fj200c_information/csv/{name}",
-            "/api/ftj1c/service/start",
-            "/api/ftj1c/service/stop",
-            "/api/ftj1c/service/status",
-            "/api/ftj1c/ip-config",
-            "/api/ftj1c/config",
-            "/api/ftj1c/help",
-            "/api/fw100/items",
-            "/api/fw150/items",
-            "/api/city3d/buildings",
-            "/api/city3d/buildings/{id}",
-            "/api/city3d/districts",
-            "/api/city3d/districts/{id}",
-            "/api/city3d/events",
-            "/api/city3d/events/{id}",
-            "/api/city3d/overview",
-            // fj200c_main：15 个端点
+            // fj200c_main：13 个端点
             "/api/fj200c_main/service/start",
             "/api/fj200c_main/service/stop",
             "/api/fj200c_main/service/status",
@@ -287,40 +183,16 @@ mod tests {
             "/api/fj200c_main/experiment",
             "/api/fj200c_main/report",
             "/api/fj200c_main/help",
-            // protocol_generator：6 个操作（default-csv GET/PUT + markdown + excel + csv/parse + csv/serialize）
-            "/api/protocol_generator/default-csv",
-            "/api/protocol_generator/markdown",
-            "/api/protocol_generator/excel",
-            "/api/protocol_generator/csv/parse",
-            "/api/protocol_generator/csv/serialize",
-            // qgc：13 个唯一路径（mission 三方法共用 1 路径，mission/download 单独 1 路径，tiles 3 路径）
-            "/api/qgc/service/start",
-            "/api/qgc/service/stop",
-            "/api/qgc/service/status",
-            "/api/qgc/config",
-            "/api/qgc/telemetry",
-            "/api/qgc/command",
-            "/api/qgc/mode",
-            "/api/qgc/mission",
-            "/api/qgc/mission/download",
-            "/api/qgc/tiles/{z}/{x}/{y}",
-            "/api/qgc/tiles/stats",
-            "/api/qgc/tiles/clear",
-            "/api/qgc/param",
-            "/api/qgc/stream",
-            "/api/qgc/telemetry/csv",
-            "/api/qgc/telemetry/csv/{name}",
-            "/api/qgc/help",
-            // mario：3 个操作（scores GET/POST + stats GET）
+            // mario：2 个唯一路径（scores GET/POST + stats GET）
             "/api/mario/scores",
             "/api/mario/stats",
         ] {
             assert!(paths.contains_key(path), "缺少路径: {}", path);
         }
 
-        // 唯一路径数：auth 3 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）+ fj200c_information 7 + ftj1c 5 + fw100 1 + fw150 1
-        //           + city3d 7 + fj200c_main 13 + protocol_generator 5 + qgc 17 + mario 2（scores/stats）= 68
-        assert_eq!(paths.len(), 68, "路径数量与预期不符");
+        // 唯一路径数：auth 3 + meta 1 + seed pwd 1 + users 4（settings/pwd-route 占 1）
+        //           + fj200c_information 7 + fj200c_main 13 + mario 2（scores/stats）= 31
+        assert_eq!(paths.len(), 31, "路径数量与预期不符");
 
         // 断言 operationId 存在（orval 依赖它生成函数名）
         let mut operations = 0;
@@ -337,7 +209,7 @@ mod tests {
                 }
             }
         }
-        // 86 个 HTTP 操作（不含 WebSocket；qgc 22 + mario 未计入质变前的分项：83 + 新增 mario 3 = 86）
-        assert_eq!(operations, 86, "操作数量与预期不符");
+        // 37 个 HTTP 操作（不含 WebSocket）
+        assert_eq!(operations, 37, "操作数量与预期不符");
     }
 }

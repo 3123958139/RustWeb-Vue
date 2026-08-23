@@ -15,13 +15,7 @@
 //! |------|------|------|
 //! | `admin` | 管理员 | UsersRead, UsersWrite, UsersDelete, SystemAdmin |
 //! | `fj200c_information` | 发动机监控 | Fj200cInformationMonitor |
-//! | `fw100` | 设备台账 | Fw100Monitor |
-//! | `ftj1c` | UDP 通信监控 | Ftj1cMonitor, Ftj1cHelp |
-//! | `city3d` | 城市 3D 展示 | City3dView |
-//! | `fw150` | 设备台账 | Fw150Monitor |
 //! | `fj200c_main` | 发动机测控 | Fj200cMainMonitor |
-//! | `protocol_generator` | 通信协议生成 | ProtocolGeneratorMonitor |
-//! | `qgc` | 飞控地面站 | QgcMonitor |
 //! | `mario` | 超级马里奥复刻游戏 | MarioMonitor |
 //!
 //! # 新增角色步骤（后端侧）
@@ -81,7 +75,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy)] // 自动派生调试、克隆、复制 trait
 pub struct RoleDef {
     /// 数据库 `users.role` 中存储的角色标识
-    /// 例如：`"admin"`、`"fj200c_information"`、`"fw150"`、`"ftj1c"`
+    /// 例如：`"admin"`、`"fj200c_information"`、`"fj200c_main"`
     pub key: &'static str, // `&'static str` 是静态字符串引用，生命周期为整个程序
 
     /// 角色显示名称（前端导航栏 / 角色下拉框展示用）
@@ -122,47 +116,11 @@ pub static ROLE_REGISTRY: &[RoleDef] = &[
         name: "fj200c_information",
         permissions: &[Permission::Fj200cInformationMonitor], // 发动机监控权限
     },
-    // fw100 角色：设备台账面板
-    RoleDef {
-        key: "fw100",
-        name: "fw100",
-        permissions: &[Permission::Fw100Monitor], // 设备台账权限
-    },
-    // ftj1c 角色：UDP 组播通信监控面板
-    RoleDef {
-        key: "ftj1c",
-        name: "ftj1c",
-        permissions: &[Permission::Ftj1cMonitor, Permission::Ftj1cHelp], // 通信监控权限
-    },
-    // city3d 角色：城市 3D 展示面板
-    RoleDef {
-        key: "city3d",
-        name: "city3d",
-        permissions: &[Permission::City3dView], // 城市 3D 展示权限
-    },
-    // fw150 角色：设备台账面板
-    RoleDef {
-        key: "fw150",
-        name: "fw150",
-        permissions: &[Permission::Fw150Monitor], // 设备台账权限
-    },
     // fj200c_main 角色：发动机测控面板
     RoleDef {
         key: "fj200c_main",
         name: "fj200c_main",
         permissions: &[Permission::Fj200cMainMonitor],
-    },
-    // protocol_generator 角色：通信协议生成面板
-    RoleDef {
-        key: "protocol_generator",
-        name: "protocol_generator",
-        permissions: &[Permission::ProtocolGeneratorMonitor],
-    },
-    // qgc 角色：飞控地面站面板
-    RoleDef {
-        key: "qgc",
-        name: "qgc",
-        permissions: &[Permission::QgcMonitor],
     },
     // mario 角色：超级马里奥复刻游戏面板
     RoleDef {

@@ -6,10 +6,8 @@
 //! /api/auth/*    → 认证模块（所有角色共用）
 //! /api/users/*   → 管理员模块（用户管理）
 //! /api/fj200c_information/*  → fj200c_information 模块（发动机监控）
-//! /api/fw100/*  → fw100 模块（设备台账）
-//! /api/ftj1c/*   → ftj1c 模块（UDP 通信监控）
-//! /api/city3d/*  → city3d 模块（城市 3D 展示）
-//! /api/qgc/*     → qgc 模块（飞控地面站）
+//! /api/fj200c_main/*  → fj200c_main 模块（发动机测控）
+//! /api/mario/*   → mario 模块（超级马里奥复刻游戏）
 //! ```
 //!
 //! # 设计理念
@@ -23,10 +21,8 @@
 //! - `auth_routes`：无需特殊权限（登录、获取用户信息）
 //! - `admin_routes`：需要 `SystemAdmin` 权限（`role_middleware`）
 //! - `fj200c_information_routes`：需要 `Fj200cInformationMonitor` 权限（`permission_middleware`）
-//! - `fw100_routes`：需要 `Fw100Monitor` 权限
-//! - `ftj1c_routes`：需要 `Ftj1cMonitor` 权限
-//! - `city3d_routes`：需要 `City3dView` 权限
-//! - `qgc_routes`：需要 `QgcMonitor` 权限
+//! - `fj200c_main_routes`：需要 `Fj200cMainMonitor` 权限（`permission_middleware`）
+//! - `mario_routes`：需要 `MarioMonitor` 权限（`permission_middleware`）
 
 use crate::database::DatabaseConnection;
 // 数据库连接池类型
@@ -51,9 +47,8 @@ use axum::{routing::get, Router};
 /// | `/api/users` | GET | 用户列表 | SystemAdmin |
 /// | `/api/users` | POST | 创建用户 | SystemAdmin |
 /// | `/api/fj200c_information/*` | * | 发动机监控 | Fj200cInformationMonitor |
-/// | `/api/fw100/*` | * | 设备台账 | Fw100Monitor |
-/// | `/api/ftj1c/*` | * | UDP 通信监控 | Ftj1cMonitor |
-/// | `/api/city3d/*` | * | 城市 3D 展示 | City3dView |
+/// | `/api/fj200c_main/*` | * | 发动机测控 | Fj200cMainMonitor |
+/// | `/api/mario/*` | * | 超级马里奥复刻游戏 | MarioMonitor |
 pub fn create_router(db: DatabaseConnection) -> Router {
     // ============ 1. 创建各模块的子路由 ============
     //
@@ -81,29 +76,6 @@ pub fn create_router(db: DatabaseConnection) -> Router {
     // - 发动机测控相关 API（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
     // - WebSocket 推送（实时数据）
     let fj200c_main_routes = crate::fj200c_main::routes::fj200c_main_router(db.clone());
-
-    // fw100 角色路由（需要 Fw100Monitor 权限）：
-    // - 设备台账管理 API
-    let fw100_routes = crate::fw100::routes::fw100_router(db.clone());
-
-    // ftj1c 角色路由（需要 Ftj1cMonitor 权限）：
-    // - UDP 组播通信监控 API
-    // - WebSocket 推送（实时数据）
-    let ftj1c_routes = crate::ftj1c::routes::ftj1c_router(db.clone());
-
-    // city3d 角色路由（需要 City3dView 权限）：
-    // - 城市区域 / 建筑 / 事件管理 API
-    // - 城市概览聚合统计（3D 场景 HUD 数据源）
-    let city3d_routes = crate::city3d::routes::city3d_router(db.clone());
-    let fw150_routes = crate::fw150::routes::fw150_router(db.clone());
-    // protocol_generator 角色路由（需要 ProtocolGeneratorMonitor 权限）：
-    // - 通信协议生成（Markdown / Excel / CSV 参数表）
-    let protocol_generator_routes = crate::protocol_generator::routes::protocol_generator_router(db.clone());
-
-    // qgc 角色路由（需要 QgcMonitor 权限）：
-    // - 飞控地面站：遥测监控 / 命令 / 模式 / 任务规划
-    // - WebSocket 推送（telemetry / mission_progress / command_ack）
-    let qgc_routes = crate::qgc::routes::qgc_router(db.clone());
 
     // mario 角色路由（需要 MarioMonitor 权限）：
     // - 超级马里奥复刻游戏成绩：高分榜 / 提交成绩 / 全局统计
@@ -150,20 +122,6 @@ pub fn create_router(db: DatabaseConnection) -> Router {
         // 嵌套路由：/api/fj200c_main/*
         // fj200c_main 角色的发动机测控 API（ECU/Adam4015/Adam4117/Dyno/Flux 五路串口）
         .nest("/api/fj200c_main", fj200c_main_routes)
-        // 嵌套路由：/api/fw100/*
-        // fw100 角色的设备台账 API
-        .nest("/api/fw100", fw100_routes)
-        // 嵌套路由：/api/ftj1c/*
-        // ftj1c 角色的 UDP 通信监控 API
-        .nest("/api/ftj1c", ftj1c_routes)
-        // 嵌套路由：/api/city3d/*
-        // city3d 角色的城市 3D 展示 API
-        .nest("/api/city3d", city3d_routes)
-        // 注入数据库连接池到所有处理器
-        // 处理器通过 `State(db): State<DatabaseConnection>` 提取
-        .nest("/api/fw150", fw150_routes)
-        .nest("/api/protocol_generator", protocol_generator_routes)
-        .nest("/api/qgc", qgc_routes)
         .nest("/api/mario", mario_routes)
         .with_state(db)
 }

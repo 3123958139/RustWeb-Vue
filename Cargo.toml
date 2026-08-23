@@ -1,9 +1,9 @@
-﻿[package]
+[package]
 name = "rust-web-backend"
 version = "0.1.0"
 edition = "2021"
 
-# 打包单 exe 时启用（deploy.bat 使用）：将 7 个前端 dist 编译期内嵌进二进制
+# 打包单 exe 时启用（deploy.bat 使用）：将 4 个前端 dist 编译期内嵌进二进制
 [features]
 embedded = ["dep:rust-embed", "dep:mime_guess"]
 

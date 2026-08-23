@@ -40,7 +40,7 @@
 //! | `session` | 二级 | 每连接 IO 会话线程 |
 //!
 //! 帧提取器（`FrameExtractor`）、四槽帧缓冲（`QuadFrame`）、工具函数等
-//! 通用逻辑位于 `crate::common`，由 fj200c_information / ftj1c 共享。
+//! 通用逻辑位于 `crate::common`。
 //!
 //! ## 协作要点
 //!

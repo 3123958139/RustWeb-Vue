@@ -77,7 +77,7 @@ pub fn verify_query_token(
 /// # 参数
 /// - `tx`: 全局事件广播发送端（`subscribe()` 获取接收端）
 /// - `socket`: 已升级的 WebSocket 连接
-/// - `log_prefix`: 日志前缀（如 `"[ftj1c]"`），便于区分角色
+/// - `log_prefix`: 日志前缀（如 `"[fj200c_information]"`），便于区分角色
 pub async fn ws_bridge(tx: broadcast::Sender<EventPayload>, socket: WebSocket, log_prefix: &str) {
     ws_bridge_with_initial(tx, socket, log_prefix, None).await
 }
@@ -93,7 +93,7 @@ pub async fn ws_bridge(tx: broadcast::Sender<EventPayload>, socket: WebSocket, l
 /// # 参数
 /// - `tx`: 全局事件广播发送端（`subscribe()` 获取接收端）
 /// - `socket`: 已升级的 WebSocket 连接
-/// - `log_prefix`: 日志前缀（如 `"[ftj1c]"`），便于区分角色
+/// - `log_prefix`: 日志前缀（如 `"[fj200c_information]"`），便于区分角色
 /// - `initial_text`: 连接建立时立即发送的 JSON 文本（如当前数据快照）
 pub async fn ws_bridge_with_initial(
     tx: broadcast::Sender<EventPayload>,
