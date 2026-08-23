@@ -95,7 +95,7 @@ pub async fn init_database(
 /// | email | TEXT | NOT NULL | 邮箱（AES-256-GCM 密文，登录按指纹查询） |
 /// | email_hash | TEXT | UNIQUE (索引) | 邮箱指纹（HMAC-SHA256，登录定位与唯一约束） |
 /// | password_hash | TEXT | NOT NULL | 密码哈希（bcrypt） |
-/// | role | TEXT | NOT NULL DEFAULT 'user' | 角色标识 |
+/// | role | TEXT | NOT NULL DEFAULT 'user' | 角色标识（AES-256-GCM 密文，权限判断时解密） |
 /// | created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 /// | updated_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 更新时间 |
 ///
@@ -444,6 +444,31 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     }
     tracing::info!("username 迁移：已加密 {} 个存量用户的邮箱", plain_emails_count);
 
+    // 角色迁移：role 为密文则能解密成功（跳过）；解密失败说明仍是明文，加密之。
+    // 无需指纹列：角色不作为查询/唯一键，仅加解密即可。幂等（再启动时已为密文，跳过）。
+    let all_users_roles: Vec<(uuid::Uuid, String)> = sqlx::query_as::<_, (uuid::Uuid, String)>(
+        "SELECT id, role FROM users",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let mut role_migrated = 0usize;
+    for (id, role) in all_users_roles {
+        // 已为密文（能解密）则跳过；明文角色不是合法密文，decrypt 返回 Err
+        if crate::common::crypto::decrypt(&role).is_ok() {
+            continue;
+        }
+        let role_enc = crate::common::crypto::encrypt(&role)?;
+        sqlx::query(
+            "UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(&role_enc)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        role_migrated += 1;
+    }
+    tracing::info!("role 迁移：已加密 {} 个存量用户的角色", role_migrated);
+
     // 存量 seed_passwords：把明文用户名与明文初始密码加密 + 派生指纹
     let plain_seeds: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
         "SELECT username, password FROM seed_passwords WHERE username_hash IS NULL OR username_hash = ''",
@@ -577,6 +602,8 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         // 邮箱同样加密入库，指纹用于登录定位与唯一约束
         let email_hash = crate::common::crypto::field_hash(email);
         let email_enc = crate::common::crypto::encrypt(email)?;
+        // 角色加密入库（权限判断在读出行时由 User::FromRow 解密）
+        let role_enc = crate::common::crypto::encrypt(role)?;
 
         if exists {
             // 旧版本库：账号已存在但没有初始密码记录，重置初始密码（一次性迁移）
@@ -600,7 +627,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(&email_enc)
                 .bind(&email_hash)
                 .bind(&hash)
-                .bind(role)
+                .bind(&role_enc)
                 .execute(&mut *tx)
                 .await?;
             if result.rows_affected() == 0 {

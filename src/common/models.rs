@@ -138,7 +138,8 @@ pub struct User {
     /// 部分查询不查此列，由手动 `FromRow` 容忍缺失
     #[serde(skip_serializing)]
     pub password_hash: String,
-    /// 角色标识（如 "admin"、"fj200c_information"），与角色注册表的 `key` 对应
+    /// 角色标识（如 "admin"、"fj200c_information"），与角色注册表的 `key` 对应；
+    /// 库中为 AES-GCM 密文，本字段始终是解密后的明文（权限判断依赖明文）
     pub role: String,
     /// 创建时间（UTC）
     pub created_at: DateTime<Utc>,
@@ -146,23 +147,27 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
-// 手动实现 FromRow：读取库中密文后立即解密，使 `username` / `email` 字段对上层始终是明文
+// 手动实现 FromRow：读取库中密文后立即解密，使 `username` / `email` / `role` 字段对上层始终是明文
 impl FromRow<'_, SqliteRow> for User {
     fn from_row(row: &SqliteRow) -> Result<Self, sqlx::Error> {
-        // 用户名与邮箱列在库中均为密文（AES-256-GCM），解密为明文；
-        // 解密失败（如历史明文未迁移）时回退返回原值，避免读取报错
+        // 用户名、邮箱与角色在库中均为密文（AES-256-GCM），解密为明文；
+        // 解密失败（如历史明文未迁移）时回退返回原值，避免读取报错。
+        // 角色必须解密为明文，权限判断（roles::permissions_for / has_permission）依赖明文
         let username = crate::common::crypto::decrypt_or_plaintext(
             &row.try_get::<String, _>("username")?,
         );
         let email = crate::common::crypto::decrypt_or_plaintext(
             &row.try_get::<String, _>("email")?,
         );
+        let role = crate::common::crypto::decrypt_or_plaintext(
+            &row.try_get::<String, _>("role")?,
+        );
         Ok(User {
             id: row.try_get("id")?,
             username,
             email,
             password_hash: row.try_get("password_hash").unwrap_or_default(),
-            role: row.try_get("role")?,
+            role,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
         })

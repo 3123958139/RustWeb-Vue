@@ -4062,7 +4062,7 @@
               },
               "role": {
                 "type": "string",
-                "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+                "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应；\n库中为 AES-GCM 密文，本字段始终是解密后的明文（权限判断依赖明文）"
               },
               "updated_at": {
                 "type": "string",
@@ -4524,7 +4524,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+                  "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应；\n库中为 AES-GCM 密文，本字段始终是解密后的明文（权限判断依赖明文）"
                 },
                 "updated_at": {
                   "type": "string",
@@ -7251,7 +7251,7 @@
           },
           "role": {
             "type": "string",
-            "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+            "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应；\n库中为 AES-GCM 密文，本字段始终是解密后的明文（权限判断依赖明文）"
           },
           "updated_at": {
             "type": "string",

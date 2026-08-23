@@ -176,6 +176,8 @@ impl AuthService {
         // 加密用户名与邮箱（防止直接读取 SQLite 文件看到明文）
         let username_enc = crate::common::crypto::encrypt(username)?;
         let email_enc = crate::common::crypto::encrypt(email)?;
+        // 角色同样加密入库（权限判断在读出行时已解密）
+        let role_enc = crate::common::crypto::encrypt(role)?;
 
         // 创建用户
         let user_id = Uuid::new_v4();
@@ -193,7 +195,7 @@ impl AuthService {
         .bind(&email_enc)
         .bind(&email_hash)
         .bind(&password_hash)
-        .bind(role)
+        .bind(&role_enc)
         .bind(now)
         .bind(now)
         .fetch_one(pool)
