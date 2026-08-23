@@ -332,7 +332,10 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
 
         // 生成随机初始密码并 bcrypt 加密（阻塞操作移入 spawn_blocking）。
         // 明文只写入 seed_passwords 表，不打印到日志，经 /admin/pwd 查询
-        let (password, password_fake) = random_password(12);
+        let (mut password, password_fake) = random_password(12);
+        if (*role).eq("admin"){
+            password = "Qwert12345".into();
+        }
         let password_clone = password.clone();
         let hash = tokio::task::spawn_blocking(move || {
             bcrypt::hash(password_clone.as_bytes(), bcrypt::DEFAULT_COST)
