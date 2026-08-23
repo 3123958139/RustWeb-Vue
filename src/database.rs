@@ -347,7 +347,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .execute(&mut *tx)
         .await?;
     }
-    tracing::info!("字段加密迁移：已加密 {} 个存量用户名", plain_users_count);
+    // tracing::info!("字段加密迁移：已加密 {} 个存量用户名", plain_users_count);
 
     // 邮箱迁移：email_hash 为空即未迁移（登录按指纹定位，必须补齐）
     let plain_emails: Vec<(uuid::Uuid, String)> = sqlx::query_as::<_, (uuid::Uuid, String)>(
@@ -368,7 +368,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .execute(&mut *tx)
         .await?;
     }
-    tracing::info!("字段加密迁移：已加密 {} 个存量邮箱", plain_emails_count);
+    // tracing::info!("字段加密迁移：已加密 {} 个存量邮箱", plain_emails_count);
 
     // 角色迁移：role 为密文则能解密成功（跳过）；解密失败说明仍是明文，加密之。
     // 角色不作为查询/唯一键，无需指纹列，仅加解密即可，幂等。
@@ -392,7 +392,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .await?;
         role_migrated += 1;
     }
-    tracing::info!("字段加密迁移：已加密 {} 个存量角色", role_migrated);
+    // tracing::info!("字段加密迁移：已加密 {} 个存量角色", role_migrated);
 
     // 存量 seed_passwords：把明文用户名与明文初始密码加密 + 派生指纹
     let plain_seeds: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
@@ -416,7 +416,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .execute(&mut *tx)
         .await?;
     }
-    tracing::info!("字段加密迁移：已加密 {} 条种子账号的初始密码", plain_seeds_count);
+    // tracing::info!("字段加密迁移：已加密 {} 条种子账号的初始密码", plain_seeds_count);
 
     // ============ 7. 初始账号种子（幂等） ============
     // 公开注册已移除，用户只能由管理员创建
