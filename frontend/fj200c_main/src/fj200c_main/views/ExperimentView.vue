@@ -59,7 +59,7 @@
                   :key="item.key"
                   :class="{ active: Boolean(store.ecuData[item.key]) }"
                   class="fault-cell"
-              >{{ item.label }}
+              >{{ getComplexLabel(item) }}
               </div>
             </div>
           </div>
@@ -166,6 +166,18 @@ const accessoryItems: AccessoryItem[] = [
   {label: "起发电机", key: "starter"},
   {label: "轮载状态", key: "wheelLoadStatus"},
 ];
+
+const getComplexLabel = (item: AccessoryItem) => {
+  if (item.label == '轮载状态') {
+    if (Boolean(store.ecuData[item.key])) {
+      return '空中';
+    } else {
+      return '地面';
+    }
+  } else {
+    return item.label;
+  }
+}
 </script>
 
 <style scoped>
@@ -268,7 +280,7 @@ const accessoryItems: AccessoryItem[] = [
 }
 
 .fault-grid-3 {
-  grid-template-rows: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
 }
 
 .accessory-row {
