@@ -130,8 +130,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig::load()?;
 
     // ============ 3.5 初始化 JWT 配置（先于建库） ============
-    // 缓存签名密钥与过期时间（OnceLock），生产模式缺失 JWT_SECRET 直接拒绝启动。
-    // 必须先于 init_database()：建表/种子/迁移会调用 crypto 派生字段密钥（复用 JWT_SECRET）。
+    // JWT 签名密钥硬编码进代码（无需环境变量），此处缓存过期时间。
+    // 必须先于 init_database()：建表/种子会用 crypto 以「本机 MAC 派生的数据加密密钥」
+    // 加密用户名/邮箱/角色等敏感字段，与 JWT 签名密钥完全分离。
     crate::common::jwt::init()?;
 
     // ============ 4. 初始化数据库 ============

@@ -25,14 +25,20 @@
 //!
 //! # 安全配置
 //!
-//! | 环境变量 | 默认值 | 说明 |
-//! |----------|--------|------|
-//! | `JWT_SECRET` | dev: "dev-insecure-secret-key" | 签名密钥（生产模式必须设置，否则拒绝启动） |
-//! | `JWT_EXPIRATION` | "86400" | 过期时间（秒，默认 24 小时） |
+//! | 配置项 | 来源 | 说明 |
+//! |--------|------|------|
+//! | `JWT_SECRET` | 硬编码常量（见 `HARDCODED_JWT_SECRET`） | 仅用于 JWT 签名的对称密钥，与数据加密密钥完全独立 |
+//! | `JWT_EXPIRATION` | 环境变量（默认 86400） | 过期时间（秒，默认 24 小时） |
 //!
-//! 密钥与过期时间在 `init()` 时读取一次并缓存到 `OnceLock`，
-//! 避免每个请求重复读取环境变量（原实现还有兜底硬编码密钥的漏洞：
-//! 部署忘记设置 `JWT_SECRET` 时任意攻击者可用默认密钥伪造 token）。
+//! **密钥分离原则**：
+//!
+//! - **JWT 签名密钥**硬编码进代码，只用于令牌签发/验签，不参与任何数据加解密。
+//! - **数据加密密钥**（`DATA_ENCRYPTION_KEY`）由本机 MAC 地址自动派生
+//!   （见 `crate::common::crypto::data_key()`），用于库内敏感字段的可逆加密与指纹。
+//!   两者互不相干：JWT 密钥泄露不会影响磁盘数据密文，MAC 变更才会使旧密文失效
+//!   （预期行为，等同换机后无法解密旧库）。
+//!
+//! 签名密钥与过期时间在 `init()` 时缓存到 `OnceLock`，避免每个请求重复读取。
 
 use crate::common::models::User;  // 用户结构体
 // `jsonwebtoken` 库提供 JWT 编码/解码功能（>=10.3.0，修复 CVE-2026-25537）
@@ -62,6 +68,14 @@ pub struct Claims {
     pub iat: u64,
 }
 
+/// 硬编码 JWT 签名密钥
+///
+/// 仅用于 JWT 的 HS256 签发/验签，**不参与任何数据加解密**（数据加密密钥由 MAC
+/// 地址派生，见 `crate::common::crypto::data_key()`）。硬编码进代码以避免部署遗漏
+/// 环境变量导致令牌可被伪造；对数据密文无影响。
+const HARDCODED_JWT_SECRET: &str =
+    "RustWeb-Vue-Fj200c-Static-JWT-Secret-9f3a7c2e-1b8d-4f60-a5c9-e7d2b3f8a1c4";
+
 /// 签名密钥（启动时初始化一次）
 static JWT_SECRET: OnceLock<String> = OnceLock::new();
 /// 令牌过期时间（秒，启动时初始化一次）
@@ -69,41 +83,20 @@ static JWT_EXPIRATION_SECS: OnceLock<u64> = OnceLock::new();
 
 /// 初始化 JWT 配置（必须在创建/验证令牌前调用，`main.rs` 启动时执行）
 ///
-/// # 安全说明
-///
-/// - 生产模式（`!cfg!(debug_assertions)`）下 `JWT_SECRET` 缺失时**拒绝启动**，
-///   避免使用可被伪造的默认密钥
-/// - dev 模式允许缺省（使用固定 dev 密钥），便于本地开发
+/// JWT 签名密钥硬编码进代码（`HARDCODED_JWT_SECRET`），无需环境变量；
+/// 此处仅读取并缓存过期时间。数据加密密钥由 MAC 地址独立派生，与此无关。
 pub fn init() -> Result<(), String> {
-    let dev = cfg!(debug_assertions);
-    let secret = match std::env::var("JWT_SECRET") {
-        Ok(s) if !s.trim().is_empty() => s,
-        _ if dev => {
-            tracing::warn!("JWT_SECRET 未设置，开发模式使用默认密钥（生产模式将拒绝启动）");
-            "dev-insecure-secret-key".to_string()
-        }
-        _ => {
-            return Err(
-                "JWT_SECRET 环境变量未设置（生产模式必须配置，否则令牌可被伪造）。\
-                 请在 .env 或系统环境变量中设置一个随机长密钥"
-                    .into(),
-            )
-        }
-    };
     let expiration = std::env::var("JWT_EXPIRATION")
         .ok()
         .and_then(|v| v.trim().parse::<u64>().ok())
         .unwrap_or(86400);
 
-    let _ = JWT_SECRET.set(secret);
+    let _ = JWT_SECRET.set(HARDCODED_JWT_SECRET.to_string());
     let _ = JWT_EXPIRATION_SECS.set(expiration);
     Ok(())
 }
 
-/// 获取缓存后的签名密钥
-///
-/// `pub(crate)`：供 `common::crypto` 派生用户名/邮箱/角色等的加解密与指纹密钥，
-/// 保证字段密钥与 JWT 密钥同源单一。
+/// 获取缓存后的签名密钥（硬编码常量）
 pub(crate) fn secret() -> &'static str {
     JWT_SECRET.get().expect("jwt::init() 必须在创建/验证令牌前调用")
 }

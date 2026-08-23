@@ -135,7 +135,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 |---|---|---|
 | `PORT` | `3000` | 后端端口 |
 | `DATABASE_URL` | `sqlite://fj200c.db` | SQLite 连接（文件自动创建） |
-| `JWT_SECRET` | dev 有默认值 | JWT 签名密钥（**release 模式缺失会拒绝启动**） |
+| `JWT_SECRET` | 硬编码进代码 | JWT 签名密钥（硬编码于 `src/common/jwt.rs`，无需环境变量，与数据加密密钥完全独立） |
 | `JWT_EXPIRATION` | `86400` | token 过期秒数 |
 | `RUST_LOG` | `info` | 日志级别 |
 | `CORS_ORIGINS` | dev 放行任意 | CORS 白名单（**release 模式缺失会拒绝启动**） |
@@ -192,7 +192,7 @@ deploy/
 - 前端 `npm run build` 必须在各自 `frontend/*` 子目录执行
 - `Cargo.lock` 与 `package-lock.json` 均需提交（锁定依赖版本）
 - 改名/新增前端应用时，`main.rs` 静态托管、`embedded_assets.rs`、`deploy.bat`、`package.json` workspaces、`vite.config.ts` base/port 都要同步改
-- release 构建缺 `JWT_SECRET` / `CORS_ORIGINS` 直接拒绝启动，本地验证 release 行为需先在 `.env` 补齐
+- release 构建缺 `CORS_ORIGINS` 直接拒绝启动，本地验证 release 行为需先在 `.env` 补齐；`JWT_SECRET` 已硬编码进代码不再需要环境变量
 
 ## 许可证
 

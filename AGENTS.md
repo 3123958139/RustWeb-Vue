@@ -101,7 +101,7 @@ WebSocket 不走 JWT header（浏览器 WS 不支持自定义头），token 通�
 
 ## 配置与数据
 
-- **环境变量**：`.env` + dotenv：`PORT`（默认 3000）、`DATABASE_URL`（默认 `sqlite://fj200c.db`）、`JWT_SECRET`、`JWT_EXPIRATION`、`RUST_LOG`、`CORS_ORIGINS`。**release 模式（非 debug_assertions）下 `JWT_SECRET` 与 `CORS_ORIGINS` 缺失会拒绝启动**（`src/common/jwt.rs:init`、`main.rs` CORS 白名单），dev 模式有默认值/放行任意来源
+- **环境变量**：`.env` + dotenv：`PORT`（默认 3000）、`DATABASE_URL`（默认 `sqlite://fj200c.db`）、`JWT_EXPIRATION`、`RUST_LOG`、`CORS_ORIGINS`。**密钥分离**：`JWT_SECRET` 已硬编码进 `src/common/jwt.rs`（`HARDCODED_JWT_SECRET`，无需环境变量）；**数据加密密钥 `DATA_ENCRYPTION_KEY` 由本机 MAC 地址自动派生**（`src/common/crypto.rs:data_key()`，用于库内敏感字段 AES-256-GCM 加解密与 HMAC 指纹），与 JWT 签名密钥完全独立。**release 模式（非 debug_assertions）下 `CORS_ORIGINS` 缺失会拒绝启动**（`main.rs` CORS 白名单），dev 模式放行任意来源。
 - **数据库**：SQLite 文件在运行目录自动创建（开发为根目录 `fj200c.db`，部署为 `deploy/fj200c.db`），无手动安装。建表与种子账号由 `src/database.rs` 内建（无 sqlx 迁移文件）；**种子账号初始密码是随机生成的**（4 个角色，邮箱 `@7304.com`），明文只存 `seed_passwords` 表，经 `GET /admin/pwd` 查询（`src/admin/routes.rs` 的 `PUT /api/users/settings/pwd-route` 可停用该端点）
 - **发动机模块**：`config-fj200c_information.ini`（`[Mock] InProcess = true` 开箱即用无需硬件；`[ConnectionN]` 串口；`[CSV]` 记录），**修改后立即生效**（服务运行时热加载）
 - **发动机测控模块**：`config-fj200c_main.ini`（`[COM] Count = 5` 五路串口 ECU/Adam4015/Adam4117/Dyno/Flux；`[MOCK] SimulationMenu = true` 模拟运行；`[REPORT] StatePoints` 报表状态点；`[CSV] Dir = csv`），**修改后需重启**
@@ -146,7 +146,7 @@ deploy/
 - 新增角色后：只需改后端 `src/roles.rs` 注册表 + `npm run gen:api`（前端 key/name/permissions 运行时从 `/api/meta/roles` 拉取，无手写副本；若注册表未加载则前端权限为空，登录流程不受影响）
 - 改名/新增前端应用时，`main.rs` 静态托管、`src/embedded_assets.rs` 嵌入结构体与路由、`deploy.bat`、`package.json` workspaces、`vite.config.ts` base/port 都要同步改
 - `Cargo.lock` 需提交（锁定后端依赖版本），`package-lock.json` 需提交
-- release 构建（`cargo build --release`，非 embedded 也一样）缺 `JWT_SECRET` / `CORS_ORIGINS` 直接拒绝启动，本地验证 release 行为需先在 `.env` 补齐
+- release 构建（`cargo build --release`，非 embedded 也一样）缺 `CORS_ORIGINS` 直接拒绝启动，本地验证 release 行为需先在 `.env` 补齐；`JWT_SECRET` 已硬编码进代码不再需要环境变量
 - `config-fj200c_information.ini` 修改立即生效（热加载），`config-fj200c_main.ini` 需重启服务
 - 3 个用户端 + admin 共享同一登录态（localStorage token），跨应用跳转 token 自动传递
 

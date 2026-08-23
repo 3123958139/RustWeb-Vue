@@ -39,7 +39,6 @@ rem Generate .env if it does not exist
 if not exist deploy\.env (
     echo PORT=3000> deploy\.env
     echo DATABASE_URL=sqlite://fj200c.db>> deploy\.env
-    echo JWT_SECRET=your-super-secret-jwt-key-change-this-in-production>> deploy\.env
     echo JWT_EXPIRATION=86400>> deploy\.env
     echo RUST_LOG=info>> deploy\.env
     echo CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000>> deploy\.env

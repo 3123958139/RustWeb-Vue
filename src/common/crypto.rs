@@ -10,9 +10,13 @@
 //!
 //! # 设计说明
 //!
-//! - **密钥来源**：沿用 `JWT_SECRET`。通过 SHA-256 派生 32 字节 AES 密钥；HMAC 指纹使用
-//!   "域分隔"后的独立 32 字节密钥（避免同一密钥既加密又做指纹）。因此 **`JWT_SECRET` 变更
-//!   会使旧密文无法解密**（属预期行为）。
+//! - **密钥分离**：本模块使用的 **数据加密密钥（`DATA_ENCRYPTION_KEY`）** 与 JWT 签名密钥
+//!   完全独立。前者由**本机 MAC 地址自动派生**（`data_key()`：SHA-256(MAC)），后者硬编码进
+//!   `jwt.rs`。两者互不相干：JWT 密钥泄露不影响磁盘密文，MAC 变更才会使旧密文失效
+//!   （属预期行为，等同换机无法解密旧库）。
+//! - **派生方式**：`data_key()` 先取本机首个物理网卡 MAC 地址（Windows `getmac` /
+//!   Linux `/sys/class/net`），SHA-256 得到 32 字节数据密钥；AES-256 密钥直接取该值，
+//!   HMAC 指纹密钥用"域分隔"前缀 `field-hmac:` 再 SHA-256 一次（避免同一密钥既加密又做指纹）。
 //! - **加密格式**：`hex(nonce(12B) || ciphertext || tag(16B))`，每次随机 nonce，同一明文密文
 //!   不同；GCM 认证标签可检测篡改。
 //! - **为什么不用 bcrypt**：bcrypt 单向且每次结果不同，无法做登录按邮箱等值查找与唯一约束，
@@ -24,17 +28,79 @@ use ring::hmac;
 use ring::rand::{SecureRandom, SystemRandom};
 use std::sync::OnceLock;
 
-/// AES-256 密钥（由 JWT_SECRET 经 SHA-256 派生，全局缓存）
+/// AES-256 密钥（由本机 MAC 派生 DATA_ENCRYPTION_KEY 经 SHA-256，全局缓存）
 static AES_KEY: OnceLock<[u8; 32]> = OnceLock::new();
 /// HMAC 指纹密钥（域分隔派生，与 AES 密钥不同，全局缓存）
 static HMAC_KEY: OnceLock<[u8; 32]> = OnceLock::new();
 
+/// 取本机首个物理网卡 MAC 地址字符串（跨平台，回退到主机名）
+///
+/// - Windows：`getmac /fo csv /nh` 解析首列 MAC（形如 `00-1B-44-11-3A-B5`）
+/// - Linux：`/sys/class/net/<if>/address`（跳过 `lo`）
+/// - 其他/失败：回退到 `COMPUTERNAME`/`HOSTNAME`，保证至少有一个稳定密钥源
+fn machine_mac() -> String {
+    #[cfg(windows)]
+    {
+        if let Ok(out) = std::process::Command::new("getmac")
+            .args(["/fo", "csv", "/nh"])
+            .output()
+        {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                for line in s.lines() {
+                    let first = line.split(',').next().unwrap_or("").trim().trim_matches('"');
+                    if !first.is_empty() && first != "00-00-00-00-00-00" {
+                        return first.to_string();
+                    }
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if name == "lo" {
+                    continue;
+                }
+                let addr_path = entry.path().join("address");
+                if let Ok(addr) = std::fs::read_to_string(addr_path) {
+                    let addr = addr.trim();
+                    if !addr.is_empty() && addr != "00:00:00:00:00:00" {
+                        return addr.to_string();
+                    }
+                }
+            }
+        }
+    }
+    std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "rustweb-default-machine".to_string())
+}
+
+/// 数据加密密钥 `DATA_ENCRYPTION_KEY`（由本机 MAC 地址 SHA-256 派生，全局缓存）
+///
+/// 与 JWT 签名密钥完全独立，仅用于本模块的字段加解密与指纹。MAC 变更会使旧密文
+/// 无法解密（预期行为）。需先调用 `jwt::init()`（`main.rs` 启动时先于建库执行）。
+pub(crate) fn data_key() -> &'static [u8; 32] {
+    static DATA_KEY: OnceLock<[u8; 32]> = OnceLock::new();
+    DATA_KEY.get_or_init(|| {
+        let mac = machine_mac();
+        tracing::debug!("数据加密密钥由本机 MAC 地址派生：{}", mac);
+        let d = digest::digest(&digest::SHA256, mac.as_bytes());
+        let mut k = [0u8; 32];
+        k.copy_from_slice(d.as_ref());
+        k
+    })
+}
+
 /// 派生并缓存 AES-256 密钥
 ///
-/// 密钥 = SHA-256(JWT_SECRET)。需先调用 `jwt::init()`（`main.rs` 启动时先于建库执行）。
+/// 密钥 = SHA-256(DATA_ENCRYPTION_KEY) = SHA-256(SHA-256(MAC))。
 fn aes_key() -> &'static [u8; 32] {
     AES_KEY.get_or_init(|| {
-        let d = digest::digest(&digest::SHA256, crate::common::jwt::secret().as_bytes());
+        let d = digest::digest(&digest::SHA256, data_key());
         let mut k = [0u8; 32];
         k.copy_from_slice(d.as_ref());
         k
@@ -46,7 +112,7 @@ fn hmac_key() -> &'static [u8; 32] {
     HMAC_KEY.get_or_init(|| {
         let mut ctx = digest::Context::new(&digest::SHA256);
         ctx.update(b"field-hmac:");
-        ctx.update(crate::common::jwt::secret().as_bytes());
+        ctx.update(data_key());
         let mut k = [0u8; 32];
         k.copy_from_slice(ctx.finish().as_ref());
         k
@@ -115,7 +181,7 @@ pub fn encrypt(plaintext: &str) -> Result<String, String> {
 ///
 /// # 返回
 /// - `Ok(String)` - 解密明文
-/// - `Err(...)` - 密文非法 / 被篡改 / 密钥不符（如 `JWT_SECRET` 变更）
+/// - `Err(...)` - 密文非法 / 被篡改 / 密钥不符（如本机 MAC 地址已变更）
 pub fn decrypt(blob: &str) -> Result<String, String> {
     let raw = from_hex(blob)?;
     if raw.len() < 12 + 16 {
@@ -129,7 +195,7 @@ pub fn decrypt(blob: &str) -> Result<String, String> {
     let mut in_out = ct_bytes.to_vec();
     let plaintext = key
         .open_in_place(nonce, Aad::empty(), &mut in_out)
-        .map_err(|_| "解密失败：密文被篡改或 JWT_SECRET 已变更")?;
+        .map_err(|_| "解密失败：密文被篡改或本机 MAC 地址已变更（DATA_ENCRYPTION_KEY 失配）")?;
     String::from_utf8(plaintext.to_vec()).map_err(|e| e.to_string())
 }
 
