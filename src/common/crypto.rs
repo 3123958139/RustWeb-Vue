@@ -164,7 +164,21 @@ pub fn decrypt_or_plaintext(blob: &str) -> String {
 /// # 返回值
 /// 64 位小写十六进制指纹
 pub fn username_hash(username: &str) -> String {
+    field_hash(username)
+}
+
+/// 任意字段指纹（HMAC-SHA256 十六进制，确定性）
+///
+/// 与 `username_hash` 相同算法，供邮箱等需要查重 / join 的字段生成确定性指纹
+/// （如 `users.email_hash`，登录按指纹查询、唯一约束承载在指纹索引上）。
+///
+/// # 参数
+/// - `value`: 待指纹化的字段明文（如邮箱）
+///
+/// # 返回值
+/// 64 位小写十六进制指纹
+pub fn field_hash(value: &str) -> String {
     let key = hmac::Key::new(hmac::HMAC_SHA256, hmac_key());
-    let tag = hmac::sign(&key, username.as_bytes());
+    let tag = hmac::sign(&key, value.as_bytes());
     to_hex(tag.as_ref())
 }

@@ -4036,7 +4036,7 @@
         "properties": {
           "data": {
             "type": "object",
-            "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |\n| `email` | `String` | 邮箱（用于登录，明文存储以支持登录查询） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时\n  派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。\n\n# 语法说明\n\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）\n- `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担",
+            "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |\n| `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询，本字段为解密后的明文） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时\n  派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。\n\n# 语法说明\n\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）\n- `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担",
             "required": [
               "id",
               "username",
@@ -4053,7 +4053,7 @@
               },
               "email": {
                 "type": "string",
-                "description": "邮箱（唯一，用于登录）"
+                "description": "邮箱（登录标识；库中为 AES-GCM 密文，登录按 email_hash 指纹查询，本字段始终是解密后的明文）"
               },
               "id": {
                 "type": "string",
@@ -4498,7 +4498,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |\n| `email` | `String` | 邮箱（用于登录，明文存储以支持登录查询） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时\n  派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。\n\n# 语法说明\n\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）\n- `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担",
+              "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |\n| `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询，本字段为解密后的明文） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时\n  派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。\n\n# 语法说明\n\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）\n- `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担",
               "required": [
                 "id",
                 "username",
@@ -4515,7 +4515,7 @@
                 },
                 "email": {
                   "type": "string",
-                  "description": "邮箱（唯一，用于登录）"
+                  "description": "邮箱（登录标识；库中为 AES-GCM 密文，登录按 email_hash 指纹查询，本字段始终是解密后的明文）"
                 },
                 "id": {
                   "type": "string",
@@ -7225,7 +7225,7 @@
       },
       "User": {
         "type": "object",
-        "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |\n| `email` | `String` | 邮箱（用于登录，明文存储以支持登录查询） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时\n  派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。\n\n# 语法说明\n\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）\n- `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担",
+        "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |\n| `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询，本字段为解密后的明文） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- `username` 在库中为 AES-256-GCM 密文，由 `common::crypto` 解密；`common::crypto` 同时\n  派生 `username_hash` 指纹列用于唯一约束/查重（AES 随机盐无法做等值查询）。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文用户名。\n\n# 语法说明\n\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）\n- `#[sqlx(default)]` 语义改由手动 `FromRow` 中的 `unwrap_or_default()` 承担",
         "required": [
           "id",
           "username",
@@ -7242,7 +7242,7 @@
           },
           "email": {
             "type": "string",
-            "description": "邮箱（唯一，用于登录）"
+            "description": "邮箱（登录标识；库中为 AES-GCM 密文，登录按 email_hash 指纹查询，本字段始终是解密后的明文）"
           },
           "id": {
             "type": "string",

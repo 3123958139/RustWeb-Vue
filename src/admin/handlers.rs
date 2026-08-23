@@ -145,12 +145,12 @@ pub async fn list_seed_passwords(
     .await
     .map_err(|e| AppError::internal_error(e.to_string()))?;
 
-    // 库中 username 与 password 均为 AES-256-GCM 密文，解密为明文后返回给前端
+    // 库中 username / email / password 均为 AES-256-GCM 密文，解密为明文后返回给前端
     let infos = rows
         .into_iter()
-        .map(|(username_enc, email, role, pwd_enc, created_at)| SeedPasswordInfo {
+        .map(|(username_enc, email_enc, role, pwd_enc, created_at)| SeedPasswordInfo {
             username: crate::common::crypto::decrypt_or_plaintext(&username_enc),
-            email,
+            email: email_enc.map(|e| crate::common::crypto::decrypt_or_plaintext(&e)),
             role,
             password: crate::common::crypto::decrypt_or_plaintext(&pwd_enc),
             created_at,

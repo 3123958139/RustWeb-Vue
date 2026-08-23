@@ -92,7 +92,8 @@ pub async fn init_database(
 /// | id | BLOB | PRIMARY KEY | 用户 UUID |
 /// | username | TEXT | UNIQUE NOT NULL | 用户名（AES-256-GCM 密文，防止直读库见明文） |
 /// | username_hash | TEXT | UNIQUE (索引) | 用户名指纹（HMAC-SHA256，承载唯一约束/查重/join） |
-/// | email | TEXT | UNIQUE NOT NULL | 邮箱（明文，用于登录查询） |
+/// | email | TEXT | NOT NULL | 邮箱（AES-256-GCM 密文，登录按指纹查询） |
+/// | email_hash | TEXT | UNIQUE (索引) | 邮箱指纹（HMAC-SHA256，登录定位与唯一约束） |
 /// | password_hash | TEXT | NOT NULL | 密码哈希（bcrypt） |
 /// | role | TEXT | NOT NULL DEFAULT 'user' | 角色标识 |
 /// | created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
@@ -115,7 +116,8 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             id BLOB PRIMARY KEY,                    -- UUID 主键
             username TEXT UNIQUE NOT NULL,          -- 用户名（AES-256-GCM 密文存储，防止直读库见明文）
             username_hash TEXT,                     -- 用户名指纹（HMAC-SHA256，用于唯一约束/查重/join）
-            email TEXT UNIQUE NOT NULL,             -- 邮箱（唯一，明文存储以支持登录查询）
+            email TEXT NOT NULL,                    -- 邮箱（AES-256-GCM 密文，登录按 email_hash 指纹查询）
+            email_hash TEXT,                        -- 邮箱指纹（HMAC-SHA256，登录定位与唯一约束）
             password_hash TEXT NOT NULL,            -- 密码哈希（bcrypt 加密）
             role TEXT NOT NULL DEFAULT 'user',      -- 角色（默认 'user'，已更名）
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
@@ -364,6 +366,18 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .await?;
     }
 
+    // 为 users 补 email_hash 列
+    let users_have_email_hash: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name = 'email_hash')",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !users_have_email_hash {
+        sqlx::query("ALTER TABLE users ADD COLUMN email_hash TEXT")
+            .execute(&mut *tx)
+            .await?;
+    }
+
     // 为 seed_passwords 补 username_hash 列
     let sp_have_hash: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM pragma_table_info('seed_passwords') WHERE name = 'username_hash')",
@@ -376,15 +390,19 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .await?;
     }
 
-    // 唯一性兜底索引：真正承载用户名唯一约束的是指纹列（AES 密文每次随机，无法承载唯一语义）
+    // 唯一性兜底索引：真正承载唯一约束的是指纹列（AES 密文每次随机，无法承载唯一语义）
     sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_hash ON users(username_hash)")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash)")
         .execute(&mut *tx)
         .await?;
     sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS idx_seed_passwords_username_hash ON seed_passwords(username_hash)")
         .execute(&mut *tx)
         .await?;
 
-    // 存量 users：把明文用户名加密 + 派生指纹（username_hash 为空即未迁移）
+    // ---- 存量 users 迁移（用户名与邮箱独立判定，避免某一列已迁移时漏掉另一列）----
+    // 用户名迁移：username_hash 为空即未迁移
     let plain_users: Vec<(uuid::Uuid, String)> = sqlx::query_as::<_, (uuid::Uuid, String)>(
         "SELECT id, username FROM users WHERE username_hash IS NULL OR username_hash = ''",
     )
@@ -403,7 +421,28 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .execute(&mut *tx)
         .await?;
     }
-    tracing::info!("username 迁移：已加密 {} 个存量用户名的用户名", plain_users_count);
+    tracing::info!("username 迁移：已加密 {} 个存量用户的用户名", plain_users_count);
+
+    // 邮箱迁移：email_hash 为空即未迁移（登录按指纹定位，必须补齐）
+    let plain_emails: Vec<(uuid::Uuid, String)> = sqlx::query_as::<_, (uuid::Uuid, String)>(
+        "SELECT id, email FROM users WHERE email_hash IS NULL OR email_hash = ''",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let plain_emails_count = plain_emails.len();
+    for (id, plain_email) in plain_emails {
+        let enc_email = crate::common::crypto::encrypt(&plain_email)?;
+        let eh = crate::common::crypto::field_hash(&plain_email);
+        sqlx::query(
+            "UPDATE users SET email = $1, email_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+        )
+        .bind(&enc_email)
+        .bind(&eh)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tracing::info!("username 迁移：已加密 {} 个存量用户的邮箱", plain_emails_count);
 
     // 存量 seed_passwords：把明文用户名与明文初始密码加密 + 派生指纹
     let plain_seeds: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
@@ -535,6 +574,9 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         // 用户名与初始密码分别 AES-256-GCM 加密入库（防止直读库见明文）
         let username_enc = crate::common::crypto::encrypt(username)?;
         let pwd_enc = crate::common::crypto::encrypt(&password_fake)?;
+        // 邮箱同样加密入库，指纹用于登录定位与唯一约束
+        let email_hash = crate::common::crypto::field_hash(email);
+        let email_enc = crate::common::crypto::encrypt(email)?;
 
         if exists {
             // 旧版本库：账号已存在但没有初始密码记录，重置初始密码（一次性迁移）
@@ -550,12 +592,13 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             // INSERT OR IGNORE 兜底：两个进程并发首次启动时，后提交者的同 id
             // 插入会被忽略而非报错，rows_affected() == 0 表示已被他人创建
             let result = sqlx::query(
-                "INSERT OR IGNORE INTO users (id, username, username_hash, email, password_hash, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                "INSERT OR IGNORE INTO users (id, username, username_hash, email, email_hash, password_hash, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             )
                 .bind(id)
                 .bind(&username_enc)
                 .bind(&username_hash)
-                .bind(email)
+                .bind(&email_enc)
+                .bind(&email_hash)
                 .bind(&hash)
                 .bind(role)
                 .execute(&mut *tx)

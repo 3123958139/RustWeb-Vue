@@ -109,7 +109,7 @@ pub enum Permission {
 /// |------|------|------|
 /// | `id` | `Uuid` | 用户唯一标识 |
 /// | `username` | `String` | 用户名（数据库中以密文存储，读取时由 `FromRow` 解密为明文） |
-/// | `email` | `String` | 邮箱（用于登录，明文存储以支持登录查询） |
+/// | `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询，本字段为解密后的明文） |
 /// | `password_hash` | `String` | 密码哈希（不可序列化） |
 /// | `role` | `String` | 角色标识 |
 /// | `created_at` | `DateTime<Utc>` | 创建时间 |
@@ -131,7 +131,7 @@ pub struct User {
     pub id: Uuid,
     /// 用户名（唯一；库中为密文，本字段始终是解密后的明文）
     pub username: String,
-    /// 邮箱（唯一，用于登录）
+    /// 邮箱（登录标识；库中为 AES-GCM 密文，登录按 email_hash 指纹查询，本字段始终是解密后的明文）
     pub email: String,
     /// 密码哈希（bcrypt 加密）
     /// `#[serde(skip_serializing)]` 确保 JSON 输出时不包含此字段；
@@ -146,18 +146,21 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
-// 手动实现 FromRow：读取库中密文后立即解密，使 `username` 字段对上层始终是明文
+// 手动实现 FromRow：读取库中密文后立即解密，使 `username` / `email` 字段对上层始终是明文
 impl FromRow<'_, SqliteRow> for User {
     fn from_row(row: &SqliteRow) -> Result<Self, sqlx::Error> {
-        // 用户名列在库中为密文（AES-256-GCM），解密为明文；
+        // 用户名与邮箱列在库中均为密文（AES-256-GCM），解密为明文；
         // 解密失败（如历史明文未迁移）时回退返回原值，避免读取报错
         let username = crate::common::crypto::decrypt_or_plaintext(
             &row.try_get::<String, _>("username")?,
         );
+        let email = crate::common::crypto::decrypt_or_plaintext(
+            &row.try_get::<String, _>("email")?,
+        );
         Ok(User {
             id: row.try_get("id")?,
             username,
-            email: row.try_get("email")?,
+            email,
             password_hash: row.try_get("password_hash").unwrap_or_default(),
             role: row.try_get("role")?,
             created_at: row.try_get("created_at")?,
