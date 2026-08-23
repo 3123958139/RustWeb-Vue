@@ -64,6 +64,9 @@ const game = {
   lives: 3,
   time: 200,
   level: 1,
+  theme: "overworld" as "overworld" | "underground" | "sky" | "castle", // 当前关卡主题（背景/氛围）
+  banner: "", // 关卡切换横幅文案
+  bannerT: 0, // 横幅剩余帧数
   camera: 0,
   frame: 0,
   timer: 0,
@@ -88,8 +91,10 @@ interface Enemy {
   vx: number;
   vy: number;
   alive: boolean;
-  kind: "goomba" | "koopa"; // 栗子怪 / 乌龟
+  kind: "goomba" | "koopa" | "bowser"; // 栗子怪 / 乌龟 / 库巴(BOSS)
   state: "walk" | "shell" | "slide"; // 乌龟状态：行走 / 静止壳 / 滑行壳
+  hp: number; // 生命值（普通敌人 1；库巴 >1）
+  t: number; // 计时器（库巴跳跃节奏/受击闪烁）
 }
 
 /** 悬浮道具：变大蘑菇 / 火花花 / 1UP 绿蘑菇 */
@@ -137,157 +142,37 @@ function isSolid(t: TileChar): boolean {
   return t === "X" || t === "B" || t === "Q" || t === "#" || t === "P" || t === "K" || t === "H";
 }
 
-// ============ 关卡生成（尽量复刻“超级马里奥兄弟 1-1”节奏） ============
-function buildLevel() {
-  const cols = game.cols;
-  // 初始化空网格
-  const grid: TileChar[][] = [];
-  for (let r = 0; r < ROWS; r++) {
-    grid.push(new Array<TileChar>(cols).fill(" "));
-  }
+// ============ 关卡生成（复刻经典马里奥多关卡：1-1 地上 / 1-2 地下 / 1-3 空中） ============
+const LEVEL_COUNT = 4;
 
-  // 地面（最底行），保留 3 处宽窄不同的坑洞，模仿 1-1 的地形起伏
-  for (let c = 0; c < cols; c++) {
-    const pit =
-      (c >= 30 && c <= 31) || // 2 格窄坑
-      (c >= 62 && c <= 64) || // 3 格坑
-      (c >= 96 && c <= 99); // 4 格宽坑
-    grid[ROWS - 1][c] = pit ? " " : "X";
-  }
+/** 生成一张全空网格 */
+function newGrid(): TileChar[][] {
+  const g: TileChar[][] = [];
+  for (let r = 0; r < ROWS; r++) g.push(new Array<TileChar>(game.cols).fill(" "));
+  return g;
+}
 
-  // 辅助：放一整行瓦片
-  const putRow = (row: number, from: number, to: number, t: TileChar) => {
-    for (let c = from; c <= to; c++) {
-      if (c >= 0 && c < cols) grid[row][c] = t;
-    }
-  };
+/** 在网格某行铺一段瓦片 */
+function putRow(grid: TileChar[][], row: number, from: number, to: number, t: TileChar) {
+  for (let c = from; c <= to; c++) if (c >= 0 && c < game.cols) grid[row][c] = t;
+}
 
-  // ---- 可顶层（第 14 行，地面上方 5 格）：问号块与砖块交错，仿 1-1 前段节奏 ----
-  const layer: Array<[number, number, TileChar]> = [
-    [5, 3, "B"], // 起步砖
-    [7, 1, "Q"],
-    [12, 2, "Q"],
-    [16, 2, "B"],
-    [18, 1, "Q"],
-    [23, 3, "B"],
-    [26, 1, "Q"],
-    [27, 1, "Q"],
-    [33, 3, "B"],
-    [35, 1, "Q"],
-    [37, 1, "Q"],
-    [43, 3, "B"],
-    [46, 1, "Q"],
-    [48, 1, "Q"],
-    [52, 3, "B"],
-    [55, 1, "Q"],
-    [58, 1, "Q"],
-    [67, 3, "B"],
-    [69, 1, "Q"],
-    [71, 1, "Q"],
-    [73, 2, "B"],
-    [75, 1, "Q"],
-    [80, 3, "B"],
-    [83, 1, "Q"],
-    [86, 1, "Q"],
-    [88, 2, "B"],
-    [91, 1, "Q"],
-    [93, 1, "Q"],
-    [104, 3, "B"],
-    [106, 1, "Q"],
-    [109, 1, "Q"],
-    [113, 3, "B"],
-    [115, 1, "Q"],
-    [118, 2, "B"],
-    [120, 1, "Q"],
-    [123, 1, "Q"],
-    [128, 3, "B"],
-    [130, 2, "B"],
-    [134, 1, "Q"],
-    [136, 1, "Q"],
-    [141, 3, "B"],
-    [144, 1, "Q"],
-    [147, 1, "Q"],
-    [150, 3, "B"],
-  ];
-  for (const [from, count, t] of layer) putRow(14, from, from + count - 1, t);
+/** 造一座逐级升高的阶梯（1-1 经典的“台阶”） */
+function stairs(grid: TileChar[][], fromCol: number, height: number, t: TileChar = "X") {
+  for (let s = 0; s < height; s++)
+    for (let k = 0; k <= s; k++) grid[ROWS - 2 - k][fromCol + s] = t;
+}
 
-  // ---- 高台（第 7 行）：空中砖道，上方再悬银币 ----
-  const upper: Array<[number, number]> = [
-    [22, 4],
-    [60, 4],
-    [77, 4],
-    [117, 4],
-    [143, 4],
-  ];
-  for (const [from, count] of upper) putRow(7, from, from + count - 1, "B");
-  // 高台上空一字悬挂金币
-  for (const c of [24, 25, 26, 62, 63, 79, 80, 119, 120, 145, 146]) grid[6][c] = "o";
+/** 清空动态对象（道具/火球/粒子） */
+function resetDynamics() {
+  game.items = [];
+  game.fireballs = [];
+  game.particles = [];
+}
 
-  // ---- 可顶层上方短线金币（跳起可吃到） ----
-  for (const c of [11, 12, 17, 18, 38, 39, 49, 50, 68, 69, 84, 85, 105, 106, 119, 120, 135, 136]) {
-    grid[13][c] = "o";
-  }
-
-  // ---- 水管（6 座，高 2~4 格，分布在砖块之间的地面空隙） ----
-  const pipes: Array<[number, number]> = [
-    [14, 2],
-    [20, 3],
-    [40, 4],
-    [66, 2],
-    [110, 4],
-    [149, 3],
-  ];
-  for (const [c, h] of pipes) {
-    for (let r = ROWS - 1 - h; r < ROWS - 1; r++) grid[r][c] = "P";
-  }
-
-  // ---- 终点旗杆 + 城堡前台阶 + 城堡 ----
-  game.flagCol = 165;
-  // 旗杆（高 10 格）
-  for (let r = ROWS - 11; r <= ROWS - 2; r++) grid[r][165] = "P";
-  // 城堡前台阶（逐级升高 3 级）
-  grid[14][161] = "X";
-  grid[13][162] = "X";
-  grid[12][163] = "X";
-  // 城堡城墙（3 列宽，含顶部雉堞）
-  for (let r = ROWS - 6; r < ROWS; r++) grid[r][168] = "K";
-  grid[ROWS - 8][169] = "K";
-  grid[ROWS - 8][170] = "K";
-  for (let r = ROWS - 6; r < ROWS; r++) grid[r][171] = "K";
-
-  game.grid = grid;
-
-  // 指定某些问号块产出“变大蘑菇”或“火花花”（列号取自上方的 Q 块）
-  game.mushroomBlocks = new Set([7, 26, 55, 83, 106, 134]);
-  game.flowerBlocks = new Set([27, 48, 75, 93, 115, 136, 144]);
-  // 某些砖块内藏金币：顶它们出金币后变空（而非碎裂）
-  game.coinBricks = new Set([23, 43, 67, 88, 118, 141]);
-
-  // ---- 隐藏区域：不可见砖块（顶到才出金币并显现，可借其登高） ----
-  const hiddenCols = [11, 29, 38, 51, 59, 78, 90, 97, 107, 122, 132, 140, 153];
-  for (const c of hiddenCols) grid[14][c] = "H";
-
-  // 隐藏区域藏宝：若干隐蔽位置放金币串，跳到隐藏砖上可吃到
-  for (const c of [10, 28, 39, 52, 60, 79, 89, 98, 106, 121, 131, 141]) grid[13][c] = "o";
-
-  // ---- 隐藏连跳通道 + 1UP：在第 125 列搭一条隐藏砖阶梯，跳到顶端的问号块顶出 1UP 绿蘑菇 ----
-  game.oneupBlocks = new Set([125]);
-  const ladderCol = 125;
-  for (const r of [14, 11, 8, 5]) grid[r][ladderCol] = "H"; // 竖直阶梯（差 3 格，逐级可跳）
-  grid[4][ladderCol] = "Q"; // 顶端问号块 → 1UP
-  // 阶梯旁点缀金币（跳上去可顺路吃到）
-  for (const [c, r] of [[124, 13], [126, 12], [125, 7], [126, 6]] as Array<[number, number]>) {
-    grid[r][c] = "o";
-  }
-
-  // ---- 敌人：栗子怪与绿乌龟（乌龟可踩成龟壳滑行） ----
-  const spawnDefs: Array<[number, "goomba" | "koopa"]> = [
-    [9, "goomba"], [10, "goomba"], [25, "koopa"], [39, "goomba"], [45, "goomba"],
-    [46, "goomba"], [57, "koopa"], [58, "goomba"], [72, "goomba"], [73, "goomba"],
-    [87, "koopa"], [102, "goomba"], [103, "goomba"], [115, "koopa"], [116, "goomba"],
-    [132, "koopa"], [133, "goomba"], [145, "goomba"], [146, "goomba"], [158, "koopa"],
-  ];
-  game.enemies = spawnDefs.map(([c, kind]) => ({
+/** 按列放置敌人 */
+function spawnEnemies(defs: Array<[number, "goomba" | "koopa"]>) {
+  game.enemies = defs.map(([c, kind]) => ({
     x: c * TILE,
     y: groundTop() - 14,
     w: 14,
@@ -297,27 +182,352 @@ function buildLevel() {
     alive: true,
     kind,
     state: "walk" as "walk" | "shell" | "slide",
+    hp: 1,
+    t: 0,
   }));
+}
 
-  game.items = [];
-  game.fireballs = [];
-  game.particles = [];
+/** 按当前 game.level 选择关卡 */
+function buildLevel() {
+  if (game.level === 2) buildLevel2();
+  else if (game.level === 3) buildLevel3();
+  else if (game.level === 4) buildLevel4();
+  else buildLevel1();
+}
+
+// ---------------- 1-1 地上（地上世界） ----------------
+function buildLevel1() {
+  const grid = newGrid();
+  game.theme = "overworld";
+
+  // 地面（最底行）：含 1-1 标志性的 3 处坑洞（中坑/大坑/末段窄坑）
+  for (let c = 0; c < game.cols; c++) {
+    const pit =
+      (c >= 63 && c <= 65) || // 中坑（3 格）
+      (c >= 98 && c <= 102) || // 大坑（5 格，须助跑跳）
+      (c >= 121 && c <= 122); // 末段窄坑（2 格）
+    grid[ROWS - 1][c] = pit ? " " : "X";
+  }
+
+  // 主砖层（第 14 行）：砖与问号块交替，节奏贴近 1-1 前中段
+  const blocks: Array<[number, TileChar]> = [
+    [14, "B"], [16, "Q"], [17, "Q"], [18, "Q"], [20, "B"], [21, "B"],
+    [23, "Q"], [24, "Q"], [25, "Q"], [28, "B"], [29, "B"],
+    [32, "Q"], [33, "Q"], [34, "Q"], [35, "Q"],
+    [38, "B"], [39, "B"], [42, "B"], [43, "B"], [44, "B"],
+    [47, "Q"], [48, "Q"], [49, "Q"], // 空中台阶：跳上可登顶吃高金币
+    [52, "B"], [53, "B"], [55, "Q"], [56, "Q"],
+    [60, "B"], [61, "B"], [67, "B"], [68, "B"], [69, "B"],
+    [74, "Q"], [75, "Q"], [76, "Q"],
+    [79, "B"], [80, "B"], [81, "B"],
+    [85, "Q"], [86, "Q"], [89, "B"], [90, "B"],
+    [93, "Q"], [94, "Q"], [95, "Q"], [96, "Q"],
+    [103, "B"], [104, "B"],
+    [108, "Q"], [109, "Q"], [110, "Q"],
+    [114, "B"], [115, "B"], [116, "B"],
+    [120, "Q"], [123, "B"], [124, "Q"], [125, "Q"],
+    [129, "B"], [130, "B"], [131, "B"],
+    [133, "Q"], [134, "Q"], [135, "Q"], [136, "Q"],
+    [141, "B"], [142, "B"], [145, "B"],
+  ];
+  for (const [c, t] of blocks) grid[14][c] = t;
+
+  // 空中高台（第 7 行）+ 顶部悬挂金币
+  const upper: Array<[number, number]> = [
+    [47, 2], [63, 3], [76, 4], [103, 2], [114, 3], [131, 2], [143, 3],
+  ];
+  for (const [from, count] of upper) putRow(grid, 7, from, from + count - 1, "B");
+  for (const c of [25, 26, 27, 49, 50, 64, 65, 66, 78, 79, 80, 81, 105, 106, 116, 117, 118, 133, 134, 145, 146, 147]) {
+    grid[6][c] = "o";
+  }
+
+  // 主砖层下沿装饰金币线（跳起可吃）
+  for (const c of [17, 18, 24, 25, 33, 34, 43, 44, 48, 49, 56, 57, 61, 62, 75, 76, 80, 81, 86, 87, 94, 95, 109, 110, 115, 116, 120, 121, 134, 135]) {
+    grid[13][c] = "o";
+  }
+
+  // 水管：1-1 式高低错落，共 7 座
+  const pipes: Array<[number, number]> = [
+    [19, 2], [37, 3], [58, 3], [70, 3], [84, 4], [108, 2], [127, 3],
+  ];
+  for (const [c, h] of pipes) {
+    for (let r = ROWS - 1 - h; r < ROWS - 1; r++) grid[r][c] = "P";
+  }
+
+  // 坑洞上方引导金币（提示助跑起跳时机）
+  const pitCoins: Array<[number, number]> = [
+    [64, 17], [65, 15], [66, 12],
+    [100, 17], [101, 14], [102, 10],
+    [118, 17], [119, 15],
+  ];
+  for (const [c, r] of pitCoins) grid[r][c] = "o";
+
+  // 隐藏砖（H，顶到才显现，可借力登高）
+  const hiddenCols = [31, 46, 62, 92, 107, 122, 137];
+  for (const c of hiddenCols) grid[14][c] = "H";
+
+  // 隐藏阶梯 + 顶端 1UP 问号块（经典彩蛋）
+  {
+    const col = 122;
+    for (const r of [14, 11, 8, 5]) grid[r][col] = "H"; // 竖直阶梯（逐级差 3 格）
+    grid[4][col] = "Q"; // 顶端问号块 → 顶出 1UP 绿蘑菇
+    game.oneupBlocks = new Set([col]);
+  }
+
+  // 终点：渐升阶梯（两级）+ 旗杆 + 城堡
+  stairs(grid, 143, 3);
+  stairs(grid, 149, 4);
+  game.flagCol = 160;
+  for (let r = ROWS - 11; r <= ROWS - 2; r++) grid[r][160] = "P";
+  grid[14][164] = "X";
+  grid[13][165] = "X";
+  grid[12][166] = "X";
+  for (let r = ROWS - 6; r < ROWS; r++) grid[r][168] = "K";
+  grid[ROWS - 8][169] = "K";
+  grid[ROWS - 8][170] = "K";
+  for (let r = ROWS - 6; r < ROWS; r++) grid[r][171] = "K";
+
+  game.grid = grid;
+  game.mushroomBlocks = new Set([16, 23, 55, 74, 93, 120]);
+  game.flowerBlocks = new Set([17, 24, 47, 75, 108, 124]);
+  game.coinBricks = new Set([28, 42, 60, 79, 103, 114, 129, 141]);
+
+  spawnEnemies([
+    [8, "goomba"], [12, "goomba"], [20, "koopa"], [27, "goomba"],
+    [40, "koopa"], [46, "goomba"], [50, "goomba"], [55, "koopa"],
+    [62, "goomba"], [67, "goomba"], [74, "koopa"], [83, "goomba"],
+    [88, "goomba"], [93, "koopa"], [96, "goomba"], [105, "goomba"],
+    [112, "koopa"], [118, "goomba"], [126, "koopa"], [132, "goomba"],
+    [138, "goomba"], [144, "koopa"], [155, "goomba"], [156, "goomba"],
+  ]);
+  resetDynamics();
+}
+
+// ---------------- 1-2 地下（地下世界） ----------------
+function buildLevel2() {
+  const g = newGrid();
+  game.theme = "underground";
+
+  // 天花板（顶部两行砖，地下氛围）
+  putRow(g, 0, 0, game.cols - 1, "X");
+  putRow(g, 1, 0, game.cols - 1, "X");
+
+  // 地面：全 X，含一大坑（70-74）与一小缺（120-121）
+  for (let c = 0; c < game.cols; c++) {
+    const pit = (c >= 70 && c <= 74) || (c >= 120 && c <= 121);
+    g[ROWS - 1][c] = pit ? " " : "X";
+  }
+
+  // 地面上 1~2 高的砖墙堆（B），地下掩体障碍
+  const walls: Array<[number, number]> = [
+    [18, 2], [26, 1], [34, 2], [45, 2], [58, 1], [62, 2],
+    [78, 2], [92, 1], [104, 2], [110, 2], [126, 1], [140, 2],
+  ];
+  for (const [c, h] of walls) for (let r = ROWS - 1 - h; r < ROWS - 1; r++) g[r][c] = "B";
+
+  // 中高问号块与砖层（第 9 行）
+  const ups: Array<[number, TileChar]> = [
+    [22, "Q"], [23, "Q"], [24, "Q"], [30, "B"], [31, "B"],
+    [38, "Q"], [39, "Q"], [49, "Q"], [50, "Q"], [53, "B"], [54, "B"],
+    [64, "B"], [65, "B"], [68, "Q"], [69, "Q"],
+    [80, "B"], [81, "B"], [86, "Q"], [87, "Q"], [88, "Q"],
+    [96, "B"], [97, "B"], [102, "Q"], [103, "Q"],
+    [112, "B"], [113, "B"], [118, "Q"], [119, "Q"], [128, "B"], [129, "B"],
+    [132, "Q"], [133, "Q"], [134, "Q"], [138, "B"], [139, "B"],
+    [142, "Q"], [143, "Q"], [144, "Q"],
+  ];
+  for (const [c, t] of ups) g[9][c] = t;
+
+  // 金币：墙顶一列 + 坑上弧线 + 大坑后收尾
+  for (const c of [25, 26, 27, 35, 36, 46, 47, 63, 64, 82, 83, 95, 96, 105, 106, 115, 116, 127, 128, 135, 136]) g[14][c] = "o";
+  const pitCoins: Array<[number, number]> = [
+    [72, 17], [73, 14], [74, 10], [116, 17], [117, 15],
+  ];
+  for (const [c, r] of pitCoins) g[r][c] = "o";
+
+  // 隐藏砖 + 中段 1UP 问号块
+  for (const c of [21, 44, 60, 90, 107, 131]) g[9][c] = "H";
+  game.oneupBlocks = new Set([68]);
+
+  // 敌人（地下多栗子怪与乌龟）
+  spawnEnemies([
+    [14, "goomba"], [20, "goomba"], [28, "koopa"], [40, "goomba"],
+    [52, "koopa"], [60, "goomba"], [66, "goomba"], [82, "koopa"],
+    [90, "goomba"], [96, "goomba"], [104, "koopa"], [114, "goomba"],
+    [124, "koopa"], [130, "goomba"], [138, "koopa"], [146, "goomba"],
+  ]);
+
+  // 终点旗杆 + 城堡
+  game.flagCol = 155;
+  for (let r = ROWS - 11; r <= ROWS - 2; r++) g[r][155] = "P";
+  for (let r = ROWS - 6; r < ROWS; r++) g[r][163] = "K";
+  g[ROWS - 8][164] = "K";
+  g[ROWS - 8][165] = "K";
+  for (let r = ROWS - 6; r < ROWS; r++) g[r][166] = "K";
+
+  game.grid = g;
+  game.mushroomBlocks = new Set([22, 49, 86, 118]);
+  game.flowerBlocks = new Set([23, 50, 102, 142]);
+  game.coinBricks = new Set();
+  resetDynamics();
+}
+
+// ---------------- 1-3 空中（云端世界） ----------------
+function buildLevel3() {
+  const g = newGrid();
+  game.theme = "sky";
+
+  // 空中地面为实心砖（X，稳妥落脚），多处小缺口（掉空即亡）
+  for (let c = 0; c < game.cols; c++) {
+    const gap =
+      (c >= 16 && c <= 17) || (c >= 40 && c <= 42) || (c >= 66 && c <= 68) ||
+      (c >= 92 && c <= 94) || (c >= 118 && c <= 119) || (c >= 142 && c <= 144);
+    g[ROWS - 1][c] = gap ? " " : "X";
+  }
+
+  // 高层砖台（第 7 行）多段
+  const upper: Array<[number, number]> = [
+    [26, 3], [48, 3], [70, 4], [100, 3], [122, 4], [148, 3],
+  ];
+  for (const [from, count] of upper) putRow(g, 7, from, from + count - 1, "B");
+
+  // 空中砖块与问号块（第 11 行）
+  const mid: Array<[number, TileChar]> = [
+    [10, "B"], [12, "Q"], [14, "B"], [20, "Q"], [24, "B"],
+    [31, "Q"], [34, "B"], [45, "Q"], [52, "B"], [54, "Q"], [58, "B"],
+    [63, "Q"], [76, "B"], [78, "Q"], [81, "B"], [87, "Q"], [99, "B"],
+    [105, "Q"], [110, "B"], [113, "Q"], [126, "B"], [129, "Q"], [134, "B"],
+    [139, "Q"], [149, "B"], [151, "Q"], [153, "B"],
+  ];
+  for (const [c, t] of mid) g[11][c] = t;
+
+  // 金币弧线（起跳引导）与平台金币
+  const arcs: Array<[number, number]> = [
+    [17, 16], [18, 14], [19, 12], [41, 15], [42, 13], [43, 11],
+    [67, 16], [68, 14], [69, 12], [93, 15], [94, 13], [95, 11],
+    [119, 16], [120, 14], [143, 15], [144, 13], [145, 11],
+  ];
+  for (const [c, r] of arcs) g[r][c] = "o";
+
+  // 敌人（空中多乌龟 + 栗子怪）
+  spawnEnemies([
+    [10, "goomba"], [15, "koopa"], [23, "goomba"], [30, "koopa"],
+    [38, "goomba"], [47, "koopa"], [56, "goomba"], [64, "koopa"],
+    [75, "goomba"], [84, "koopa"], [97, "goomba"], [108, "koopa"],
+    [120, "goomba"], [131, "koopa"], [147, "goomba"], [150, "koopa"],
+  ]);
+
+  // 终点旗杆 + 城堡
+  game.flagCol = 158;
+  for (let r = ROWS - 11; r <= ROWS - 2; r++) g[r][158] = "P";
+  for (let r = ROWS - 6; r < ROWS; r++) g[r][166] = "K";
+  g[ROWS - 8][167] = "K";
+  g[ROWS - 8][168] = "K";
+  for (let r = ROWS - 6; r < ROWS; r++) g[r][169] = "K";
+
+  game.grid = g;
+  game.mushroomBlocks = new Set([12, 54, 105, 129]);
+  game.flowerBlocks = new Set([20, 78]);
+  game.coinBricks = new Set();
+  game.oneupBlocks = new Set([87]);
+  resetDynamics();
+}
+
+// ---------------- 1-4 城堡（BOSS 关：库巴） ----------------
+function buildLevel4() {
+  const g = newGrid();
+  game.theme = "castle";
+
+  // 天花板（顶部两行砖，城堡内部氛围）
+  putRow(g, 0, 0, game.cols - 1, "X");
+  putRow(g, 1, 0, game.cols - 1, "X");
+
+  // 地面：全 X（无坑，专注 BOSS 战）+ 岩浆坑装饰（仅末段画 L？用普通 X，保持可玩）
+  for (let c = 0; c < game.cols; c++) g[ROWS - 1][c] = "X";
+
+  // 空中砖台（第 7 行）
+  const plat: Array<[number, number]> = [[28, 6], [58, 5], [88, 6], [112, 5]];
+  for (const [from, count] of plat) putRow(g, 7, from, from + count - 1, "B");
+
+  // 砖 / 问号层（第 10 行）
+  const ups: Array<[number, TileChar]> = [
+    [16, "Q"], [17, "Q"], [20, "B"], [21, "B"],
+    [34, "Q"], [35, "Q"], [40, "B"], [42, "B"],
+    [52, "Q"], [55, "Q"], [62, "B"], [66, "B"],
+    [74, "Q"], [78, "Q"], [80, "B"], [84, "B"],
+    [94, "Q"], [97, "Q"], [102, "B"], [104, "B"],
+    [114, "Q"], [117, "Q"], [120, "B"], [123, "B"],
+  ];
+  for (const [c, t] of ups) g[10][c] = t;
+
+  // 金币
+  for (const c of [23, 24, 25, 36, 37, 45, 46, 68, 69, 82, 83, 99, 100, 107, 108, 121, 122]) g[13][c] = "o";
+  for (const c of [30, 31, 32, 60, 61, 62, 90, 91, 92, 114, 115, 116]) g[6][c] = "o";
+
+  // 敌人（前中段，为 BOSS 铺路而设）
+  spawnEnemies([
+    [12, "goomba"], [18, "goomba"], [24, "koopa"], [38, "goomba"], [44, "koopa"],
+    [54, "goomba"], [60, "koopa"], [72, "goomba"], [78, "goomba"], [86, "koopa"],
+    [96, "goomba"], [100, "goomba"], [108, "koopa"], [116, "goomba"],
+  ]);
+
+  // ---- BOSS 竞技场：两侧砖墙（2 高，可跳过进出）围成的平地，库巴在其中巡逻 ----
+  for (let r = ROWS - 3; r <= ROWS - 2; r++) { g[r][127] = "X"; g[r][149] = "X"; }
+  // 库巴（BOSS）：体型大，hp 5，受 5 击或 5 踩灭；在墙内往返巡逻并偶尔起跳
+  game.enemies.push({
+    x: 138 * TILE,
+    y: groundTop() - 32,
+    w: 30,
+    h: 32,
+    vx: -0.7,
+    vy: 0,
+    alive: true,
+    kind: "bowser",
+    state: "walk",
+    hp: 5,
+    t: 0,
+  });
+
+  game.grid = g;
+  game.mushroomBlocks = new Set([16, 34, 52, 74, 94, 114]);
+  game.flowerBlocks = new Set([17, 35, 55, 78, 97, 117]);
+  game.coinBricks = new Set([20, 42, 66, 84, 104, 123]);
+  game.oneupBlocks = new Set();
+
+  // 终点旗杆 + 城堡（越过库巴竞技场后）
+  game.flagCol = 160;
+  for (let r = ROWS - 11; r <= ROWS - 2; r++) g[r][160] = "P";
+  for (let r = ROWS - 6; r < ROWS; r++) g[r][168] = "K";
+  g[ROWS - 8][169] = "K";
+  g[ROWS - 8][170] = "K";
+  for (let r = ROWS - 6; r < ROWS; r++) g[r][171] = "K";
+  resetDynamics();
 }
 
 // ============ 游戏流程 ============
 function newGame() {
+  game.level = 1;
+  game.theme = "overworld";
   buildLevel();
   game.state = "play";
   game.score = 0;
   game.coins = 0;
   game.lives = 3;
   game.time = 200;
-  game.level = 1;
   game.dead = false;
   game.won = false;
   game.fireballs = [];
   game.fireCd = 0;
+  game.banner = "";
+  game.bannerT = 0;
   spawnMario();
+  setBanner("WORLD 1-1");
+}
+
+/** 弹出关卡切换横幅（约 2 秒） */
+function setBanner(text: string) {
+  game.banner = text;
+  game.bannerT = 120;
 }
 
 /** 设置马里奥体型（0=小 / 1=大），保持脚底对齐 */
@@ -363,14 +573,27 @@ function flagSegment(marioY: number): number {
   return 100; // 旗杆底部附近
 }
 
-/** 通关：结算并提交成绩 */
+/** 通关（含跨关推进）：非最后关进入下一关，最后关结算提交成绩 */
 function doWin(heightBonus: number) {
-  game.state = "clear";
-  game.won = true;
   game.finalTime = game.time;
   game.flagBonus = heightBonus;
   const timeBonus = game.time * 10;
   game.score += heightBonus + timeBonus;
+
+  // 还有下一关：保留得分/金币/生命，仅切换地图、主题与出生点
+  if (game.level < LEVEL_COUNT) {
+    game.level += 1;
+    game.time = 250;
+    buildLevel();
+    spawnMario();
+    game.state = "play";
+    setBanner(`WORLD 1-${game.level}`);
+    return;
+  }
+
+  // 通关全部关卡：结算并提交成绩
+  game.state = "clear";
+  game.won = true;
   void marioApi
     .submitScore({
       score: game.score,
@@ -573,6 +796,7 @@ function spawnBrickBits(x: number, y: number) {
 function update() {
   const m = game.mario;
   game.frame++;
+  if (game.bannerT > 0) game.bannerT--; // 关卡横幅倒计时
 
   if (game.state === "play") {
     // 倒计时
@@ -679,8 +903,18 @@ function update() {
       for (const e of game.enemies) {
         if (!e.alive) continue;
         if (f.x < e.x + e.w && f.x + 6 > e.x && f.y < e.y + e.h && f.y + 6 > e.y) {
-          e.alive = false;
-          game.score += 200;
+          if (e.kind === "bowser") {
+            // 库巴：火球只掉 1 点血（1 击扣 1 血，5 血击倒），受击闪烁
+            e.hp -= 1;
+            e.t = 18;
+            if (e.hp <= 0) {
+              e.alive = false;
+              game.score += 5000;
+            }
+          } else {
+            e.alive = false;
+            game.score += 200;
+          }
           f.remove = true;
           break;
         }
@@ -692,6 +926,13 @@ function update() {
     // 敌人：前方有墙才反向（修复“原地抖/不动”），并受重力随地形起伏落坑
     for (const e of game.enemies) {
       if (!e.alive) continue;
+
+      // 库巴（BOSS）：受击闪烁倒计时 + 落地时偶尔起跳
+      if (e.kind === "bowser") {
+        if (e.t > 0) e.t--;
+        if (e.vy === 0 && game.frame % 170 === 0) e.vy = -9.5; // 落地时偶尔起跳
+      }
+
       // 静止龟壳不自主移动
       if (e.state !== "shell") {
         e.x += e.vx;
@@ -726,7 +967,15 @@ function update() {
           // 踩顶
           m.vy = -6;
           m.onGround = false;
-          if (e.kind === "goomba") {
+          if (e.kind === "bowser") {
+            // 库巴：踩踏扣 1 血（5 血击倒），受击闪烁；未死则弹开
+            e.hp -= 1;
+            e.t = 18;
+            if (e.hp <= 0) {
+              e.alive = false;
+              game.score += 5000;
+            }
+          } else if (e.kind === "goomba") {
             e.alive = false;
             game.score += 200;
           } else if (e.state === "walk") {
@@ -827,20 +1076,37 @@ function render() {
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
 
-  // 天
+  // 天（按关卡主题配色）
   const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-  sky.addColorStop(0, "#6fb8ff");
-  sky.addColorStop(1, "#bde3ff");
+  if (game.theme === "underground") {
+    // 地下：暗紫蓝渐变
+    sky.addColorStop(0, "#16162a");
+    sky.addColorStop(1, "#3a2a4a");
+  } else if (game.theme === "sky") {
+    // 空中：深蓝高空渐变
+    sky.addColorStop(0, "#1c3aa8");
+    sky.addColorStop(1, "#6fc4ff");
+  } else if (game.theme === "castle") {
+    // 城堡（BOSS）：暗红/岩浆般氛围
+    sky.addColorStop(0, "#3a0f0f");
+    sky.addColorStop(1, "#7a2418");
+  } else {
+    // 地上：浅蓝天空
+    sky.addColorStop(0, "#6fb8ff");
+    sky.addColorStop(1, "#bde3ff");
+  }
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-  // 云（简单静态）
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  drawCloud(40, 55, 26);
-  drawCloud(200, 90, 22);
-  drawCloud(360, 45, 18);
-  drawCloud(150, 130, 30);
-  drawCloud(280, 150, 24);
+  // 云（地下 / 城堡主题不画）
+  if (game.theme !== "underground" && game.theme !== "castle") {
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    drawCloud(40, 55, 26);
+    drawCloud(200, 90, 22);
+    drawCloud(360, 45, 18);
+    drawCloud(150, 130, 30);
+    drawCloud(280, 150, 24);
+  }
 
   // 摄像机偏移
   const cam = Math.floor(game.camera);
@@ -892,6 +1158,18 @@ function render() {
 
   // HUD
   drawHud(cam);
+
+  // 关卡切换横幅（跨关/开局时短暂显示）
+  if (game.bannerT > 0 && game.banner) {
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    const bh = 44;
+    const by = VIEW_H / 2 - bh / 2;
+    ctx.fillRect(10, by, VIEW_W - 20, bh);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffcc00";
+    ctx.font = "bold 26px monospace";
+    ctx.fillText(game.banner, VIEW_W / 2, by + 30);
+  }
 }
 
 function drawCloud(x: number, y: number, r: number) {
@@ -974,6 +1252,44 @@ function drawTile(t: TileChar, px: number, py: number) {
 function drawEnemy(e: Enemy) {
   if (!ctx) return;
   const px = e.x - game.camera;
+  if (e.kind === "bowser") {
+    // ===== 库巴（BOSS）=====
+    const flash = e.t > 0 && Math.floor(e.t / 4) % 2 === 0;
+    ctx.globalAlpha = flash ? 0.4 : 1;
+    const ex = px + (e.vx > 0 ? 1 : -1);
+    // 身体（绿色）
+    ctx.fillStyle = "#3f9e33";
+    ctx.fillRect(ex, e.y + 6, e.w, e.h - 8);
+    // 顶部尖刺壳
+    ctx.fillStyle = "#7a4a12";
+    ctx.beginPath();
+    ctx.moveTo(ex + 2, e.y + 6);
+    ctx.lineTo(ex + 8, e.y + 1);
+    ctx.lineTo(ex + 14, e.y + 6);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(ex + 14, e.y + 6);
+    ctx.lineTo(ex + 20, e.y + 1);
+    ctx.lineTo(ex + 26, e.y + 6);
+    ctx.fill();
+    // 头（橄榄）
+    ctx.fillStyle = "#6aa84f";
+    ctx.fillRect(ex + (e.vx > 0 ? -3 : e.w - 3), e.y + 4, 4, 6);
+    // 眼睛
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(ex + (e.vx > 0 ? -2 : e.w - 2), e.y + 3, 3, 3);
+    ctx.fillStyle = "#111";
+    ctx.fillRect(ex + (e.vx > 0 ? 0 : e.w), e.y + 4, 2, 2);
+    // 腹（浅）
+    ctx.fillStyle = "#c8e0b0";
+    ctx.fillRect(ex + 3, e.y + e.h - 10, e.w - 6, 6);
+    // 脚
+    ctx.fillStyle = "#5a7a2a";
+    ctx.fillRect(ex + 2, e.y + e.h - 4, 8, 4);
+    ctx.fillRect(ex + e.w - 10, e.y + e.h - 4, 8, 4);
+    ctx.globalAlpha = 1;
+    return;
+  }
   if (e.kind === "koopa") {
     // ===== 乌龟 =====
     if (e.state === "shell" || e.state === "slide") {
