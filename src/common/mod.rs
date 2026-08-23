@@ -23,6 +23,7 @@
 // ============ 子模块声明 ============
 pub mod auth;           // 认证模块：登录、用户信息、用户管理
 pub mod config;         // INI 配置封装（configparser）
+pub mod crypto;         // 可逆加密：用户名/邮箱/角色 AES-256-GCM + HMAC 指纹
 pub mod csv_writer;     // CSV 写入器（500ms 批量刷新 + Drop flush）
 pub mod dto;            // 公共响应 DTO：fj200c_information 共用载荷
 pub mod error;          // 错误处理：统一错误类型

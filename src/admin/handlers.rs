@@ -27,15 +27,15 @@ use uuid::Uuid;                       // UUID 类型
 use validator::Validate;               // 输入验证
 
 /// 种子账号初始密码信息
-#[derive(Debug, serde::Serialize, sqlx::FromRow, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct SeedPasswordInfo {
-    /// 用户名
+    /// 用户名（解密后的明文）
     pub username: String,
-    /// 邮箱（种子账号被删除后为 null）
+    /// 邮箱（种子账号被删除后为 null，解密后的明文）
     pub email: Option<String>,
-    /// 角色（种子账号被删除后为 null）
+    /// 角色（种子账号被删除后为 null，解密后的明文）
     pub role: Option<String>,
-    /// 初始密码明文
+    /// 初始密码明文（从库中密文解密得到）
     pub password: String,
     /// 密码记录创建时间
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -135,16 +135,28 @@ pub async fn list_seed_passwords(
         return Err(AppError::forbidden("初始密码查询已停用"));
     }
 
-    let rows = sqlx::query_as::<_, SeedPasswordInfo>(
+    let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>, String, chrono::DateTime<chrono::Utc>)>(
         "SELECT sp.username, u.email, u.role, sp.password, sp.created_at
          FROM seed_passwords sp
-         LEFT JOIN users u ON u.username = sp.username
+         LEFT JOIN users u ON u.username_hash = sp.username_hash
          ORDER BY sp.created_at",
     )
     .fetch_all(&db)
     .await
     .map_err(|e| AppError::internal_error(e.to_string()))?;
-    Ok(Json(ApiResponse::success(rows)))
+
+    // 库中 username / email / role / password 均为 AES-256-GCM 密文，解密为明文后返回给前端
+    let infos = rows
+        .into_iter()
+        .map(|(username_enc, email_enc, role_enc, pwd_enc, created_at)| SeedPasswordInfo {
+            username: crate::common::crypto::decrypt_or_plaintext(&username_enc),
+            email: email_enc.map(|e| crate::common::crypto::decrypt_or_plaintext(&e)),
+            role: role_enc.map(|r| crate::common::crypto::decrypt_or_plaintext(&r)),
+            password: crate::common::crypto::decrypt_or_plaintext(&pwd_enc),
+            created_at,
+        })
+        .collect();
+    Ok(Json(ApiResponse::success(infos)))
 }
 
 /// 获取用户列表

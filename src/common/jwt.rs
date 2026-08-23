@@ -101,7 +101,10 @@ pub fn init() -> Result<(), String> {
 }
 
 /// 获取缓存后的签名密钥
-fn secret() -> &'static str {
+///
+/// `pub(crate)`：供 `common::crypto` 派生用户名/邮箱/角色等的加解密与指纹密钥，
+/// 保证字段密钥与 JWT 密钥同源单一。
+pub(crate) fn secret() -> &'static str {
     JWT_SECRET.get().expect("jwt::init() 必须在创建/验证令牌前调用")
 }
 

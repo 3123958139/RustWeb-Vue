@@ -120,10 +120,12 @@ impl UserAdminService {
         user_id: Uuid,
         role: &str,
     ) -> Result<Option<User>, Box<dyn std::error::Error>> {
+        // 角色加密入库（读取时由 User::FromRow 解密为明文）
+        let role_enc = crate::common::crypto::encrypt(role)?;
         let user = sqlx::query_as::<_, User>(
             "UPDATE users SET role = $1, updated_at = $2 WHERE id = $3 RETURNING *",
         )
-        .bind(role)
+        .bind(&role_enc)
         .bind(Utc::now())
         .bind(user_id)
         .fetch_optional(pool)

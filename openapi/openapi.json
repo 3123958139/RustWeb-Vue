@@ -1704,7 +1704,7 @@
         "properties": {
           "data": {
             "type": "object",
-            "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名 |\n| `email` | `String` | 邮箱（用于登录） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 语法说明\n\n- `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）",
+            "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（库中为 AES-256-GCM 密文，读取时解密为明文） |\n| `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识（库中为密文，权限判断依赖解密后的明文） |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- 用户名、邮箱、角色在库中均为 AES-256-GCM 密文；`common::crypto` 派生\n  `username_hash` / `email_hash` 指纹用于查重、唯一约束与登录定位。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文。",
             "required": [
               "id",
               "username",
@@ -1721,7 +1721,7 @@
               },
               "email": {
                 "type": "string",
-                "description": "邮箱（唯一，用于登录）"
+                "description": "邮箱（登录标识；库中为密文，本字段始终是解密后的明文）"
               },
               "id": {
                 "type": "string",
@@ -1730,7 +1730,7 @@
               },
               "role": {
                 "type": "string",
-                "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+                "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应；\n库中为密文，本字段始终是解密后的明文（权限判断依赖明文）"
               },
               "updated_at": {
                 "type": "string",
@@ -1739,7 +1739,7 @@
               },
               "username": {
                 "type": "string",
-                "description": "用户名（唯一）"
+                "description": "用户名（库中为密文，本字段始终是解密后的明文）"
               }
             }
           },
@@ -1854,22 +1854,22 @@
                     "string",
                     "null"
                   ],
-                  "description": "邮箱（种子账号被删除后为 null）"
+                  "description": "邮箱（种子账号被删除后为 null，解密后的明文）"
                 },
                 "password": {
                   "type": "string",
-                  "description": "初始密码明文"
+                  "description": "初始密码明文（从库中密文解密得到）"
                 },
                 "role": {
                   "type": [
                     "string",
                     "null"
                   ],
-                  "description": "角色（种子账号被删除后为 null）"
+                  "description": "角色（种子账号被删除后为 null，解密后的明文）"
                 },
                 "username": {
                   "type": "string",
-                  "description": "用户名"
+                  "description": "用户名（解密后的明文）"
                 }
               }
             }
@@ -1898,7 +1898,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名 |\n| `email` | `String` | 邮箱（用于登录） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 语法说明\n\n- `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）",
+              "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（库中为 AES-256-GCM 密文，读取时解密为明文） |\n| `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识（库中为密文，权限判断依赖解密后的明文） |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- 用户名、邮箱、角色在库中均为 AES-256-GCM 密文；`common::crypto` 派生\n  `username_hash` / `email_hash` 指纹用于查重、唯一约束与登录定位。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文。",
               "required": [
                 "id",
                 "username",
@@ -1915,7 +1915,7 @@
                 },
                 "email": {
                   "type": "string",
-                  "description": "邮箱（唯一，用于登录）"
+                  "description": "邮箱（登录标识；库中为密文，本字段始终是解密后的明文）"
                 },
                 "id": {
                   "type": "string",
@@ -1924,7 +1924,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+                  "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应；\n库中为密文，本字段始终是解密后的明文（权限判断依赖明文）"
                 },
                 "updated_at": {
                   "type": "string",
@@ -1933,7 +1933,7 @@
                 },
                 "username": {
                   "type": "string",
-                  "description": "用户名（唯一）"
+                  "description": "用户名（库中为密文，本字段始终是解密后的明文）"
                 }
               }
             }
@@ -2929,22 +2929,22 @@
               "string",
               "null"
             ],
-            "description": "邮箱（种子账号被删除后为 null）"
+            "description": "邮箱（种子账号被删除后为 null，解密后的明文）"
           },
           "password": {
             "type": "string",
-            "description": "初始密码明文"
+            "description": "初始密码明文（从库中密文解密得到）"
           },
           "role": {
             "type": [
               "string",
               "null"
             ],
-            "description": "角色（种子账号被删除后为 null）"
+            "description": "角色（种子账号被删除后为 null，解密后的明文）"
           },
           "username": {
             "type": "string",
-            "description": "用户名"
+            "description": "用户名（解密后的明文）"
           }
         }
       },
@@ -3099,7 +3099,7 @@
       },
       "User": {
         "type": "object",
-        "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名 |\n| `email` | `String` | 邮箱（用于登录） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识 |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 语法说明\n\n- `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体\n- `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）",
+        "description": "用户结构体，与数据库 `users` 表对应\n\n# 字段说明\n\n| 字段 | 类型 | 说明 |\n|------|------|------|\n| `id` | `Uuid` | 用户唯一标识 |\n| `username` | `String` | 用户名（库中为 AES-256-GCM 密文，读取时解密为明文） |\n| `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询） |\n| `password_hash` | `String` | 密码哈希（不可序列化） |\n| `role` | `String` | 角色标识（库中为密文，权限判断依赖解密后的明文） |\n| `created_at` | `DateTime<Utc>` | 创建时间 |\n| `updated_at` | `DateTime<Utc>` | 更新时间 |\n\n# 安全说明\n\n- 用户名、邮箱、角色在库中均为 AES-256-GCM 密文；`common::crypto` 派生\n  `username_hash` / `email_hash` 指纹用于查重、唯一约束与登录定位。\n- `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文。",
         "required": [
           "id",
           "username",
@@ -3116,7 +3116,7 @@
           },
           "email": {
             "type": "string",
-            "description": "邮箱（唯一，用于登录）"
+            "description": "邮箱（登录标识；库中为密文，本字段始终是解密后的明文）"
           },
           "id": {
             "type": "string",
@@ -3125,7 +3125,7 @@
           },
           "role": {
             "type": "string",
-            "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应"
+            "description": "角色标识（如 \"admin\"、\"fj200c_information\"），与角色注册表的 `key` 对应；\n库中为密文，本字段始终是解密后的明文（权限判断依赖明文）"
           },
           "updated_at": {
             "type": "string",
@@ -3134,7 +3134,7 @@
           },
           "username": {
             "type": "string",
-            "description": "用户名（唯一）"
+            "description": "用户名（库中为密文，本字段始终是解密后的明文）"
           }
         }
       },

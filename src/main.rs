@@ -129,6 +129,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // - 如果是 `Err`，提前返回该错误（类似 Go 的 `if err != nil { return err }`）
     let config = AppConfig::load()?;
 
+    // ============ 3.5 初始化 JWT 配置（先于建库） ============
+    // 缓存签名密钥与过期时间（OnceLock），生产模式缺失 JWT_SECRET 直接拒绝启动。
+    // 必须先于 init_database()：建表/种子/迁移会调用 crypto 派生字段密钥（复用 JWT_SECRET）。
+    crate::common::jwt::init()?;
+
     // ============ 4. 初始化数据库 ============
     // `init_database()` 创建 SQLite 连接池，创建表结构，插入种子数据
     // 返回 `SqlitePool`（SQLx 的连接池类型），支持并发数据库操作
@@ -136,10 +141,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `.await` 等待异步操作完成（类似 JavaScript 的 `await`、Python 的 `await`）
     // 但 Rust 的 `.await` 是编译器级别的，性能更高（无回调地狱）
     let pool = init_database(&config.database_url).await?;
-
-    // ============ 4.5 初始化 JWT 配置 ============
-    // 缓存签名密钥与过期时间（OnceLock），生产模式缺失 JWT_SECRET 直接拒绝启动
-    crate::common::jwt::init()?;
 
     // ============ 5. 配置 CORS（跨域资源共享） ============
     // 当前端（如 `http://localhost:5173`）请求后端（`http://localhost:3000`）时，

@@ -58,13 +58,14 @@ impl AuthService {
         pool: &DatabaseConnection,
         login_data: LoginRequest,
     ) -> Result<User, Box<dyn std::error::Error>> {
-        // 根据邮箱查找用户
+        // 按邮箱指纹查找用户（邮箱在库中为密文，指纹为确定性查找键）
         // `fetch_optional` 返回 `Option<User>`：找到返回 `Some`，未找到返回 `None`
         // 登录需要密码哈希做校验，显式列出全部列
+        let email_hash = crate::common::crypto::field_hash(&login_data.email);
         let user = sqlx::query_as::<_, User>(
-            "SELECT id, username, email, password_hash, role, created_at, updated_at FROM users WHERE email = $1",
+            "SELECT id, username, email, password_hash, role, created_at, updated_at FROM users WHERE email_hash = $1",
         )
-            .bind(&login_data.email)
+            .bind(&email_hash)
             .fetch_optional(pool)
             .await?
             .ok_or("用户不存在")?;  // `None` 时返回错误
@@ -142,12 +143,16 @@ impl AuthService {
         password: &str,
         role: &str,
     ) -> Result<User, Box<dyn std::error::Error>> {
+        // 用户名/邮箱指纹：AES-GCM 密文无法直接比较明文查重，用确定性 HMAC 指纹兜底唯一性
+        let username_hash = crate::common::crypto::username_hash(username);
+        let email_hash = crate::common::crypto::field_hash(email);
+
         // 检查用户是否已存在（只查存在性，避免取整行）
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 OR username = $2)",
+            "SELECT EXISTS(SELECT 1 FROM users WHERE email_hash = $1 OR username_hash = $2)",
         )
-        .bind(email)
-        .bind(username)
+        .bind(&email_hash)
+        .bind(&username_hash)
         .fetch_one(pool)
         .await?;
 
@@ -165,21 +170,28 @@ impl AuthService {
         })
         .await??;
 
+        // 用户名、邮箱、角色分别 AES-256-GCM 加密入库（防止直读库见明文）
+        let username_enc = crate::common::crypto::encrypt(username)?;
+        let email_enc = crate::common::crypto::encrypt(email)?;
+        let role_enc = crate::common::crypto::encrypt(role)?;
+
         // 创建用户
         let user_id = Uuid::new_v4();
         let now = Utc::now();
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (id, username, email, password_hash, role, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO users (id, username, username_hash, email, email_hash, password_hash, role, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
             "#,
         )
         .bind(user_id)
-        .bind(username)
-        .bind(email)
+        .bind(&username_enc)
+        .bind(&username_hash)
+        .bind(&email_enc)
+        .bind(&email_hash)
         .bind(&password_hash)
-        .bind(role)
+        .bind(&role_enc)
         .bind(now)
         .bind(now)
         .fetch_one(pool)
