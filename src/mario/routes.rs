@@ -26,7 +26,9 @@ pub fn mario_router(db: DatabaseConnection) -> Router<DatabaseConnection> {
         .route_layer(middleware::from_fn_with_state(db.clone(), mario_permission_middleware))
         .route_layer(middleware::from_fn_with_state(db, auth_middleware));
 
-    Router::<DatabaseConnection>::new().nest("/mario", protected)
+    // 返回相对路径的路由树，由 create_router 统一再加前缀 `.nest("/api/mario")`
+    // （注意不要再内部 `.nest("/mario")`，否则会形成 `/api/mario/mario/*` 双重前缀）
+    protected
 }
 
 /// 权限中间件：登录 + 拥有 mario:monitor 权限

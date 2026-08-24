@@ -201,10 +201,12 @@ function buildLevel1() {
   game.theme = "overworld";
 
   // 地面（最底行）：含 1-1 标志性的 3 处坑洞（中坑/大坑/末段窄坑）
+  // 坑宽以“小号马里奥最远平跳约 70px≈4.4 格”为准，最宽设为 4 格，
+  // 否则小马里奥助跑也无法越过（之前 5 格大坑=必经 bug，跳不过去）。
   for (let c = 0; c < game.cols; c++) {
     const pit =
       (c >= 63 && c <= 65) || // 中坑（3 格）
-      (c >= 98 && c <= 102) || // 大坑（5 格，须助跑跳）
+      (c >= 98 && c <= 101) || // 大坑（4 格，助跑可跳）
       (c >= 121 && c <= 122); // 末段窄坑（2 格）
     grid[ROWS - 1][c] = pit ? " " : "X";
   }
@@ -246,9 +248,11 @@ function buildLevel1() {
     grid[13][c] = "o";
   }
 
-  // 水管：1-1 式高低错落，共 7 座
+  // 水管：1-1 式高低错落，共 7 座。
+  // 最高 3 格（48px）：小号马里奥最大跳高 64px，4 格（64px）会顶满跳不过，
+  // 故原 [84,4] 降至 3 格，保证小号也能跳过/登上。
   const pipes: Array<[number, number]> = [
-    [19, 2], [37, 3], [58, 3], [70, 3], [84, 4], [108, 2], [127, 3],
+    [19, 2], [37, 3], [58, 3], [70, 3], [84, 3], [108, 2], [127, 3],
   ];
   for (const [c, h] of pipes) {
     for (let r = ROWS - 1 - h; r < ROWS - 1; r++) grid[r][c] = "P";
@@ -257,18 +261,20 @@ function buildLevel1() {
   // 坑洞上方引导金币（提示助跑起跳时机）
   const pitCoins: Array<[number, number]> = [
     [64, 17], [65, 15], [66, 12],
-    [100, 17], [101, 14], [102, 10],
+    [99, 15], [100, 11], [101, 15],
     [118, 17], [119, 15],
   ];
   for (const [c, r] of pitCoins) grid[r][c] = "o";
 
   // 隐藏砖（H，顶到才显现，可借力登高）
-  const hiddenCols = [31, 46, 62, 92, 107, 122, 137];
+  // 注意：不要放在坑洞正上方（脚下是坑、无法从下方点亮，只会当隐形墙挡跳跃）。
+  const hiddenCols = [31, 46, 62, 92, 107, 137];
   for (const c of hiddenCols) grid[14][c] = "H";
 
   // 隐藏阶梯 + 顶端 1UP 问号块（经典彩蛋）
+  // 置于 c92 平地上（可站在下方逐级点亮），原 c122 正在 121-122 窄坑上方，故迁移。
   {
-    const col = 122;
+    const col = 92;
     for (const r of [14, 11, 8, 5]) grid[r][col] = "H"; // 竖直阶梯（逐级差 3 格）
     grid[4][col] = "Q"; // 顶端问号块 → 顶出 1UP 绿蘑菇
     game.oneupBlocks = new Set([col]);
@@ -312,9 +318,9 @@ function buildLevel2() {
   putRow(g, 0, 0, game.cols - 1, "X");
   putRow(g, 1, 0, game.cols - 1, "X");
 
-  // 地面：全 X，含一大坑（70-74）与一小缺（120-121）
+  // 地面：全 X，含一大坑（70-73，4 格，小马里奥助跑可跳）与一小缺（120-121）
   for (let c = 0; c < game.cols; c++) {
-    const pit = (c >= 70 && c <= 74) || (c >= 120 && c <= 121);
+    const pit = (c >= 70 && c <= 73) || (c >= 120 && c <= 121);
     g[ROWS - 1][c] = pit ? " " : "X";
   }
 
@@ -325,7 +331,9 @@ function buildLevel2() {
   ];
   for (const [c, h] of walls) for (let r = ROWS - 1 - h; r < ROWS - 1; r++) g[r][c] = "B";
 
-  // 中高问号块与砖层（第 9 行）
+  // 可顶问号块与砖层（第 14 行）
+  // 原放第 9 行（下沿高达 160px，小号马里奥头顶最高 220px 够不到，连大号也顶不到），
+  // 下移到第 14 行（与第 1 关一致），小号只需跳到约 44px 即可顶到。
   const ups: Array<[number, TileChar]> = [
     [22, "Q"], [23, "Q"], [24, "Q"], [30, "B"], [31, "B"],
     [38, "Q"], [39, "Q"], [49, "Q"], [50, "Q"], [53, "B"], [54, "B"],
@@ -336,17 +344,17 @@ function buildLevel2() {
     [132, "Q"], [133, "Q"], [134, "Q"], [138, "B"], [139, "B"],
     [142, "Q"], [143, "Q"], [144, "Q"],
   ];
-  for (const [c, t] of ups) g[9][c] = t;
+  for (const [c, t] of ups) g[14][c] = t;
 
-  // 金币：墙顶一列 + 坑上弧线 + 大坑后收尾
-  for (const c of [25, 26, 27, 35, 36, 46, 47, 63, 64, 82, 83, 95, 96, 105, 106, 115, 116, 127, 128, 135, 136]) g[14][c] = "o";
+  // 金币：墙顶一列 + 坑上弧线 + 大坑后收尾（放第 13 行，避开第 14 行的可顶层）
+  for (const c of [25, 26, 27, 35, 36, 46, 47, 63, 64, 82, 83, 95, 96, 105, 106, 115, 116, 127, 128, 135, 136]) g[13][c] = "o";
   const pitCoins: Array<[number, number]> = [
-    [72, 17], [73, 14], [74, 10], [116, 17], [117, 15],
+    [71, 15], [72, 12], [73, 15], [116, 17], [117, 15],
   ];
   for (const [c, r] of pitCoins) g[r][c] = "o";
 
-  // 隐藏砖 + 中段 1UP 问号块
-  for (const c of [21, 44, 60, 90, 107, 131]) g[9][c] = "H";
+  // 隐藏砖 + 中段 1UP 问号块（放第 13 行，小号可顶到；1UP 的 Q 在第 14 行可顶层）
+  for (const c of [21, 44, 60, 90, 107, 131]) g[13][c] = "H";
   game.oneupBlocks = new Set([68]);
 
   // 敌人（地下多栗子怪与乌龟）
@@ -391,7 +399,8 @@ function buildLevel3() {
   ];
   for (const [from, count] of upper) putRow(g, 7, from, from + count - 1, "B");
 
-  // 空中砖块与问号块（第 11 行）
+  // 空中砖块与问号块（第 14 行）
+  // 原放第 11 行（下沿 192px，小号马里奥头顶最高 220px 够不到），下移到第 14 行可顶。
   const mid: Array<[number, TileChar]> = [
     [10, "B"], [12, "Q"], [14, "B"], [20, "Q"], [24, "B"],
     [31, "Q"], [34, "B"], [45, "Q"], [52, "B"], [54, "Q"], [58, "B"],
@@ -399,7 +408,7 @@ function buildLevel3() {
     [105, "Q"], [110, "B"], [113, "Q"], [126, "B"], [129, "Q"], [134, "B"],
     [139, "Q"], [149, "B"], [151, "Q"], [153, "B"],
   ];
-  for (const [c, t] of mid) g[11][c] = t;
+  for (const [c, t] of mid) g[14][c] = t;
 
   // 金币弧线（起跳引导）与平台金币
   const arcs: Array<[number, number]> = [
@@ -449,7 +458,9 @@ function buildLevel4() {
   const plat: Array<[number, number]> = [[28, 6], [58, 5], [88, 6], [112, 5]];
   for (const [from, count] of plat) putRow(g, 7, from, from + count - 1, "B");
 
-  // 砖 / 问号层（第 10 行）
+  // 砖 / 问号层（第 14 行）
+  // 原放第 10 行（下沿 176px，小号马里奥头顶最高 220px 够不到，连大号也顶不到），
+  // 下移到第 14 行可顶（金币在第 13 行，不同行不冲突）。
   const ups: Array<[number, TileChar]> = [
     [16, "Q"], [17, "Q"], [20, "B"], [21, "B"],
     [34, "Q"], [35, "Q"], [40, "B"], [42, "B"],
@@ -458,7 +469,7 @@ function buildLevel4() {
     [94, "Q"], [97, "Q"], [102, "B"], [104, "B"],
     [114, "Q"], [117, "Q"], [120, "B"], [123, "B"],
   ];
-  for (const [c, t] of ups) g[10][c] = t;
+  for (const [c, t] of ups) g[14][c] = t;
 
   // 金币
   for (const c of [23, 24, 25, 36, 37, 45, 46, 68, 69, 82, 83, 99, 100, 107, 108, 121, 122]) g[13][c] = "o";
@@ -594,14 +605,7 @@ function doWin(heightBonus: number) {
   // 通关全部关卡：结算并提交成绩
   game.state = "clear";
   game.won = true;
-  void marioApi
-    .submitScore({
-      score: game.score,
-      level: game.level,
-      coins: game.coins,
-      time_ms: 0,
-    })
-    .catch(() => undefined);
+  submitResult();
 }
 
 function playerDie() {
@@ -617,9 +621,24 @@ function respawnOrOver() {
     game.state = "play";
     spawnMario();
   } else {
+    // 游戏结束：把本局成绩也提交到高分榜（失败局同样上榜，否则排行榜会长期空白）
     game.state = "clear";
     game.won = false;
+    submitResult();
   }
+}
+
+/** 把本局成绩提交到高分榜（有分才提交；通关/结束时各调用一次） */
+function submitResult() {
+  if (game.score <= 0) return; // 零分不占榜
+  void marioApi
+    .submitScore({
+      score: game.score,
+      level: game.level,
+      coins: game.coins,
+      time_ms: 0,
+    })
+    .catch(() => undefined);
 }
 
 // ============ 输入 ============
@@ -631,6 +650,9 @@ function onKeyDown(e: KeyboardEvent) {
   if (game.state === "title" && (k === "Enter" || k === " ")) {
     newGame();
   } else if (game.state === "clear" && k === "Enter") {
+    newGame();
+  } else if (game.state === "play" && (k === "r" || k === "R")) {
+    // R 重新开始当前局（从头再来）
     newGame();
   }
   // 跳跃优先响应（含长按跳更高）
@@ -1040,7 +1062,11 @@ function update() {
       const pX2 = pX1 + TILE;
       const pTopY = (ROWS - 11) * TILE;
       const pBotY = groundTop();
-      if (m.x + m.w > pX1 && m.x < pX2 && m.y + m.h > pTopY && m.y < pBotY) {
+      // 旗杆列是实心 "P"，水平碰撞会把马里奥右缘钳制在 pX1 - 0.01，
+      // 因此不能用 `m.x + m.w > pX1`（永远不成立），改用“右缘已贴到旗杆列”
+      // 的相邻判定（容忍钳制产生的小内缩）。
+      const touchesFlagCol = m.x + m.w >= pX1 - 1 && m.x < pX2;
+      if (touchesFlagCol && m.y + m.h > pTopY && m.y < pBotY) {
         doWin(flagSegment(m.y));
         return;
       }
@@ -1560,11 +1586,24 @@ function drawOverlayEnd(gameOver: boolean) {
 }
 
 // ============ 渲染主循环 ============
+// 固定 60fps 逻辑步进：用时间累加器按 1/60 秒驱动 update()，
+// 避免高刷新率（如 144Hz 显示器）下 requestAnimationFrame 频率翻倍导致游戏加速。
+let acc = 0;
+const FIXED_STEP = 1000 / 60;
 function loop(ts: number) {
-  const dt = Math.min(ts - lastTime, 50) / 1000;
+  if (lastTime === 0) lastTime = ts;
+  // 钳制最长帧间隔，防止切换标签页/卡顿后累计大量步进
+  acc += Math.min(ts - lastTime, 250);
   lastTime = ts;
-  // 固定 60fps 步进（简化：按帧更新）
-  update();
+
+  let steps = 0;
+  while (acc >= FIXED_STEP && steps < 6) {
+    update();
+    acc -= FIXED_STEP;
+    steps++;
+  }
+  if (acc >= FIXED_STEP) acc = 0; // 极端卡顿后丢弃积压，避免“死亡螺旋”
+
   render();
 
   // 覆盖层
@@ -1572,7 +1611,6 @@ function loop(ts: number) {
   if (game.state === "clear") drawOverlayEnd(!game.won);
 
   rafId = requestAnimationFrame(loop);
-  void dt;
 }
 
 // ============ 生命周期 ============
