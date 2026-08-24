@@ -52,7 +52,7 @@ function buildBaseFrame(cmd: number): number[] {
   ]
 }
 
-async function sendConfig(frame: number[], name: string = ''): Promise<boolean> {
+async function sendConfig(frame: number[], name: string = '', b: boolean = false): Promise<boolean> {
   let sum = 0
   for (let i = 0; i < 15; i++) {
     sum += frame[i]
@@ -60,6 +60,24 @@ async function sendConfig(frame: number[], name: string = ''): Promise<boolean> 
   frame[15] = sum & 0xFF
   frame[3] = frameSeq
   frameSeq = (frameSeq + 1) & 0xFF
+  switch (name) {
+    case '燃油泵':
+      frame[10] = 0x1;
+      frame[11] = b ? 0x1 : 0x0;
+      break;
+    case '离心泵':
+      frame[10] = 0x2;
+      frame[11] = b ? 0x1 : 0x0;
+      break;
+    case '滑油泵':
+      frame[10] = 0x3;
+      frame[11] = b ? 0x1 : 0x0;
+      break;
+    case '停车电磁阀':
+      frame[10] = 0x4;
+      frame[11] = b ? 0x1 : 0x0;
+      break;
+  }
   const hex = buildHex(frame)
   store.footerStats.lastSentHex = hex
   store.footerStats.lastSentName = name
@@ -74,6 +92,10 @@ async function sendConfig(frame: number[], name: string = ''): Promise<boolean> 
     ElMessage.error(error.response?.data?.message || '发送失败')
     return false
   }
+}
+
+function sendAccesory(name: string, b: boolean) {
+  sendConfig(buildBaseFrame(0x81), name, b)
 }
 
 function sendMachNumber() {
@@ -183,29 +205,69 @@ onBeforeUnmount(() => {
   <div class="control-panel">
     <el-card class="ctrl-card" shadow="never">
       <template #header>控制指令</template>
-      <div class="control-config">
-        <div class="config-row">
-          <span class="config-label">飞行马赫数</span>
-          <el-input v-model.number="store.controlPanel.machNumber" class="config-input" size="small"/>
-          <el-button :disabled="autoRunning" size="small" @click="sendMachNumber()">确定</el-button>
+      <div class="control-col">
+        <div class="control-config">
+          <div class="config-row">
+            <span class="config-label">飞行马赫数</span>
+            <el-input v-model.number="store.controlPanel.machNumber" class="config-input" size="small"/>
+            <el-button :disabled="autoRunning" size="small" @click="sendMachNumber()">确定</el-button>
+          </div>
+          <div class="config-row">
+            <span class="config-label">海拔高度</span>
+            <el-input v-model.number="store.controlPanel.altitude" class="config-input" size="small"/>
+            <el-button :disabled="autoRunning" size="small" @click="sendAltitude()">确定</el-button>
+          </div>
+          <div class="config-row">
+            <span class="config-label">恒定油门占空比</span>
+            <el-input v-model.number="store.controlPanel.throttleDuty" class="config-input" size="small"/>
+            <el-button :disabled="autoRunning" size="small" @click="sendThrottleDuty()">确定</el-button>
+          </div>
+          <div class="config-row">
+            <span class="config-label">轮载</span>
+            <el-select v-model="store.controlPanel.wheelLoad" class="config-select" size="small">
+              <el-option label="地面" value="0"/>
+              <el-option label="空中" value="1"/>
+            </el-select>
+            <el-button :disabled="autoRunning" size="small" @click="sendWheelLoad()">确定</el-button>
+          </div>
         </div>
-        <div class="config-row">
-          <span class="config-label">海拔高度</span>
-          <el-input v-model.number="store.controlPanel.altitude" class="config-input" size="small"/>
-          <el-button :disabled="autoRunning" size="small" @click="sendAltitude()">确定</el-button>
-        </div>
-        <div class="config-row">
-          <span class="config-label">恒定油门占空比</span>
-          <el-input v-model.number="store.controlPanel.throttleDuty" class="config-input" size="small"/>
-          <el-button :disabled="autoRunning" size="small" @click="sendThrottleDuty()">确定</el-button>
-        </div>
-        <div class="config-row">
-          <span class="config-label">轮载</span>
-          <el-select v-model="store.controlPanel.wheelLoad" class="config-select" size="small">
-            <el-option label="地面" value="0"/>
-            <el-option label="空中" value="1"/>
-          </el-select>
-          <el-button :disabled="autoRunning" size="small" @click="sendWheelLoad()">确定</el-button>
+        <div class="control-config">
+          <div class="config-row">
+            <span class="config-label">燃油泵</span>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small" @click="sendAccesory('燃油泵',true)">
+              打开
+            </el-button>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small" @click="sendAccesory('燃油泵',false)">
+              关闭
+            </el-button>
+          </div>
+          <div class="config-row">
+            <span class="config-label">离心泵</span>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small" @click="sendAccesory('离心泵',true)">
+              打开
+            </el-button>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small" @click="sendAccesory('离心泵',false)">
+              关闭
+            </el-button>
+          </div>
+          <div class="config-row">
+            <span class="config-label">滑油泵</span>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small" @click="sendAccesory('滑油泵',true)">
+              打开
+            </el-button>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small" @click="sendAccesory('滑油泵',false)">
+              关闭
+            </el-button>
+          </div>
+          <div class="config-row">
+            <span class="config-label">停车电磁阀</span>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small"
+                       @click="sendAccesory('停车电磁阀',true)">打开
+            </el-button>
+            <el-button :disabled="autoRunning" class="accessory-btn" size="small"
+                       @click="sendAccesory('停车电磁阀',false)">关闭
+            </el-button>
+          </div>
         </div>
       </div>
       <div class="control-divider"/>
@@ -228,8 +290,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.control-col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+
 .control-panel {
-  width: 340px;
+  width: 680px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -310,6 +377,10 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(5, 1fr);
   grid-template-rows: 1fr 1fr;
   gap: 4px;
+}
+
+.accessory-btn {
+  flex: 0.5;
 }
 
 .ctrl-btn {
