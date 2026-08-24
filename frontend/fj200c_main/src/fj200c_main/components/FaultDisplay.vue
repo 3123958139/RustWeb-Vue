@@ -63,6 +63,7 @@ const accessoryItems: AccessoryItem[] = [
   {label: '滑油泵', key: 'oilPump'},
   {label: '起发电机', key: 'starter'},
   {label: '轮载状态', key: 'wheelLoadStatus'},
+  {label: '离心泵', key: 'centrifugalPump'},
 ]
 
 const getComplexLabel = (item: AccessoryItem) => {

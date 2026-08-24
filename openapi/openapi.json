@@ -2200,6 +2200,7 @@
           "ignition",
           "starter",
           "wheelLoadStatus",
+          "centrifugalPump",
           "faultCodes",
           "engineStatusU8",
           "cmdExecU8"
@@ -2213,6 +2214,10 @@
             "type": "number",
             "format": "double",
             "description": "海拔高度（m）"
+          },
+          "centrifugalPump": {
+            "type": "boolean",
+            "description": "离心泵"
           },
           "cmdExecStatus": {
             "type": "string",

@@ -15,6 +15,8 @@ export interface EcuFields {
   accessoryStatus: string;
   /** 海拔高度（m） */
   altitude: number;
+  /** 离心泵 */
+  centrifugalPump: boolean;
   /** 控制指令执行情况（中文描述，见 `decode::cmd_exec_str`） */
   cmdExecStatus: string;
   /** 指令执行状态原始字节（十六进制） */

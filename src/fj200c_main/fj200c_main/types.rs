@@ -65,6 +65,8 @@ pub struct EcuFields {
     pub starter: bool,
     /// 轮载状态
     pub wheel_load_status: bool,
+    /// 离心泵
+    pub centrifugal_pump: bool,
     /// 故障码按位展开的标志集合
     pub fault_codes: FaultCodeFlags,
     /// 发动机状态原始字节（十六进制）
@@ -275,6 +277,7 @@ impl EcuFields {
             ("oilPump", "滑油泵"),
             ("starter", "起发电机"),
             ("wheelLoadStatus", "轮载状态"),
+            ("centrifugalPump", "离心泵"),
             ("ignition", "点火"),
         ]
     }
@@ -345,6 +348,7 @@ impl EcuFields {
             "oilPump" => fmt_bool(self.oil_pump),
             "starter" => fmt_bool(self.starter),
             "wheelLoadStatus" => fmt_bool(self.wheel_load_status),
+            "centrifugalPump" => fmt_bool(self.centrifugal_pump),
             "ignition" => fmt_bool(self.ignition),
             _ => String::new(),
         }

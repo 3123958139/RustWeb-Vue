@@ -65,6 +65,7 @@ export const useDashboardStore = defineStore('fj200c_main-dashboard', () => {
         ignition: false,
         starter: false,
         wheelLoadStatus: false,
+        centrifugalPump: false,
         faultCodes: {
             fc1SelfCheckExhaust: false,
             fc1SelfCheckIntakeTemp: false,

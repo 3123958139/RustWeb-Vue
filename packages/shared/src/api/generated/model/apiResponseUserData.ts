@@ -14,29 +14,33 @@
  * | 字段 | 类型 | 说明 |
  * |------|------|------|
  * | `id` | `Uuid` | 用户唯一标识 |
- * | `username` | `String` | 用户名 |
- * | `email` | `String` | 邮箱（用于登录） |
+ * | `username` | `String` | 用户名（库中为 AES-256-GCM 密文，读取时解密为明文） |
+ * | `email` | `String` | 邮箱（登录标识；库中为密文，登录按指纹查询） |
  * | `password_hash` | `String` | 密码哈希（不可序列化） |
- * | `role` | `String` | 角色标识 |
+ * | `role` | `String` | 角色标识（库中为密文，权限判断依赖解密后的明文） |
  * | `created_at` | `DateTime<Utc>` | 创建时间 |
  * | `updated_at` | `DateTime<Utc>` | 更新时间 |
  *
- * # 语法说明
+ * # 安全说明
  *
- * - `#[derive(FromRow)]`: SQLx 自动实现从数据库行映射到结构体
- * - `#[serde(skip_serializing)]`: 序列化时跳过此字段（密码哈希不应返回给前端）
+ * - 用户名、邮箱、角色在库中均为 AES-256-GCM 密文；`common::crypto` 派生
+ *   `username_hash` / `email_hash` 指纹用于查重、唯一约束与登录定位。
+ * - `FromRow` 手动实现以在读取即解密，保证所有 `query_as::<_, User>` 调用点拿到明文。
  */
 export type ApiResponseUserData = {
   /** 创建时间（UTC） */
   created_at: string;
-  /** 邮箱（唯一，用于登录） */
+  /** 邮箱（登录标识；库中为密文，本字段始终是解密后的明文） */
   email: string;
   /** 用户 UUID（主键） */
   id: string;
-  /** 角色标识（如 "admin"、"fj200c_information"），与角色注册表的 `key` 对应 */
+  /**
+     * 角色标识（如 "admin"、"fj200c_information"），与角色注册表的 `key` 对应；
+     * 库中为密文，本字段始终是解密后的明文（权限判断依赖明文）
+     */
   role: string;
   /** 更新时间（UTC） */
   updated_at: string;
-  /** 用户名（唯一） */
+  /** 用户名（库中为密文，本字段始终是解密后的明文） */
   username: string;
 };

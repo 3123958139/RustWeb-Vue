@@ -146,6 +146,7 @@ pub fn decode_ecu(frame: &[u8]) -> EcuFields {
         oil_pump: acc_bits & 0x04 != 0,
         starter: acc_bits & 0x08 != 0,
         wheel_load_status: acc_bits & 0x10 != 0,
+        centrifugal_pump: acc_bits & 0x20 != 0,
         // 点火状态：起动中或运行中视为点火
         ignition: engine_status_u8 == 0x02 || engine_status_u8 == 0x06,
         fault_codes: FaultCodeFlags {

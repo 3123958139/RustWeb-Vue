@@ -13,17 +13,17 @@ export type ApiResponseVecSeedPasswordInfoDataItem = {
   /** 密码记录创建时间 */
   created_at: string;
   /**
-     * 邮箱（种子账号被删除后为 null）
+     * 邮箱（种子账号被删除后为 null，解密后的明文）
      * @nullable
      */
   email?: string | null;
-  /** 初始密码明文 */
+  /** 初始密码明文（从库中密文解密得到） */
   password: string;
   /**
-     * 角色（种子账号被删除后为 null）
+     * 角色（种子账号被删除后为 null，解密后的明文）
      * @nullable
      */
   role?: string | null;
-  /** 用户名 */
+  /** 用户名（解密后的明文） */
   username: string;
 };
