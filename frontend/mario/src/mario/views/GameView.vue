@@ -9,10 +9,10 @@
   - 到达终点旗杆即可通关，得分自动提交到高分榜
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import * as THREE from "three";
 import { useAuthStore } from "@/stores/auth";
 import { marioApi } from "@/api";
-import { useWindowScale } from "@/mario/composables/useWindowScale";
 
 // ============ 基础常量 ============
 const TILE = 16; // 瓦片边长（像素）
@@ -27,23 +27,10 @@ const MAX_FALL = 10; // 最大下落速度
 // 'P' 水管壁、'o' 悬浮金币、'K' 终点城堡、'H' 隐藏砖（不可见，顶到才出金币并显现）
 type TileChar = " " | "X" | "B" | "Q" | "#" | "P" | "o" | "K" | "H";
 
-const canvasRef = ref<HTMLCanvasElement | null>(null);
-// 类型上视为已初始化（onMounted 统一赋值），运行时各绘制入口均以 `if (!ctx) return;` 兜底
-let ctx!: CanvasRenderingContext2D;
-
 const authStore = useAuthStore();
 
-// 界面等比缩放：参考 fj200c_main 的 useWindowScale 机制，
-// 以游戏画布 480×320 为设计稿，CSS transform: scale 放大居中并限制最大倍率
-const { scale, rootRef, DESIGN_W, DESIGN_H } = useWindowScale({
-  designWidth: VIEW_W,
-  designHeight: VIEW_H,
-});
-const stageStyle = computed(() => ({
-  width: DESIGN_W + "px",
-  height: DESIGN_H + "px",
-  transform: "scale(" + scale.value + ")",
-}));
+// 注：不再用 CSS transform:scale 固定画布——3D 渲染直接适配容器实际分辨率（见 initThree/resize），
+// 任意屏幕原生清晰，无需等比缩放放大插值。
 
 // ============ 游戏状态（非响应式，性能优先） ============
 const game = {
@@ -76,6 +63,7 @@ const game = {
   dead: false,
   won: false,
   flagCol: 0,
+  levelVersion: 0, // 关卡重建计数（buildLevel 递增，三维渲染据此清空旧瓦片）
   key: {} as Record<string, boolean>,
   finalTime: 0,
 };
@@ -193,6 +181,7 @@ function buildLevel() {
   else if (game.level === 3) buildLevel3();
   else if (game.level === 4) buildLevel4();
   else buildLevel1();
+  game.levelVersion++; // 通知三维渲染层清空并重建瓦片
 }
 
 // ---------------- 1-1 地上（地上世界） ----------------
@@ -1097,492 +1086,534 @@ function update() {
   game.particles = game.particles.filter((p) => p.t < p.max);
 }
 
-// ============ 渲染 ============
-function render() {
-  if (!ctx) return;
-  ctx.imageSmoothingEnabled = false;
+// ============ 三维渲染（Three.js 体素方块） ============
+// 坐标映射：2D 游戏逻辑坐标(y 轴向下) → 3D 世界（X 水平前进、Y 高度向上、Z 纵深厚度）：
+//   X = x2d，Y = VIEW_H - y2d，Z = 0（厚度围绕 Z 展开，体现体素立体感）。
+// 游戏逻辑（物理/碰撞/关卡/得分）完全不变，仅渲染层由 2D Canvas 换成 3D 体素。
 
-  // 天（按关卡主题配色）
-  const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-  if (game.theme === "underground") {
-    // 地下：暗紫蓝渐变
-    sky.addColorStop(0, "#16162a");
-    sky.addColorStop(1, "#3a2a4a");
-  } else if (game.theme === "sky") {
-    // 空中：深蓝高空渐变
-    sky.addColorStop(0, "#1c3aa8");
-    sky.addColorStop(1, "#6fc4ff");
-  } else if (game.theme === "castle") {
-    // 城堡（BOSS）：暗红/岩浆般氛围
-    sky.addColorStop(0, "#3a0f0f");
-    sky.addColorStop(1, "#7a2418");
-  } else {
-    // 地上：浅蓝天空
-    sky.addColorStop(0, "#6fb8ff");
-    sky.addColorStop(1, "#bde3ff");
+// —— 渲染宿主与 Three 核心对象 ——
+const renderHost = ref<HTMLElement | null>(null);
+let renderer: THREE.WebGLRenderer | null = null;
+let scene: THREE.Scene | null = null;
+let camera: THREE.PerspectiveCamera | null = null;
+let worldGroup: THREE.Group | null = null;
+const bgColor = new THREE.Color(0x6fb8ff);
+
+// 主题天空底色（偏明亮；并同步雾色以保持协调）
+function setBackground(theme: string) {
+  let c = 0x8fd0ff; // 地上：明亮天蓝
+  if (theme === "underground") c = 0x3a3a6e; // 地下：提亮的暗紫蓝
+  else if (theme === "sky") c = 0x4fb0e6; // 空中：明亮高空蓝
+  else if (theme === "castle") c = 0x5a2020; // 城堡：提亮的暗红
+  bgColor.set(c);
+  if (scene?.fog) scene.fog.color.set(c);
+}
+
+// —— 共享几何与材质缓存（避免每帧新建） ——
+const geoUnit = new THREE.BoxGeometry(1, 1, 1); // 经 scale 拉伸成部件
+const geoCoin = new THREE.OctahedronGeometry(6, 0);
+const geoFire = new THREE.SphereGeometry(5, 8, 6);
+const boxGeos = new Map<string, THREE.BoxGeometry>();
+function boxGeom(sx: number, sy: number, sz: number): THREE.BoxGeometry {
+  const k = sx + "_" + sy + "_" + sz;
+  let g = boxGeos.get(k);
+  if (!g) {
+    g = new THREE.BoxGeometry(sx, sy, sz);
+    boxGeos.set(k, g);
   }
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-
-  // 云（地下 / 城堡主题不画）
-  if (game.theme !== "underground" && game.theme !== "castle") {
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    drawCloud(40, 55, 26);
-    drawCloud(200, 90, 22);
-    drawCloud(360, 45, 18);
-    drawCloud(150, 130, 30);
-    drawCloud(280, 150, 24);
+  return g;
+}
+// 默认用卡通材质（MeshToonMaterial）：明暗对比鲜明、色彩亮丽，配合强光照更好看
+const matCache = new Map<number, THREE.MeshToonMaterial>();
+function mat(color: number): THREE.MeshToonMaterial {
+  let m = matCache.get(color);
+  if (!m) {
+    m = new THREE.MeshToonMaterial({ color });
+    matCache.set(color, m);
   }
+  return m;
+}
 
-  // 摄像机偏移
-  const cam = Math.floor(game.camera);
+/** 向父组添加一个用单位格子拉伸的体素部件（局部坐标原点=实体中心） */
+function addPart(p: THREE.Group, x: number, y: number, z: number, sx: number, sy: number, sz: number, color: number) {
+  const mesh = new THREE.Mesh(geoUnit, mat(color));
+  mesh.scale.set(sx, sy, sz);
+  mesh.position.set(x, y, z);
+  p.add(mesh);
+}
+/** 清空组内的部件网格（几何与材质共享，无需 dispose） */
+function clearGroup(p: THREE.Group) {
+  for (const ch of p.children) p.remove(ch);
+}
 
-  // 绘制瓦片
+// —— 瓦片（grid → 3D 方块/金币） ——
+const TILE_DEPTH = 13; // 方块厚度（约为 1 个 TILE 的 0.8，体现体素立体感）
+const tileMesh = new Map<number, THREE.Group>();
+const tileChar = new Map<number, string>();
+const TILE_COLORS: Record<string, number> = {
+  X: 0xd96a2b, P: 0xd96a2b, B: 0xc95a20, Q: 0xffb400, "#": 0xb07a34, K: 0xcfcfcf,
+};
+
+// —— 3D 瓦片建模（体素块 + 顶部高光/细节，比纯单色块更好看） ——
+/** 顶部薄高光（让砖块/地面有受光层次） */
+function topSlab(color: number): THREE.Mesh {
+  const m = new THREE.Mesh(boxGeom(TILE, 2, TILE_DEPTH), mat(color));
+  m.position.set(0, TILE / 2 - 1, 0);
+  return m;
+}
+let qTex: THREE.Texture | null = null;
+/** 问号块上的白色“?”（Sprite 始终面向相机） */
+function makeQMark(): THREE.Sprite {
+  if (!qTex) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g2 = c.getContext("2d")!;
+    g2.clearRect(0, 0, 128, 128);
+    g2.fillStyle = "#ffffff";
+    g2.font = "bold 96px Impact, sans-serif";
+    g2.textAlign = "center";
+    g2.textBaseline = "middle";
+    g2.fillText("?", 64, 66);
+    qTex = new THREE.CanvasTexture(c);
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: qTex, transparent: true, depthWrite: false }));
+  sp.scale.set(11, 11, 1);
+  sp.position.set(0, 0, TILE_DEPTH / 2 + 1);
+  return sp;
+}
+/** 按瓦片类型构建一组体素块 */
+function makeTile(t: TileChar): THREE.Group {
+  const g = new THREE.Group();
+  if (t === "o") {
+    g.add(new THREE.Mesh(geoCoin, mat(0xffce2e)));
+    g.userData.coin = true;
+    return g;
+  }
+  const color = TILE_COLORS[t] ?? 0xffffff;
+  g.add(new THREE.Mesh(boxGeom(TILE, TILE, TILE_DEPTH), mat(color)));
+  if (t === "B") {
+    // 砖块：顶部亮条 + 底部暗边，立体砖纹
+    g.add(topSlab(0xffd9a0));
+    const bot = new THREE.Mesh(boxGeom(TILE, 3, TILE_DEPTH), mat(0x8a3a10));
+    bot.position.set(0, -TILE / 2 + 1.5, 0);
+    g.add(bot);
+  } else if (t === "X" || t === "P") {
+    // 地面 / 水管：顶部亮边
+    g.add(topSlab(0xffe3b0));
+  } else if (t === "Q") {
+    // 问号块：白“?”浮标
+    g.add(makeQMark());
+  } else if (t === "#") {
+    // 已使用块：顶部压暗，区别于未使用
+    const dark = new THREE.Mesh(boxGeom(TILE, 2, TILE_DEPTH), mat(0x6e4a18));
+    dark.position.set(0, TILE / 2 - 1, 0);
+    g.add(dark);
+  }
+  return g;
+}
+// 关卡重载（buildLevel 触发）时清空旧瓦片
+let lastLevelVersion = -1;
+function clearTileMeshes() {
+  const w = worldGroup;
+  if (!w) return;
+  for (const m of tileMesh.values()) w.remove(m);
+  tileMesh.clear();
+  tileChar.clear();
+}
+function syncTiles() {
+  const w = worldGroup;
+  if (!w) return;
+  if (lastLevelVersion !== game.levelVersion) {
+    lastLevelVersion = game.levelVersion;
+    clearTileMeshes();
+  }
+  // 按 3D 相机可见的水平范围建瓦片。以「相机的实际 x」为中心（它已包含关卡端部 clamp），
+// 否则相机停在端部时（相机中心≠马里奥位置）右侧视野会缺瓦片，地面断裂错乱。
+  const cx0 = camera?.position.x ?? game.mario.x + game.mario.w / 2;
+  const cStart = Math.floor((cx0 - CAM_HALF_W - TILE) / TILE);
+  const cEnd = Math.floor((cx0 + CAM_HALF_W + TILE) / TILE);
   for (let r = 0; r < ROWS; r++) {
-    for (let c = Math.floor(cam / TILE) - 1; c <= Math.floor((cam + VIEW_W) / TILE) + 1; c++) {
+    for (let c = cStart; c <= cEnd; c++) {
       if (c < 0 || c >= game.cols) continue;
       const t = game.grid[r][c];
-      if (t === " ") continue;
-      const px = c * TILE - cam;
-      const py = r * TILE;
-      drawTile(t, px, py);
-    }
-  }
-
-  // 敌人
-  for (const e of game.enemies) {
-    drawEnemy(e);
-  }
-
-  // 道具（蘑菇/火花花）
-  for (const it of game.items) {
-    drawItem(it);
-  }
-
-  // 火球
-  for (const f of game.fireballs) {
-    const fx = Math.round(f.x - cam);
-    const fy = Math.round(f.y);
-    ctx.fillStyle = "#ff7a1a";
-    ctx.beginPath();
-    ctx.arc(fx + 3, fy + 3, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ffdf80";
-    ctx.beginPath();
-    ctx.arc(fx + 2, fy + 2, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // 马里奥
-  drawMario();
-
-  // 粒子
-  for (const p of game.particles) {
-    ctx.fillStyle = "#ffcc00";
-    ctx.fillRect(p.x + 2 - cam, p.y, 6, 6);
-  }
-
-  // HUD
-  drawHud(cam);
-
-  // 关卡切换横幅（跨关/开局时短暂显示）
-  if (game.bannerT > 0 && game.banner) {
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    const bh = 44;
-    const by = VIEW_H / 2 - bh / 2;
-    ctx.fillRect(10, by, VIEW_W - 20, bh);
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffcc00";
-    ctx.font = "bold 26px monospace";
-    ctx.fillText(game.banner, VIEW_W / 2, by + 30);
-  }
-}
-
-function drawCloud(x: number, y: number, r: number) {
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.arc(x + r * 0.8, y - r * 0.3, r * 0.7, 0, Math.PI * 2);
-  ctx.arc(x + r * 1.5, y, r * 0.8, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawBrick(px: number, py: number, brown: string, mortar: string) {
-  if (!ctx) return;
-  ctx.fillStyle = brown;
-  ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-  ctx.fillStyle = mortar;
-  // 砖缝
-  const half = TILE / 2;
-  ctx.fillRect(px + half, py + 1, 1, TILE - 2);
-  ctx.fillRect(px + 1, py + TILE / 2 - 1, half - 1, 1);
-  ctx.fillRect(px + half + 1, py + 1, half - 1, 1);
-}
-
-function drawTile(t: TileChar, px: number, py: number) {
-  if (!ctx) return;
-  // 隐藏砖：不可见（顶到变 '#' 后才会绘制）
-  if (t === "H") return;
-  switch (t) {
-    case "X":
-    case "P":
-      // 地面砖 / 水管
-      ctx.fillStyle = "#c94b1c";
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = "#ffcf7a";
-      ctx.fillRect(px, py, TILE, 2);
-      ctx.fillRect(px, py + 4, TILE, 2);
-      ctx.fillStyle = "#8a2f0f";
-      ctx.fillRect(px + 2, py + 12, TILE - 4, 2);
-      break;
-    case "B":
-      drawBrick(px, py, "#c94b1c", "#7a2600");
-      break;
-    case "Q":
-      // 问号块（金色）
-      ctx.fillStyle = "#ffb400";
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = "#ffe899";
-      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-      ctx.fillStyle = "#8a5a00";
-      ctx.font = "10px monospace";
-      ctx.textAlign = "center";
-      ctx.fillText("?", px + TILE / 2, py + 12);
-      break;
-    case "#":
-      ctx.fillStyle = "#a56a1f";
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = "#7a4a12";
-      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-      break;
-    case "o":
-      ctx.fillStyle = "#ffcc00";
-      ctx.beginPath();
-      ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#fff6cc";
-      ctx.beginPath();
-      ctx.arc(px + TILE / 2 - 1, py + TILE / 2 - 2, 2, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    case "K":
-      // 城堡端墙
-      ctx.fillStyle = "#e0e0e0";
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = "#b0b0b0";
-      ctx.fillRect(px, py, TILE, 3);
-      ctx.fillRect(px, py + TILE - 3, TILE, 3);
-      break;
-  }
-}
-
-function drawEnemy(e: Enemy) {
-  if (!ctx) return;
-  const px = e.x - game.camera;
-  if (e.kind === "bowser") {
-    // ===== 库巴（BOSS）=====
-    const flash = e.t > 0 && Math.floor(e.t / 4) % 2 === 0;
-    ctx.globalAlpha = flash ? 0.4 : 1;
-    const ex = px + (e.vx > 0 ? 1 : -1);
-    // 身体（绿色）
-    ctx.fillStyle = "#3f9e33";
-    ctx.fillRect(ex, e.y + 6, e.w, e.h - 8);
-    // 顶部尖刺壳
-    ctx.fillStyle = "#7a4a12";
-    ctx.beginPath();
-    ctx.moveTo(ex + 2, e.y + 6);
-    ctx.lineTo(ex + 8, e.y + 1);
-    ctx.lineTo(ex + 14, e.y + 6);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(ex + 14, e.y + 6);
-    ctx.lineTo(ex + 20, e.y + 1);
-    ctx.lineTo(ex + 26, e.y + 6);
-    ctx.fill();
-    // 头（橄榄）
-    ctx.fillStyle = "#6aa84f";
-    ctx.fillRect(ex + (e.vx > 0 ? -3 : e.w - 3), e.y + 4, 4, 6);
-    // 眼睛
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(ex + (e.vx > 0 ? -2 : e.w - 2), e.y + 3, 3, 3);
-    ctx.fillStyle = "#111";
-    ctx.fillRect(ex + (e.vx > 0 ? 0 : e.w), e.y + 4, 2, 2);
-    // 腹（浅）
-    ctx.fillStyle = "#c8e0b0";
-    ctx.fillRect(ex + 3, e.y + e.h - 10, e.w - 6, 6);
-    // 脚
-    ctx.fillStyle = "#5a7a2a";
-    ctx.fillRect(ex + 2, e.y + e.h - 4, 8, 4);
-    ctx.fillRect(ex + e.w - 10, e.y + e.h - 4, 8, 4);
-    ctx.globalAlpha = 1;
-    return;
-  }
-  if (e.kind === "koopa") {
-    // ===== 乌龟 =====
-    if (e.state === "shell" || e.state === "slide") {
-      // 龟壳（静止或滑行）
-      ctx.fillStyle = "#3f9e33";
-      ctx.beginPath();
-      ctx.ellipse(px + e.w / 2, e.y + e.h, e.w / 2, e.h / 2 - 1, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#e8f2c0";
-      ctx.beginPath();
-      ctx.ellipse(px + e.w / 2, e.y + 6, e.w / 2 - 2, e.h / 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // 滑行时画速度线
-      if (e.state === "slide") {
-        ctx.strokeStyle = "rgba(255,255,255,0.6)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 1; i <= 3; i++) {
-          const lx = px + (e.vx > 0 ? -i * 4 : e.w + i * 4);
-          ctx.moveTo(lx - 2, e.y + e.h - 2);
-          ctx.lineTo(lx + 2, e.y + e.h - 5);
-        }
-        ctx.stroke();
+      const key = r * 1000 + c;
+      if (tileChar.get(key) === t) continue; // 未变化，跳过
+      tileChar.set(key, t);
+      const old = tileMesh.get(key);
+      if (old) {
+        w.remove(old);
+        tileMesh.delete(key);
       }
-      return;
+      // 空格与隐藏砖(H)不渲染（H 仍参与 2D 碰撞，顶到变 '#' 后才会显示）
+      if (t === " " || t === "H") continue;
+      const x = c * TILE + TILE / 2;
+      const y = VIEW_H - (r * TILE + TILE / 2);
+      const grp = makeTile(t);
+      grp.position.set(x, y, 0);
+      w.add(grp);
+      tileMesh.set(key, grp);
     }
-    // 行走乌龟
-    // 绿壳
-    ctx.fillStyle = "#3f9e33";
-    ctx.beginPath();
-    ctx.arc(px + e.w / 2, e.y + 3, e.w / 2 - 1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#e8f2c0";
-    ctx.beginPath();
-    ctx.ellipse(px + e.w / 2, e.y + 1, e.w / 2 - 3, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // 头
-    ctx.fillStyle = "#c8e0b0";
-    ctx.fillRect(px + e.w / 2 + (e.vx > 0 ? 1 : -5), e.y + 3, 5, 4);
-    // 眼睛
-    ctx.fillStyle = "#333";
-    ctx.fillRect(px + e.w / 2 + (e.vx > 0 ? 3 : -1), e.y + 4, 2, 2);
-    // 脚
-    ctx.fillStyle = "#5a7a2a";
-    const step = Math.sin(game.frame * 0.4) > 0 ? 0 : 2;
-    ctx.fillRect(px + 2 + step, e.y + e.h - 3, 4, 3);
-    ctx.fillRect(px + e.w - 5 - step, e.y + e.h - 3, 4, 3);
-    return;
   }
-
-  // ===== 栗子怪 goomba =====
-  const bob = Math.sin(game.frame * 0.2);
-  ctx.fillStyle = "#a03e1f";
-  ctx.beginPath();
-  ctx.arc(px + e.w / 2, e.y - 4, 8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#6b2412";
-  ctx.beginPath();
-  ctx.ellipse(px + e.w / 2, e.y + e.h, e.w / 2, e.h / 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.arc(px + e.w / 2 - 3, e.y + 2, 1.8, 0, Math.PI * 2);
-  ctx.arc(px + e.w / 2 + 3, e.y + 2, 1.8, 0, Math.PI * 2);
-  ctx.fill();
-  void bob;
+  // 金币轻微旋转（仅直接遍历可见金币网格）
+  for (const m of tileMesh.values()) {
+    if (m.userData.coin) m.rotation.z += 0.12;
+  }
 }
 
-function drawItem(it: Item) {
-  if (!ctx) return;
-  const px = Math.round(it.x - game.camera);
-  const py = Math.round(it.y);
-  if (it.type === "flower") {
-    // ===== 火花花：白花 + 黄芯，花茎 =====
-    ctx.fillStyle = "#3f9e33";
-    ctx.fillRect(px + it.w / 2 - 1, py + it.h - 4, 2, 4);
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(px + it.w / 2 - 3, py + it.h / 2 - 4, 3, 0, Math.PI * 2);
-    ctx.arc(px + it.w / 2 + 3, py + it.h / 2 - 4, 3, 0, Math.PI * 2);
-    ctx.arc(px + it.w / 2, py + it.h / 2 - 7, 3, 0, Math.PI * 2);
-    ctx.arc(px + it.w / 2, py + it.h / 2 - 1, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ffcf3a";
-    ctx.beginPath();
-    ctx.arc(px + it.w / 2, py + it.h / 2 - 4, 3, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  if (it.type === "oneup") {
-    // ===== 1UP 绿蘑菇：绿帽 + 白点 + 白柄（加命） =====
-    ctx.fillStyle = "#3f9e33";
-    ctx.beginPath();
-    ctx.arc(px + it.w / 2, py + 4, it.w / 2, Math.PI, 0);
-    ctx.fill();
-    ctx.fillRect(px, py + 4, it.w, it.h / 2 - 1);
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(px + it.w / 2, py + 3, 1.6, 0, Math.PI * 2);
-    ctx.arc(px + 3, py + 5, 1.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff6e0";
-    ctx.fillRect(px + 2, py + it.h / 2 - 1, it.w - 4, it.h - it.h / 2 + 1);
-    // "1UP" 字样
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 6px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("1UP", px + it.w / 2, py + it.h - 2);
-    return;
-  }
-  // ===== 蘑菇：红帽 + 白点 + 白柄 =====
-  ctx.fillStyle = "#e23b2e";
-  ctx.beginPath();
-  ctx.arc(px + it.w / 2, py + 4, it.w / 2, Math.PI, 0);
-  ctx.fill();
-  ctx.fillRect(px, py + 4, it.w, it.h / 2 - 1);
-  // 帽上白点
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.arc(px + it.w / 2, py + 3, 1.6, 0, Math.PI * 2);
-  ctx.arc(px + 3, py + 5, 1.4, 0, Math.PI * 2);
-  ctx.fill();
-  // 白色蘑菇柄
-  ctx.fillStyle = "#fff6e0";
-  ctx.fillRect(px + 2, py + it.h / 2 - 1, it.w - 4, it.h - it.h / 2 + 1);
-  // 眼睛
-  ctx.fillStyle = "#333";
-  ctx.fillRect(px + 3, py + 4, 2, 2);
-  ctx.fillRect(px + it.w - 5, py + 4, 2, 2);
-}
-
-function drawMario() {
-  if (!ctx) return;
-  const m = game.mario;
-  // 无敌帧：闪烁（每隔几帧消失一次）
-  if (m.inv > 0 && Math.floor(m.inv / 4) % 2 === 0) return;
-  const px = Math.round(m.x - game.camera);
-  const py = Math.round(m.y);
-  const big = m.size === 1;
-
-  if (big) {
-    // ===== 大马里奥（更高，红帽+蓝工装） =====
-    // 帽子
-    ctx.fillStyle = "#e23b2e";
-    ctx.fillRect(px + 1, py, m.w - 2, 5);
-    ctx.fillRect(px - 1, py + 4, m.w + 2, 2);
-    // 帽檐"M"
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(px + (m.facing > 0 ? 4 : m.w - 8), py + 1, 5, 3);
-    // 脸
-    ctx.fillStyle = "#f7c59f";
-    ctx.fillRect(px + 1, py + 6, m.w - 2, 8);
-    // 眼睛
-    ctx.fillStyle = "#333";
-    ctx.fillRect(px + (m.facing > 0 ? m.w - 7 : 5), py + 8, 2, 3);
-    // 胡子
-    ctx.fillStyle = "#7a3b1a";
-    ctx.fillRect(px + 1, py + 12, m.w - 2, 2);
-    // 工装（蓝）
-    ctx.fillStyle = "#2a6bd8";
-    ctx.fillRect(px + 1, py + 15, m.w - 2, m.h - 17);
-    // 工装扣子
-    ctx.fillStyle = "#ffe899";
-    ctx.fillRect(px + (m.facing > 0 ? m.w - 8 : 6), py + 18, 2, 2);
-    // 脚
-    ctx.fillStyle = "#8a4a24";
-    if (m.onGround) {
-      const step = Math.sin(game.mario.anim * 0.5) > 0 ? 1.5 : -1.5;
-      ctx.fillRect(px - 1 + step, py + m.h - 4, 9, 4);
-      ctx.fillRect(px + m.w - 1 - step, py + m.h - 4, 9, 4);
-    } else {
-      ctx.fillRect(px - 2, py + m.h - 4, 8, 4);
-      ctx.fillRect(px + m.w - 6, py + m.h - 4, 8, 4);
-    }
-    return;
-  }
-
-  // ===== 小马里奥 =====
-  // 帽子（红）
-  ctx.fillStyle = "#e23b2e";
-  ctx.fillRect(px + 1, py, m.w - 2, 4);
+// —— 马里奥体素模型 ——
+const marioModel = new THREE.Group();
+let marioSize = -1; // 用于检测大小切换
+function buildMarioInto(mario: THREE.Group, big: boolean) {
+  const w = big ? 16 : 14;
+  const h = big ? 32 : 20;
+  const half = h / 2;
+  const dep = 8;
+  // 帽子
+  addPart(mario, 0, half - 3, 0, w, 6, dep + 2, 0xe23b2e);
   // 帽檐
-  ctx.fillRect(px - 1, py + 3, m.w + 2, 2);
+  addPart(mario, 0, half - 5, 0, w + 3, 2, dep + 3, 0xe23b2e);
   // 脸
-  ctx.fillStyle = "#f7c59f";
-  ctx.fillRect(px + 1, py + 5, m.w - 2, 5);
-  // 眼睛
-  ctx.fillStyle = "#333";
-  ctx.fillRect(px + (m.facing > 0 ? m.w - 6 : 3), py + 6, 2, 2);
-  // 胡子嘴巴
-  ctx.fillStyle = "#7a3b1a";
-  ctx.fillRect(px + 1, py + 10, m.w - 2, 2);
-  // 身体（蓝工装）
-  ctx.fillStyle = "#2a6bd8";
-  ctx.fillRect(px + 1, py + 12, m.w - 2, m.h - 13);
-  // 脚
-  ctx.fillStyle = "#8a4a24";
-  if (!m.onGround) {
-    ctx.fillRect(px - 1, py + m.h - 3, m.w / 2, 3);
-    ctx.fillRect(px + m.w / 2 - 1, py + m.h - 4, m.w / 2, 3);
-  } else {
-    const step = Math.sin(game.mario.anim * 0.5) > 0 ? 1 : -1;
-    ctx.fillRect(px + step, py + m.h - 3, m.w / 2 + 1, 3);
-    ctx.fillRect(px + m.w / 2 - step, py + m.h - 3, m.w / 2 + 1, 3);
+  addPart(mario, 0, half - 12, 0, w - 1, 8, dep, 0xf7c59f);
+  // 眼（朝右）
+  addPart(mario, w / 2 - 3, half - 11, 0, 3, 3, dep + 2, 0x333333);
+  // 髭
+  addPart(mario, 0, half - 18, 0, w - 1, 2, dep, 0x7a3b1a);
+  // 工装
+  addPart(mario, 0, -half + (big ? 11 : 8), 0, w - 1, big ? 13 : 8, dep, 0x2a6bd8);
+  // 脚（连体简化）
+  addPart(mario, 0, -half + 2, 0, w - 1, 3, dep + 2, 0x8a4a24);
+}
+function syncMario() {
+  const w = worldGroup;
+  if (!w) return;
+  const m = game.mario;
+  if (marioSize !== m.size) {
+    marioSize = m.size;
+    clearGroup(marioModel);
+    buildMarioInto(marioModel, m.size === 1);
+  }
+  // 无敌帧闪烁
+  if (m.inv > 0 && Math.floor(m.inv / 4) % 2 === 0) marioModel.visible = false;
+  else marioModel.visible = true;
+  marioModel.position.set(m.x + m.w / 2, VIEW_H - (m.y + m.h / 2), 0);
+  marioModel.scale.set(m.facing < 0 ? -1 : 1, 1, 1);
+}
+
+// —— 敌人体素模型（池化，按索引复用；kind 变化时重建组件） ——
+const enemyModels: THREE.Group[] = [];
+const enemyKinds: (string | null)[] = [];
+function buildGoomba(g: THREE.Group) {
+  addPart(g, 0, 0, 0, 14, 10, 8, 0xa03e1f); // 身体
+  addPart(g, 0, 6, 0, 12, 8, 8, 0x6b2412); // 头
+  addPart(g, -3, 7, 0, 3, 2, 9, 0xffffff); // 眼
+  addPart(g, 3, 7, 0, 3, 2, 9, 0xffffff);
+  addPart(g, 0, -6, 0, 14, 2, 8, 0x5a3318); // 脚
+}
+function buildKoopa(g: THREE.Group) {
+  addPart(g, 0, 2, 0, 16, 12, 9, 0x3f9e33); // 壳
+  addPart(g, 0, 9, 0, 10, 4, 9, 0xe8f2c0); // 壳顶
+  addPart(g, 5, 3, -2, 3, 5, 8, 0x8a5a2a); // 头（偏右）
+  addPart(g, 5, 4, -2, 2, 2, 9, 0x333333); // 眼
+  addPart(g, 0, -5, 0, 16, 1, 9, 0x5a7a2a); // 脚
+}
+function buildBowser(g: THREE.Group) {
+  addPart(g, 0, 0, 0, 30, 22, 16, 0x3f9e33); // 身体
+  addPart(g, 0, 13, 0, 20, 10, 18, 0x7a4a12); // 尖刺壳
+  addPart(g, -16, 3, 0, 7, 13, 12, 0x6aa84f); // 头（左）
+  addPart(g, -14, 6, 0, 5, 5, 13, 0xffffff); // 眼
+  addPart(g, 0, -12, 0, 30, 3, 18, 0x5a7a2a); // 脚
+}
+function syncEnemies() {
+  const w = worldGroup;
+  if (!w) return;
+  const n = Math.max(enemyModels.length, game.enemies.length);
+  for (let i = 0; i < n; i++) {
+    const e = game.enemies[i];
+    if (!e) {
+      if (enemyModels[i]) enemyModels[i].visible = false;
+      continue;
+    }
+    let grp = enemyModels[i];
+    if (!grp) {
+      grp = new THREE.Group();
+      w.add(grp);
+      enemyModels[i] = grp;
+      enemyKinds[i] = null;
+    }
+    if (enemyKinds[i] !== e.kind) {
+      enemyKinds[i] = e.kind;
+      clearGroup(grp);
+      if (e.kind === "goomba") buildGoomba(grp);
+      else if (e.kind === "koopa") buildKoopa(grp);
+      else buildBowser(grp);
+    }
+    grp.visible = e.kind !== "bowser" || e.t <= 0 || Math.floor(e.t / 4) % 2 !== 0;
+    grp.position.set(e.x + e.w / 2, VIEW_H - (e.y + e.h / 2), 0);
+    grp.scale.set(e.vx < 0 ? -1 : 1, 1, 1);
   }
 }
 
-function drawHud(cam: number) {
-  if (!ctx) return;
-  void cam;
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.fillRect(0, 0, VIEW_W, 26);
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 13px monospace";
-  ctx.textAlign = "left";
-  ctx.fillText(`SCORE ${String(game.score).padStart(6, "0")}`, 8, 18);
-  ctx.textAlign = "center";
-  ctx.fillText(`COINS x${game.coins}`, VIEW_W / 2, 18);
-  ctx.textAlign = "right";
-  ctx.fillText(`LIVES ${game.lives}   ⏱ ${game.time}`, VIEW_W - 8, 18);
+// —— 道具体素模型（蘑菇/火花/1UP） ——
+const itemModels: THREE.Group[] = [];
+function buildMushroom(g: THREE.Group) {
+  addPart(g, 0, 0, 0, 14, 8, 8, 0xfff6e0); // 柄
+  addPart(g, 0, 5, 0, 14, 7, 8, 0xe23b2e); // 红帽
+  addPart(g, -3, 5, 0, 3, 3, 10, 0xffffff); // 白点
+  addPart(g, 2, 5, 0, 3, 3, 10, 0xffffff);
+}
+function buildFlower(g: THREE.Group) {
+  addPart(g, 0, 0, 0, 3, 6, 3, 0x3f9e33); // 茎
+  addPart(g, 0, 5, 0, 12, 5, 12, 0xffffff); // 花瓣
+  addPart(g, 0, 7, 0, 6, 3, 9, 0xffcf3a); // 芯
+}
+function buildOneUp(g: THREE.Group) {
+  addPart(g, 0, 0, 0, 14, 8, 8, 0xfff6e0); // 柄
+  addPart(g, 0, 5, 0, 14, 7, 8, 0x3f9e33); // 绿帽
+  addPart(g, -2, 5, 0, 3, 3, 10, 0xffffff);
+  addPart(g, 2, 5, 0, 3, 3, 10, 0xffffff);
+}
+function syncItems() {
+  const w = worldGroup;
+  if (!w) return;
+  const n = Math.max(itemModels.length, game.items.length);
+  for (let i = 0; i < n; i++) {
+    const it = game.items[i];
+    if (!it) {
+      if (itemModels[i]) itemModels[i].visible = false;
+      continue;
+    }
+    let grp = itemModels[i];
+    if (!grp) {
+      grp = new THREE.Group();
+      w.add(grp);
+      itemModels[i] = grp;
+    }
+    grp.visible = true;
+    grp.rotation.y += 0.05;
+    grp.position.set(it.x + it.w / 2, VIEW_H - (it.y + it.h / 2), 0);
+    // 首次出现时建模型（放最后，便于重复进入该分支也会触发 clear）
+    if (grp.children.length === 0) {
+      if (it.type === "flower") buildFlower(grp);
+      else if (it.type === "oneup") buildOneUp(grp);
+      else buildMushroom(grp);
+    }
+  }
 }
 
-function drawOverlayTitle() {
-  if (!ctx) return;
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#ffcc00";
-  ctx.font = "bold 30px monospace";
-  ctx.fillText("SUPER MARIO", VIEW_W / 2, 120);
-  ctx.fillStyle = "#fff";
-  ctx.font = "14px monospace";
-  ctx.fillText("复刻版平台跳跃", VIEW_W / 2, 146);
-  ctx.fillStyle = "#e23b2e";
-  ctx.fillText("←→ 移动  |  Space/↑ 跳跃  |  X/C 火球", VIEW_W / 2, 178);
-  ctx.fillText("顶 ?块出金币/蘑菇/火花花 · 顶 B砖可碎 · 踩敌人消灭", VIEW_W / 2, 198);
-  ctx.fillText("踩乌龟可缩壳/滑行 · 触旗杆按高度分段得分", VIEW_W / 2, 218);
-  ctx.fillText("隐藏砖可登高 · 顶端问号块藏着 1UP 绿蘑菇加命", VIEW_W / 2, 236);
-  ctx.fillStyle = "#7aff7a";
-  ctx.font = "bold 18px monospace";
-  ctx.fillText("按 ENTER 开始", VIEW_W / 2, 262);
+// —— 火球与粒子（池化小球/小方块） ——
+const fireMeshes: THREE.Mesh[] = [];
+function syncFireballs() {
+  const w = worldGroup;
+  if (!w) return;
+  const n = Math.max(fireMeshes.length, game.fireballs.length);
+  for (let i = 0; i < n; i++) {
+    const f = game.fireballs[i];
+    if (!f) {
+      if (fireMeshes[i]) fireMeshes[i].visible = false;
+      continue;
+    }
+    let mesh = fireMeshes[i];
+    if (!mesh) {
+      mesh = new THREE.Mesh(geoFire, mat(0xff7a1a));
+      w.add(mesh);
+      fireMeshes[i] = mesh;
+    }
+    mesh.visible = true;
+    mesh.position.set(f.x + 3, VIEW_H - (f.y + 3), 0);
+  }
+}
+const partMeshes: THREE.Mesh[] = [];
+function syncParticles() {
+  const w = worldGroup;
+  if (!w) return;
+  for (let i = 0; i < 100; i++) {
+    const p = game.particles[i];
+    if (!p) {
+      if (partMeshes[i]) partMeshes[i].visible = false;
+      continue;
+    }
+    let mesh = partMeshes[i];
+    if (!mesh) {
+      mesh = new THREE.Mesh(boxGeom(6, 6, 6), mat(0xffcc00));
+      w.add(mesh);
+      partMeshes[i] = mesh;
+    }
+    mesh.visible = true;
+    mesh.position.set(p.x + 5, VIEW_H - (p.y + 2), 0);
+  }
 }
 
-function drawOverlayEnd(gameOver: boolean) {
-  if (!ctx) return;
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.textAlign = "center";
-  ctx.font = "bold 26px monospace";
-  ctx.fillStyle = gameOver ? "#ff5a5a" : "#7aff7a";
-  ctx.fillText(gameOver ? "GAME OVER" : "LEVEL CLEAR!", VIEW_W / 2, 110);
+// —— 相机侧视跟随（略俯视以展现块体顶面，保留横板手感） ——
+function updateCamera() {
+  const c = camera;
+  if (!c) return;
+  const cx = game.mario.x + game.mario.w / 2;
+  // 横版侧视：摄像机只横向跟随（限制在世界宽度内，水平半视野保留 CAM_HALF_W 余量），
+  // 垂直高度与俯视角固定，确保地面始终稳定贴在画面下部，避免竖直跟随让场景“飘空”。
+  const tx = Math.max(CAM_HALF_W, Math.min(cx, game.cols * TILE - CAM_HALF_W));
+  c.position.x = tx;
+  c.position.y = CAM_Y; // 固定高度
+  c.lookAt(tx, LOOK_Y, 0);
+}
 
-  ctx.font = "16px monospace";
-  ctx.fillStyle = "#fff";
-  const lines = gameOver
-    ? [`得分 ${game.score}`, `金币 ${game.coins}`, `为你通关的下一关加油~`]
-    : [
-        `得分 ${game.score}`,
-        `旗杆高度奖励 +=${game.flagBonus}`,
-        `时间奖励 +${game.finalTime * 10}`,
-        `金币 ×${game.coins} · 已提交到高分榜`,
-      ];
-  lines.forEach((ln, i) => ctx.fillText(ln, VIEW_W / 2, 140 + i * 22));
+// —— 背景装饰：远景山丘 + 云朵（视差滚动，让天空更丰富） ——
+const bgClouds: THREE.Group[] = [];
+const bgHills: THREE.Group[] = [];
+function wrapRange(val: number, lo: number, hi: number): number {
+  const span = hi - lo;
+  while (val < lo) val += span;
+  while (val > hi) val -= span;
+  return val;
+}
+function initBackground() {
+  const s = scene;
+  if (!s) return;
+  bgClouds.length = 0;
+  bgHills.length = 0;
 
-  ctx.font = "bold 16px monospace";
-  ctx.fillStyle = "#ffcc00";
-  ctx.fillText("按 ENTER 再来一局", VIEW_W / 2, 252);
+  // 云朵：白色扁平团块，漂浮在天空高处
+  const cloudMat = new THREE.MeshToonMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
+  for (let i = 0; i < 10; i++) {
+    const g = new THREE.Group();
+    const blob = (ox: number, oy: number, oz: number, scl: number) => {
+      const m = new THREE.Mesh(boxGeom(scl, scl * 0.5, scl * 0.34), cloudMat);
+      m.position.set(ox, oy, oz);
+      g.add(m);
+    };
+    blob(0, 0, 0, 42);
+    blob(34, -4, 8, 26);
+    blob(-34, -3, -6, 30);
+    g.userData = { seed: i * 173 + 29, par: 0.55 };
+    g.position.set(i * 300 - 900, 285 + (i % 4) * 18, -100);
+    s.add(g);
+    bgClouds.push(g);
+  }
+
+  // 远景山丘：低矮钝色丘脊，沉在地平线后
+  const hillBody = new THREE.MeshToonMaterial({ color: 0x4f9e5f, transparent: true, opacity: 0.85 });
+  const hillTop = new THREE.MeshToonMaterial({ color: 0x6fbf7f, transparent: true, opacity: 0.85 });
+  for (let i = 0; i < 11; i++) {
+    const g = new THREE.Group();
+    const w = 240 + (i % 4) * 70;
+    const h = 46 + (i % 5) * 24;
+    const body = new THREE.Mesh(boxGeom(w, h, 40), hillBody);
+    body.position.set(0, -h / 2, 0);
+    g.add(body);
+    const top = new THREE.Mesh(boxGeom(w - 20, 10, 42), hillTop);
+    top.position.set(0, -4, 0);
+    g.add(top);
+    g.userData = { seed: i * 131 + 7, par: 0.28 };
+    g.position.set(i * 260 - 900, 30, -190);
+    s.add(g);
+    bgHills.push(g);
+  }
+}
+function updateBackground() {
+  const c = camera;
+  if (!c) return;
+  const cx = c.position.x;
+  // 云：水平视差滚动并回绕，保持在视线附近
+  for (const g of bgClouds) {
+    const x = wrapRange(cx * g.userData.par + g.userData.seed, cx - 1400, cx + 1400);
+    g.position.x = x;
+  }
+  // 山：慢速视差，保持在地面带后方
+  for (const g of bgHills) {
+    const x = wrapRange(cx * g.userData.par + g.userData.seed, cx - 1500, cx + 1500);
+    g.position.x = x;
+  }
+}
+
+// —— 同步 UI 到 DOM（HUD / 标题 / 结算覆盖层用 Vue 模板渲染） ——
+const ui = reactive({ state: "title", score: 0, coins: 0, lives: 0, time: 0, banner: "", bannerT: 0, won: false, flagBonus: 0, finalTime: 0 });
+function updateUI() {
+  ui.state = game.state;
+  ui.score = game.score;
+  ui.coins = game.coins;
+  ui.lives = game.lives;
+  ui.time = game.time;
+  ui.banner = game.banner;
+  ui.bannerT = game.bannerT;
+  ui.won = game.won;
+  ui.flagBonus = game.flagBonus;
+  ui.finalTime = game.finalTime;
+}
+
+// —— 总渲染入口：每次 RAF 同步 3D 并出图 ——
+function render() {
+  if (!renderer || !scene) return;
+  setBackground(game.theme);
+  scene.background = bgColor;
+  updateCamera(); // 先更新相机，确保瓦片/背景都按当前可见中心定位
+  syncTiles();
+  syncMario();
+  syncEnemies();
+  syncItems();
+  syncFireballs();
+  syncParticles();
+  updateBackground();
+  updateUI();
+  renderer.render(scene, camera!);
+}
+
+// ============ 三维场景初始化 ============
+// 相机固定高度与俯视角（单位=像素世界）。
+// 高度选值使地面(y0~16)落在画面下部：CAM_Y 略高、LOOK_Y 略低于 CAM_Y，形成轻微俯视。
+const CAM_Z = 560;
+const CAM_Y = 250;
+const LOOK_Y = 150;
+// 16:9 宽屏水平半视野余量：确保马里奥不被甩出画面边缘
+const CAM_HALF_W = 560;
+let resizeOb: ResizeObserver | null = null;
+
+function initThree() {
+  const host = renderHost.value;
+  if (!host) return;
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
+  host.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = bgColor;
+  scene.fog = new THREE.Fog(0x8fd0ff, 700, 2000);
+  // 明亮光照：环境光保证所有面可见（不再灰暗死黑）+ 半球光冷暖层次 + 主/补两个方向光
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x7788cc, 1.1));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(260, 460, 520);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xcfe4ff, 0.6); // 补光：提亮暗面，增强立体感但不脏
+  fill.position.set(-320, 120, -420);
+  scene.add(fill);
+
+  camera = new THREE.PerspectiveCamera(50, 1.5, 1, 3000);
+  camera.position.set(VIEW_W / 2, CAM_Y, CAM_Z);
+  camera.lookAt(VIEW_W / 2, LOOK_Y, 0);
+
+  worldGroup = new THREE.Group();
+  scene.add(worldGroup);
+  marioModel.visible = false;
+  worldGroup.add(marioModel);
+  initBackground(); // 云朵 + 远山
+
+  // 随容器尺寸自适应（原生分辨率渲染，避免 CSS 放大导致的模糊）
+  resize();
+  resizeOb = new ResizeObserver(resize);
+  resizeOb.observe(host);
+}
+
+/** 按宿主实际像素尺寸设置渲染器与相机宽高比 */
+function resize() {
+  const host = renderHost.value;
+  if (!host || !renderer || !camera) return;
+  const w = host.clientWidth;
+  const h = host.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
 }
 
 // ============ 渲染主循环 ============
@@ -1592,7 +1623,6 @@ let acc = 0;
 const FIXED_STEP = 1000 / 60;
 function loop(ts: number) {
   if (lastTime === 0) lastTime = ts;
-  // 钳制最长帧间隔，防止切换标签页/卡顿后累计大量步进
   acc += Math.min(ts - lastTime, 250);
   lastTime = ts;
 
@@ -1605,20 +1635,12 @@ function loop(ts: number) {
   if (acc >= FIXED_STEP) acc = 0; // 极端卡顿后丢弃积压，避免“死亡螺旋”
 
   render();
-
-  // 覆盖层
-  if (game.state === "title") drawOverlayTitle();
-  if (game.state === "clear") drawOverlayEnd(!game.won);
-
   rafId = requestAnimationFrame(loop);
 }
 
 // ============ 生命周期 ============
 onMounted(() => {
-  if (canvasRef.value) {
-    const c = canvasRef.value.getContext("2d");
-    if (c) ctx = c;
-  }
+  initThree();
   buildLevel();
   game.state = "title";
   window.addEventListener("keydown", onKeyDown);
@@ -1631,21 +1653,52 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(rafId);
+  if (resizeOb) {
+    resizeOb.disconnect();
+    resizeOb = null;
+  }
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
+  if (renderer) {
+    renderer.dispose();
+    if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+    renderer = null;
+  }
 });
 </script>
 
 <template>
-  <div ref="rootRef" class="screen-root">
-    <div class="scaled-stage" :style="stageStyle">
-      <canvas
-        ref="canvasRef"
-        :width="VIEW_W"
-        :height="VIEW_H"
-        class="mario-canvas"
-        tabindex="0"
-      />
+  <div class="screen-root">
+    <div ref="renderHost" class="render-host">
+      <!-- HUD -->
+      <div v-if="ui.state !== 'title'" class="hud">
+        <span>SCORE {{ String(ui.score).padStart(6, "0") }}</span>
+        <span>COINS x{{ ui.coins }}</span>
+        <span>LIVES {{ ui.lives }} &nbsp; ⏱ {{ ui.time }}</span>
+      </div>
+      <!-- 关卡切换横幅 -->
+      <div v-if="ui.bannerT > 0 && ui.banner" class="banner">{{ ui.banner }}</div>
+      <!-- 标题 -->
+      <div v-if="ui.state === 'title'" class="overlay">
+        <h1>SUPER MARIO</h1>
+        <p class="sub">3D 体素复刻 · 横板跳跃</p>
+        <p class="keys">←→ 移动 · Space/↑ 跳跃 · X/C 火球</p>
+        <p class="tip-line">顶 ?块出金币/蘑菇/火花花 · 顶 B 砖可碎 · 踩敌人消灭</p>
+        <p class="tip-line">踩乌龟可缩壳/滑行 · 触旗杆按高度分段得分</p>
+        <p class="tip-line">隐藏砖可登高 · 问号块藏着 1UP 绿蘑菇加命</p>
+        <p class="start">按 ENTER 开始</p>
+      </div>
+      <!-- 结算 -->
+      <div v-else-if="ui.state === 'clear'" class="overlay">
+        <h1 :class="ui.won ? 'win' : 'lose'">{{ ui.won ? "LEVEL CLEAR!" : "GAME OVER" }}</h1>
+        <p v-if="ui.won">得分 {{ ui.score }}</p>
+        <p v-if="ui.won">旗杆高度奖励 += {{ ui.flagBonus }}</p>
+        <p v-if="ui.won">时间奖励 +{{ ui.finalTime * 10 }}</p>
+        <p v-if="ui.won">金币 ×{{ ui.coins }} · 已提交到高分榜</p>
+        <p v-if="!ui.won">得分 {{ ui.score }}</p>
+        <p v-if="!ui.won">金币 {{ ui.coins }} · 本局已上榜</p>
+        <p class="start">按 ENTER 再来一局</p>
+      </div>
     </div>
     <div class="tip-row">
       <span>当前用户：{{ authStore.user?.username ?? "—" }}</span>
@@ -1660,29 +1713,89 @@ onBeforeUnmount(() => {
   min-height: 0;
   width: 100%;
   position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #1a2440 0%, #0a0e1a 80%);
+}
+.render-host {
+  position: relative;
+  width: 100%;
+  height: 100%; /* 铺满整个可用区域，无黑边；相机随容器宽高比自适应 */
+  border: 3px solid #ffcc00;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.25);
+}
+.render-host canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+.hud {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  height: 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  font: bold 13px monospace;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px 6px 0 0;
+  text-shadow: 1px 1px 2px #000;
+}
+.banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffcc00;
+  font: bold 26px monospace;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 10px 24px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  background: radial-gradient(circle at center, #1a2440 0%, #0a0e1a 80%);
-  padding: 8px;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  text-align: center;
+  font-size: 14px;
 }
-.scaled-stage {
-  flex-shrink: 0;
-  transform-origin: center center;
-  line-height: 0;
+.overlay h1 {
+  color: #ffcc00;
+  font-size: 30px;
+  margin: 0 0 6px;
 }
-.mario-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  background: #000;
-  border: 3px solid #ffcc00;
-  border-radius: 8px;
-  image-rendering: pixelated;
-  outline: none;
-  box-shadow: 0 0 40px rgba(255, 204, 0, 0.25);
+.overlay h1.win {
+  color: #7aff7a;
+}
+.overlay h1.lose {
+  color: #ff5a5a;
+}
+.overlay .sub {
+  color: #fff;
+}
+.overlay .keys {
+  color: #e23b2e;
+}
+.overlay .tip-line {
+  color: #ddd;
+}
+.overlay .start {
+  color: #7aff7a;
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 8px;
 }
 .tip-row {
   position: absolute;
