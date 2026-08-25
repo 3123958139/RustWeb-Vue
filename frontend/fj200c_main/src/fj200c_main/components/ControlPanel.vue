@@ -87,6 +87,7 @@ async function sendConfig(frame: number[], name: string = '', b: boolean = false
       ElMessage.error(response.message || '发送失败')
       return false
     }
+    ElMessage.success(`${name} - 发送`);
     return true
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || '发送失败')
@@ -148,6 +149,7 @@ async function sendCommand(label: string) {
   // 起动自动开始保存数据，停车自动停止保存（指令发送成功后才联动）
   if (label === '起动') await syncRecording(true)
   else if (label === '停车') await syncRecording(false)
+  ElMessage.success(`${label} - 发送`);
 }
 
 const controlButtons = [
