@@ -34,9 +34,9 @@ pub static STOP_SIGNAL: AtomicBool = AtomicBool::new(false);
 pub const MOCK_FRAME_TYPES: [u8; 8] = [0xEF, 0xED, 0xDE, 0xDC, 0xBD, 0xDB, 0xBF, 0xBE];
 
 /// 帧总长度（字节）
-const FRAME_LEN: usize = 0x3C;
+const FRAME_LEN: usize = 0x32;
 /// 帧头标识
-const HEADER: [u8; 3] = [0xEB, 0x90, 0x3C];
+const HEADER: [u8; 3] = [0xEB, 0x90, 0x32];
 /// 模拟帧生成间隔（毫秒，20Hz）
 const MOCK_INTERVAL_MS: u64 = 50;
 

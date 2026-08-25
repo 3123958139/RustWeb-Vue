@@ -150,7 +150,7 @@ pub fn run_one_connection(
         match control.recv(&mut recv_buf) {
             Ok(n) if n > 0 => {
                 let chunk = &recv_buf[..n];
-                trace!(
+                info!(
                     "连接 {} 收到 {} 字节: {}",
                     connection_index,
                     n,
@@ -391,10 +391,10 @@ fn decode_shared_data(frame: &[u8]) {
         .field_engine_software_fingerprint
         .write()
         .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[46..50]);
-    *shared
-        .field_bootloader_fingerprint
-        .write()
-        .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[50..54]);
+    // *shared
+    //     .field_bootloader_fingerprint
+    //     .write()
+    //     .unwrap_or_else(|e| e.into_inner()) = utils::format_hex(&frame[50..54]);
 
     // *shared
     //     .field_software_upgrade_count
@@ -451,7 +451,7 @@ fn shared_data_rows() -> Vec<TableRow> {
         "发动机控制软件指纹码",
         shared.field_engine_software_fingerprint
     );
-    push_row!("bootloader指纹码", shared.field_bootloader_fingerprint);
+    // push_row!("bootloader指纹码", shared.field_bootloader_fingerprint);
     // push_row!("软件升级累计次数", shared.field_software_upgrade_count);
     // push_row!("通电工作累计次数", shared.field_power_on_count);
 

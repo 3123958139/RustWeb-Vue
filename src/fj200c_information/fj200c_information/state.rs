@@ -42,7 +42,7 @@ pub struct SharedData {
     // pub field_engine_work_hours: RwLock<String>,
     // pub field_engine_start_count: RwLock<String>,
     pub field_engine_software_fingerprint: RwLock<String>,
-    pub field_bootloader_fingerprint: RwLock<String>,
+    // pub field_bootloader_fingerprint: RwLock<String>,
     // pub field_software_upgrade_count: RwLock<String>,
     // pub field_power_on_count: RwLock<String>,
 }
@@ -64,7 +64,7 @@ impl SharedData {
             // field_engine_work_hours: RwLock::new(String::from("发动机工作累计时间（时）")),
             // field_engine_start_count: RwLock::new(String::from("发动机累计起动工作次数")),
             field_engine_software_fingerprint: RwLock::new(String::from("发动机控制软件指纹码")),
-            field_bootloader_fingerprint: RwLock::new(String::from("bootloader指纹码")),
+            // field_bootloader_fingerprint: RwLock::new(String::from("bootloader指纹码")),
             // field_software_upgrade_count: RwLock::new(String::from("软件升级累计次数")),
             // field_power_on_count: RwLock::new(String::from("通电工作累计次数")),
         }

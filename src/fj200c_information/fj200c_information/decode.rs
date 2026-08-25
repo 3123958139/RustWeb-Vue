@@ -7,7 +7,7 @@
 //!
 //! 帧固定 60 字节，实际遥测数据在前 50 字节：
 //! ```text
-//! [0..3]    帧头 0xEB 0x90 0x3C
+//! [0..3]    帧头 0xEB 0x90 0x32
 //! [3]       帧类型字节（见下表）
 //! [4..50]   遥测数据区
 //! [59]      校验字节（前 59 字节累加和 % 256）
@@ -30,9 +30,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// 帧总长度（字节）
-pub const FRAME_LEN: usize = 0x3C;
+pub const FRAME_LEN: usize = 0x32;
 /// 帧头标识字节（3 字节）
-pub const HEADER: [u8; 3] = [0xEB, 0x90, 0x3C];
+pub const HEADER: [u8; 3] = [0xEB, 0x90, 0x32];
 
 /// 帧类型枚举（对应帧数据中第 4 字节的类型标识）
 #[derive(Debug, Clone)]
@@ -72,7 +72,7 @@ pub struct ExtractedFrame {
 ///
 /// 检查项：
 /// 1. 帧长度 >= 60 字节
-/// 2. 帧头为 `[0xEB, 0x90, 0x3C]`
+/// 2. 帧头为 `[0xEB, 0x90, 0x32]`
 /// 3. 校验字节 = 前 59 字节累加和 % 256
 pub fn frame_validator(frame: &[u8]) -> bool {
     if frame.len() < FRAME_LEN {
