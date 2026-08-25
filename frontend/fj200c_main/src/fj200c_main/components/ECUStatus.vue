@@ -57,11 +57,11 @@ const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d)
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">故障码1</span>
-        <span class="ep-value">{{ store.ecuData.faultCode1 }}</span>
+        <span class="ep-value">{{ '0x' + store.ecuData.faultCode1.toString(16) }}</span>
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">故障码2</span>
-        <span class="ep-value">{{ store.ecuData.faultCode2 }}</span>
+        <span class="ep-value">{{ '0x' + store.ecuData.faultCode2.toString(16) }}</span>
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">滑油压力</span>
@@ -77,7 +77,7 @@ const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d)
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">附件状态（hex）</span>
-        <span class="ep-value">{{ store.ecuData.accessoryStatus }}</span>
+        <span class="ep-value">{{ '0x' + store.ecuData.accessoryStatus }}</span>
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">换热器出口滑油温度</span>
@@ -85,7 +85,7 @@ const n = (v: number | null | undefined, d: number) => (v ?? 0).toFixed(d)
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">指纹码</span>
-        <span class="ep-value ep-fingerprint">{{ store.ecuData.fingerprintCode }}</span>
+        <span class="ep-value ep-fingerprint">{{ '0x' + store.ecuData.fingerprintCode }}</span>
       </div>
       <div class="ecu-param-item">
         <span class="ep-label">帧计数</span>

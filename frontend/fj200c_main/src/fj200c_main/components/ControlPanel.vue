@@ -95,6 +95,11 @@ async function sendConfig(frame: number[], name: string = '', b: boolean = false
 }
 
 function sendAccesory(name: string, b: boolean) {
+  if (b) {
+    ElMessage.success(`${name} - 打开`);
+  } else {
+    ElMessage.error(`${name} - 关闭`);
+  }
   sendConfig(buildBaseFrame(0x81), name, b)
 }
 
@@ -168,7 +173,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function showMessage() {
-  ElMessage.error("自动按钮禁用");
+  // ElMessage.error("自动按钮禁用");
 }
 
 async function startAuto() {
