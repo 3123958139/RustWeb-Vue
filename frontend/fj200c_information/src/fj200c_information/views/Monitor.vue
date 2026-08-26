@@ -154,7 +154,7 @@ function buildCmdFrame(
   ]);
   cmdCount.value = (cmdCount.value + 1) % 256;
   byteData[3] = cmdCount.value;
-  let index = cmdOptions.findIndex((s) => s == type) ?? 0;
+  let index = cmdOptions.findIndex((s) => s == type) ?? -1;
   if (typeByte == 0xDE)
     byteData[4] = index + 1;
   else
