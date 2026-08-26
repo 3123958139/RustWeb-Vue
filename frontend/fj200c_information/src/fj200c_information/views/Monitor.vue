@@ -142,6 +142,7 @@ function buildCmdFrame(
     prefix: [number, number],
     typeByte: number,
     type: string,
+    cmdOptions: string[],
     input: string
 ): string {
   const byteData = new Uint8Array(16);
@@ -153,7 +154,13 @@ function buildCmdFrame(
   ]);
   cmdCount.value = (cmdCount.value + 1) % 256;
   byteData[3] = cmdCount.value;
-  byteData[4] = TYPE_MAP[type] ?? 0;
+  let index = cmdOptions.findIndex((s) => s == type) ?? 0;
+  if (typeByte == 0xDE)
+    byteData[4] = index + 1;
+  else
+    byteData[4] = TYPE_MAP[type] ?? 0;
+  console.log(typeByte);
+  console.log(type);
   // 将用户输入的十六进制字符串解析为字节数组并填入帧
   const parsed = hexStringToUint8Array(input);
   byteData[5] = parsed[0] ?? 0;
@@ -175,7 +182,7 @@ interface ChannelConfigItem {
   disabledData: boolean;
   disabledType: boolean;
   cmdOptions: string[];
-  transform: (type: string, input: string) => string;
+  transform: (cmdOptions: string[], type: string, input: string) => string;
 }
 
 /**
@@ -196,56 +203,56 @@ const channelConfigs: ChannelConfigItem[] = [
     disabledData: false,
     disabledType: false,
     cmdOptions: IDENTIFY_OPTIONS,
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xef, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xef, type, cmdOptions, input),
   },
   {
     label: "2参数读取指令",
     disabledData: false,
     disabledType: false,
     cmdOptions: IDENTIFY_OPTIONS,
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xed, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xed, type, cmdOptions, input),
   },
   {
     label: "3试验数据下载指令",
     disabledData: false,
     disabledType: false,
     cmdOptions: ["全部试验数据", "从上次读取位置开始下载数据"],
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xde, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xde, type, cmdOptions, input),
   },
   {
     label: "4试验数据首块",
     disabledData: true,
     disabledType: true,
     cmdOptions: [""],
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xdc, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xdc, type, cmdOptions, input),
   },
   {
     label: "5试验数据末块",
     disabledData: true,
     disabledType: true,
     cmdOptions: [""],
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xdb, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xdb, type, cmdOptions, input),
   },
   {
     label: "6基本参数清除指令",
     disabledData: true,
     disabledType: false,
     cmdOptions: IDENTIFY_OPTIONS,
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xbf, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xbf, type, cmdOptions, input),
   },
   {
     label: "7试验数据清除指令",
     disabledData: true,
     disabledType: true,
     cmdOptions: [""],
-    transform: (type, input) =>
-        buildCmdFrame([0xeb, 0x90], 0xbe, type, input),
+    transform: (cmdOptions, type, input) =>
+        buildCmdFrame([0xeb, 0x90], 0xbe, type, cmdOptions, input),
   },
 ];
 
