@@ -213,7 +213,7 @@ const channelConfigs: ChannelConfigItem[] = [
     disabledType: false,
     cmdOptions: ["全部试验数据", "从上次读取位置开始下载数据"],
     transform: (type, input) =>
-        buildCmdFrame([0x55, 0xaa], 0xde, type, input),
+        buildCmdFrame([0xeb, 0x90], 0xde, type, input),
   },
   {
     label: "4试验数据首块",
@@ -221,7 +221,7 @@ const channelConfigs: ChannelConfigItem[] = [
     disabledType: true,
     cmdOptions: [""],
     transform: (type, input) =>
-        buildCmdFrame([0x55, 0xaa], 0xdc, type, input),
+        buildCmdFrame([0xeb, 0x90], 0xdc, type, input),
   },
   {
     label: "5试验数据末块",
@@ -229,7 +229,7 @@ const channelConfigs: ChannelConfigItem[] = [
     disabledType: true,
     cmdOptions: [""],
     transform: (type, input) =>
-        buildCmdFrame([0x55, 0xaa], 0xdb, type, input),
+        buildCmdFrame([0xeb, 0x90], 0xdb, type, input),
   },
   {
     label: "6基本参数清除指令",
@@ -237,7 +237,7 @@ const channelConfigs: ChannelConfigItem[] = [
     disabledType: false,
     cmdOptions: IDENTIFY_OPTIONS,
     transform: (type, input) =>
-        buildCmdFrame([0x55, 0xaa], 0xbf, type, input),
+        buildCmdFrame([0xeb, 0x90], 0xbf, type, input),
   },
   {
     label: "7试验数据清除指令",
@@ -245,7 +245,7 @@ const channelConfigs: ChannelConfigItem[] = [
     disabledType: true,
     cmdOptions: [""],
     transform: (type, input) =>
-        buildCmdFrame([0x55, 0xaa], 0xbe, type, input),
+        buildCmdFrame([0xeb, 0x90], 0xbe, type, input),
   },
 ];
 

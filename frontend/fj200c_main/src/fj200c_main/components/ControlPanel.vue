@@ -87,7 +87,15 @@ async function sendConfig(frame: number[], name: string = '', b: boolean = false
       ElMessage.error(response.message || '发送失败')
       return false
     }
-    ElMessage.success(`${name} - 发送`);
+    if (name == '燃油泵' || name == '离心泵' || name == '滑油泵' || name == '停车电磁阀') {
+      if (b) {
+        ElMessage.success(`${name} - 打开`);
+      } else {
+        ElMessage.error(`${name} - 关闭`);
+      }
+    } else {
+      ElMessage.success(`${name} - 发送`);
+    }
     return true
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || '发送失败')
@@ -96,11 +104,6 @@ async function sendConfig(frame: number[], name: string = '', b: boolean = false
 }
 
 function sendAccesory(name: string, b: boolean) {
-  if (b) {
-    ElMessage.success(`${name} - 打开`);
-  } else {
-    ElMessage.error(`${name} - 关闭`);
-  }
   sendConfig(buildBaseFrame(0x81), name, b)
 }
 
@@ -149,7 +152,7 @@ async function sendCommand(label: string) {
   // 起动自动开始保存数据，停车自动停止保存（指令发送成功后才联动）
   if (label === '起动') await syncRecording(true)
   else if (label === '停车') await syncRecording(false)
-  ElMessage.success(`${label} - 发送`);
+  // ElMessage.success(`${label} - 发送`);
 }
 
 const controlButtons = [
